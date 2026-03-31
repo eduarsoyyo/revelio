@@ -226,44 +226,147 @@ function NeedLink() {
 }
 
 /* ═══ ROOM PICKER ═══ */
+const DEFAULT_ROOMS = [
+  { name: 'VWFS - Impulso Fleet', slug: 'vwfs' },
+  { name: 'Endesa - Billing Boost', slug: 'endesa' },
+  { name: 'ADA - OTDP', slug: 'ada' },
+];
+
+function loadRooms() {
+  try {
+    const saved = localStorage.getItem('retroflow-rooms');
+    return saved ? JSON.parse(saved) : DEFAULT_ROOMS;
+  } catch { return DEFAULT_ROOMS; }
+}
+
+function saveRooms(rooms) {
+  try { localStorage.setItem('retroflow-rooms', JSON.stringify(rooms)); } catch {}
+}
+
 function RoomPicker() {
   const [room, setRoom] = useState('');
-  const go = (name) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(name.toLowerCase().trim()); };
+  const [rooms, setRooms] = useState(loadRooms);
+  const [metrics, setMetrics] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('retroflow-metrics') || '{}'); } catch { return {}; }
+  });
+
+  const go = (slug) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(slug); };
+
+  const create = () => {
+    if (!room.trim()) return;
+    const slug = room.trim().toLowerCase().replace(/\s+/g, '-');
+    const name = room.trim();
+    if (!rooms.find(r => r.slug === slug)) {
+      const updated = [...rooms, { name, slug }];
+      setRooms(updated);
+      saveRooms(updated);
+    }
+    go(slug);
+  };
+
+  const remove = (slug) => {
+    const updated = rooms.filter(r => r.slug !== slug);
+    setRooms(updated);
+    saveRooms(updated);
+  };
+
+  // Global metrics
+  const allEntries = Object.values(metrics).flat();
+  const totalRetros = allEntries.length;
+  const totalNotes = allEntries.reduce((s, e) => s + (e.notes || 0), 0);
+  const totalParticipants = [...new Set(allEntries.flatMap(e => e.participantNames || []))].length;
 
   return html`
-    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:460, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)' }}>
-        <div style=${{ textAlign:'center', marginBottom:28 }}>
+    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <div style=${{ ...gl, borderRadius:28, padding:'36px 34px', maxWidth:560, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)' }}>
+        <div style=${{ textAlign:'center', marginBottom:24 }}>
           <div style=${{ width:56, height:56, borderRadius:18, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28, marginBottom:12 }}>🔄</div>
           <h1 style=${{ fontSize:26, fontWeight:700, marginBottom:3 }}>RetroFlow</h1>
           <p style=${{ color:'#86868B', fontSize:14 }}>Panel de administración</p>
         </div>
+
+        <!-- Global metrics -->
+        ${totalRetros > 0 && html`
+          <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:20 }}>
+            <div style=${{ background:'#F9F9FB', borderRadius:12, padding:'12px', textAlign:'center', border:'1px solid #E5E5EA' }}>
+              <div style=${{ fontSize:22, fontWeight:800, color:'#007AFF' }}>${totalRetros}</div>
+              <div style=${{ fontSize:10, color:'#86868B' }}>Retros realizadas</div>
+            </div>
+            <div style=${{ background:'#F9F9FB', borderRadius:12, padding:'12px', textAlign:'center', border:'1px solid #E5E5EA' }}>
+              <div style=${{ fontSize:22, fontWeight:800, color:'#34C759' }}>${totalNotes}</div>
+              <div style=${{ fontSize:10, color:'#86868B' }}>Notas totales</div>
+            </div>
+            <div style=${{ background:'#F9F9FB', borderRadius:12, padding:'12px', textAlign:'center', border:'1px solid #E5E5EA' }}>
+              <div style=${{ fontSize:22, fontWeight:800, color:'#FF9500' }}>${totalParticipants}</div>
+              <div style=${{ fontSize:10, color:'#86868B' }}>Participantes únicos</div>
+            </div>
+          </div>
+        `}
+
+        <!-- Create room -->
         <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Crear nueva sala</p>
         <div style=${{ display:'flex', gap:6, marginBottom:20 }}>
-          <input value=${room} onInput=${e=>setRoom(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&room.trim()&&go(room)}
-            placeholder="Escribe un nombre (ej: miproyecto)..." style=${{ ...iS, flex:1, fontSize:15, background:'#FFF' }} />
-          <button onClick=${()=>room.trim()&&go(room)} style=${{ ...bP, padding:'12px 20px' }}>Crear →</button>
+          <input value=${room} onInput=${e=>setRoom(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&create()}
+            placeholder="Nombre del proyecto..." style=${{ ...iS, flex:1, fontSize:15, background:'#FFF' }} />
+          <button onClick=${create} style=${{ ...bP, padding:'12px 20px' }}>Crear →</button>
         </div>
-        <p style=${{ fontSize:11, color:'#86868B', marginBottom:10, fontWeight:600, textTransform:'uppercase' }}>Salas existentes</p>
-        <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-          ${['VWFS - Impulso Fleet', 'Endesa - Billing Boost', 'ADA - OTDP'].map(r => {
-            const slug = r.split(' - ')[0].toLowerCase();
-            const link = window.location.origin + window.location.pathname + '?sala=' + slug;
-            return html`
-            <div key=${r} style=${{ display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick=${()=>go(slug)} class="hl"
-                style=${{ ...cS, flex:1, padding:'14px 18px', display:'flex', alignItems:'center', gap:12, textAlign:'left', transition:'all .2s' }}>
-                <div style=${{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>📂</div>
-                <div>
-                  <span style=${{ fontSize:14, fontWeight:600 }}>${r}</span>
-                  <div style=${{ fontSize:11, color:'#86868B' }}>${window.location.host}?sala=${slug}</div>
+
+        <!-- Room list with metrics -->
+        ${rooms.length > 0 && html`
+          <p style=${{ fontSize:11, color:'#86868B', marginBottom:10, fontWeight:600, textTransform:'uppercase' }}>Salas (${rooms.length})</p>
+          <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+            ${rooms.map(r => {
+              const rm = metrics[r.slug] || [];
+              const link = window.location.origin + window.location.pathname + '?sala=' + r.slug;
+              const lastRetro = rm.length > 0 ? rm[rm.length - 1] : null;
+              const avgNotes = rm.length > 0 ? Math.round(rm.reduce((s, e) => s + e.notes, 0) / rm.length) : 0;
+              const avgPart = rm.length > 0 ? Math.round(rm.reduce((s, e) => s + e.participants, 0) / rm.length) : 0;
+
+              return html`
+              <div key=${r.slug} style=${{ ...cS, overflow:'visible' }}>
+                <div style=${{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px' }}>
+                  <button onClick=${()=>go(r.slug)} style=${{ display:'flex', alignItems:'center', gap:10, flex:1, textAlign:'left', border:'none', background:'none', cursor:'pointer', padding:0 }}>
+                    <div style=${{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>📂</div>
+                    <div>
+                      <span style=${{ fontSize:14, fontWeight:600, color:'#1D1D1F' }}>${r.name}</span>
+                      <div style=${{ fontSize:11, color:'#86868B' }}>${window.location.host}?sala=${r.slug}</div>
+                    </div>
+                  </button>
+                  <button onClick=${()=>{navigator.clipboard.writeText(link)}} style=${{ ...bS, padding:'6px 8px', fontSize:10, flexShrink:0 }} title="Copiar enlace">📋</button>
+                  <button onClick=${()=>remove(r.slug)} style=${{ border:'none', background:'none', fontSize:14, color:'#C7C7CC', flexShrink:0, padding:'4px' }} title="Eliminar">✕</button>
                 </div>
-              </button>
-              <button onClick=${()=>{navigator.clipboard.writeText(link)}} style=${{ ...bS, padding:'8px 12px', fontSize:11, flexShrink:0 }} title="Copiar enlace">📋 Copiar</button>
-            </div>`;
-          })}
-        </div>
-        <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:16, textAlign:'center' }}>Cada sala es independiente. Comparte la URL con tu equipo.</p>
+                ${rm.length > 0 && html`
+                  <div style=${{ padding:'0 16px 12px', display:'flex', gap:16, flexWrap:'wrap' }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                      <span style=${{ fontSize:16 }}>📊</span>
+                      <div><span style=${{ fontSize:14, fontWeight:700, color:'#007AFF' }}>${rm.length}</span><span style=${{ fontSize:10, color:'#86868B', marginLeft:3 }}>retros</span></div>
+                    </div>
+                    <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                      <span style=${{ fontSize:16 }}>📝</span>
+                      <div><span style=${{ fontSize:14, fontWeight:700, color:'#34C759' }}>${avgNotes}</span><span style=${{ fontSize:10, color:'#86868B', marginLeft:3 }}>notas/retro</span></div>
+                    </div>
+                    <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                      <span style=${{ fontSize:16 }}>👥</span>
+                      <div><span style=${{ fontSize:14, fontWeight:700, color:'#FF9500' }}>${avgPart}</span><span style=${{ fontSize:10, color:'#86868B', marginLeft:3 }}>participantes</span></div>
+                    </div>
+                    ${lastRetro && html`
+                      <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                        <span style=${{ fontSize:16 }}>📅</span>
+                        <span style=${{ fontSize:10, color:'#86868B' }}>Última: ${fd(lastRetro.date)}</span>
+                      </div>
+                    `}
+                  </div>
+                `}
+                ${rm.length === 0 && html`
+                  <div style=${{ padding:'0 16px 12px' }}>
+                    <span style=${{ fontSize:11, color:'#C7C7CC' }}>Sin retros guardadas aún</span>
+                  </div>
+                `}
+              </div>`;
+            })}
+          </div>
+        `}
+        <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:16, textAlign:'center' }}>Las métricas se actualizan cada vez que guardas una retro (💾)</p>
       </div>
     </div>
   `;
@@ -347,6 +450,27 @@ function RetroBoard({ user }) {
     a.download = 'retro-' + SALA + '-' + new Date().toISOString().split('T')[0] + '.json';
     a.click();
     URL.revokeObjectURL(a.href);
+
+    // Log metrics for admin dashboard
+    try {
+      const metrics = JSON.parse(localStorage.getItem('retroflow-metrics') || '{}');
+      if (!metrics[SALA]) metrics[SALA] = [];
+      const participants = [...new Set(state.notes.map(n => n.userId))];
+      const participantNames = [...new Set(state.notes.map(n => n.userName))];
+      metrics[SALA].push({
+        date: new Date().toISOString(),
+        notes: state.notes.length,
+        participants: participants.length,
+        participantNames,
+        actions: state.actions.length,
+        actionsDone: state.actions.filter(a => a.status === 'done').length,
+        votes: state.notes.reduce((s, n) => s + (n.voters?.length || 0), 0),
+        objective: state.obj?.met || null,
+        tasksDone: state.tasks.filter(t => t.done).length,
+        tasksTotal: state.tasks.length,
+      });
+      localStorage.setItem('retroflow-metrics', JSON.stringify(metrics));
+    } catch {}
   };
 
   const loadRetro = (e) => {
