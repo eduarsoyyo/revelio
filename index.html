@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RetroFlow</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔄</text></svg>">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; background: #F5F5F7; color: #1D1D1F; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: #D1D1D6; border-radius: 3px; }
+  input:focus, textarea:focus, select:focus { border-color: #007AFF !important; outline: none; }
+  button { font-family: inherit; cursor: pointer; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  .hl { transition: transform .15s, box-shadow .15s; }
+  .hl:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.07); }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "preact": "https://esm.sh/preact@10.25.4",
+    "preact/hooks": "https://esm.sh/preact@10.25.4/hooks",
+    "htm/preact": "https://esm.sh/htm@3.1.1/preact",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.4"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+import { h, render } from 'preact';
+import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
+import htm from 'htm/preact';
+import { createClient } from '@supabase/supabase-js';
+
+const html = htm;
+
+/* ═══ CREDENCIALES SUPABASE ═══ */
+const SUPABASE_URL = 'https://lvsfrynsnyofroscaxhl.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ZYRlCDmIE80AYrZWEeeWnw_hXWcg2rA';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ═══ CONSTANTS ═══ */
+const CATS = [
+  { id:'good', label:'Good', emoji:'✅', color:'#34C759', bg:'#F0FFF4' },
+  { id:'bad', label:'Bad', emoji:'❌', color:'#FF3B30', bg:'#FFF5F5' },
+  { id:'start', label:'Start', emoji:'🚀', color:'#007AFF', bg:'#EBF5FF' },
+  { id:'stop', label:'Stop', emoji:'🛑', color:'#FF9500', bg:'#FFF8EB' },
+];
+const STS = [
+  { id:'pending', label:'Pendiente', color:'#FF9500', bg:'#FFF8EB' },
+  { id:'progress', label:'En progreso', color:'#007AFF', bg:'#EBF5FF' },
+  { id:'done', label:'Completado', color:'#34C759', bg:'#F0FFF4' },
+  { id:'discarded', label:'Descartado', color:'#8E8E93', bg:'#F2F2F7' },
+];
+const PRIS = [
+  { id:'high', label:'Alta', icon:'🔴', color:'#FF3B30' },
+  { id:'medium', label:'Media', icon:'🟡', color:'#FF9500' },
+  { id:'low', label:'Baja', icon:'🟢', color:'#34C759' },
+];
+const PHASES = [
+  { id:'review', label:'Repaso Inicial', icon:'📋' },
+  { id:'individual', label:'Análisis Individual', icon:'✍️' },
+  { id:'discuss', label:'Puesta en Común', icon:'💬' },
+  { id:'actions', label:'Accionables', icon:'🎯' },
+  { id:'dashboard', label:'Dashboard', icon:'📊' },
+];
+const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
+const COLRS = ['#007AFF','#FF3B30','#34C759','#FF9500','#AF52DE','#FF2D55','#5856D6','#00C7BE'];
+const BADGES = [
+  { id:'first',label:'Primera Nota',icon:'🏅',c:s=>s.n>=1 },
+  { id:'prolific',label:'Prolífico',icon:'📝',c:s=>s.n>=5 },
+  { id:'voter',label:'Votante',icon:'🗳️',c:s=>s.vg>=3 },
+  { id:'hero',label:'Action Hero',icon:'⚡',c:s=>s.a>=1 },
+  { id:'balanced',label:'Equilibrado',icon:'⚖️',c:s=>s.cats>=4 },
+  { id:'star',label:'Superstar',icon:'⭐',c:s=>s.n>=8&&s.vg>=5 },
+];
+
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const fd = d => d ? new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'}) : '';
+
+/* ═══ STYLES ═══ */
+const gl = { background:'rgba(255,255,255,0.78)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', border:'1px solid rgba(0,0,0,0.05)' };
+const bP = { padding:'11px 22px', borderRadius:12, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:14, fontWeight:600 };
+const bS = { padding:'10px 18px', borderRadius:12, border:'1.5px solid #E5E5EA', background:'#FFF', color:'#1D1D1F', fontSize:13, fontWeight:600 };
+const iS = { padding:'12px 16px', borderRadius:12, border:'1.5px solid #E5E5EA', fontSize:14, outline:'none', fontFamily:'inherit', width:'100%', boxSizing:'border-box', background:'#FAFAFA' };
+const cS = { background:'#FFF', borderRadius:20, border:'1.5px solid #E5E5EA', overflow:'hidden' };
+
+/* ═══ REALTIME STATE ═══ */
+function useRealtime(user) {
+  const [state, setState] = useState({ notes:[], tasks:[], actions:[], obj:{text:'',met:null} });
+  const [online, setOnline] = useState({});
+  const [cursors, setCursors] = useState({});
+  const chRef = useRef(null);
+  const stRef = useRef(state);
+  stRef.current = state;
+
+  useEffect(() => {
+    if (!user) return;
+    const ch = supabase.channel('retroflow-live', { config:{ presence:{ key:user.id } } });
+
+    ch.on('presence', { event:'sync' }, () => {
+      const ps = ch.presenceState();
+      const u = {}, c = {};
+      Object.entries(ps).forEach(([k, arr]) => {
+        if (arr.length > 0) {
+          const p = arr[0];
+          u[k] = { name:p.name, avatar:p.avatar, color:p.color };
+          if (k !== user.id && p.cx != null) c[k] = { x:p.cx, y:p.cy, name:p.name, avatar:p.avatar, color:p.color };
+        }
+      });
+      setOnline(u);
+      setCursors(c);
+    });
+
+    ch.on('broadcast', { event:'sync' }, ({ payload }) => {
+      if (payload.from === user.id) return;
+      setState(prev => ({ ...prev, [payload.key]: payload.data }));
+    });
+
+    ch.on('broadcast', { event:'req' }, ({ payload }) => {
+      if (payload.from === user.id) return;
+      const s = stRef.current;
+      Object.keys(s).forEach(k => {
+        ch.send({ type:'broadcast', event:'sync', payload:{ key:k, data:s[k], from:user.id } });
+      });
+    });
+
+    ch.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await ch.track({ name:user.name, avatar:user.avatar, color:user.color, cx:50, cy:50 });
+        setTimeout(() => ch.send({ type:'broadcast', event:'req', payload:{ from:user.id } }), 600);
+      }
+    });
+
+    chRef.current = ch;
+    return () => supabase.removeChannel(ch);
+  }, [user]);
+
+  const upd = useCallback((key, data) => {
+    setState(prev => ({ ...prev, [key]:data }));
+    if (chRef.current && user) chRef.current.send({ type:'broadcast', event:'sync', payload:{ key, data, from:user.id } });
+  }, [user]);
+
+  const moveCursor = useCallback((x, y) => {
+    if (chRef.current && user) chRef.current.track({ name:user.name, avatar:user.avatar, color:user.color, cx:x, cy:y });
+  }, [user]);
+
+  return { state, upd, online, cursors, moveCursor };
+}
+
+/* ═══ APP ═══ */
+function App() {
+  const [user, setUser] = useState(null);
+  if (!user) return html`<${Login} onJoin=${setUser} />`;
+  return html`<${RetroBoard} user=${user} />`;
+}
+
+/* ═══ LOGIN ═══ */
+function Login({ onJoin }) {
+  const [nm, setNm] = useState('');
+  const [av, setAv] = useState(AVATARS[Math.floor(Math.random()*12)]);
+  const [col, setCol] = useState(COLRS[Math.floor(Math.random()*8)]);
+  const go = () => nm.trim() && onJoin({ id:uid(), name:nm.trim(), avatar:av, color:col });
+
+  return html`
+    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:420, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)' }}>
+        <div style=${{ textAlign:'center', marginBottom:28 }}>
+          <div style=${{ width:56, height:56, borderRadius:18, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28, marginBottom:12 }}>🔄</div>
+          <h1 style=${{ fontSize:26, fontWeight:700, marginBottom:3 }}>RetroFlow</h1>
+          <p style=${{ color:'#86868B', fontSize:14 }}>Retrospectiva colaborativa en tiempo real</p>
+        </div>
+        <input value=${nm} onInput=${e=>setNm(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&go()}
+          placeholder="Tu nombre..." style=${{ ...iS, marginBottom:18, textAlign:'center', fontSize:16, background:'#FFF' }} />
+        <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Avatar</p>
+        <div style=${{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:14 }}>
+          ${AVATARS.map(a => html`<button key=${a} onClick=${()=>setAv(a)} style=${{ width:40, height:40, borderRadius:11, border:av===a?'2.5px solid '+col:'2px solid #E5E5EA', background:av===a?col+'10':'#FFF', fontSize:19, display:'flex', alignItems:'center', justifyContent:'center' }}>${a}</button>`)}
+        </div>
+        <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Color</p>
+        <div style=${{ display:'flex', gap:5, marginBottom:24 }}>
+          ${COLRS.map(c => html`<button key=${c} onClick=${()=>setCol(c)} style=${{ width:28, height:28, borderRadius:14, background:c, border:col===c?'3px solid #1D1D1F':'3px solid transparent', transform:col===c?'scale(1.15)':'scale(1)', transition:'all .15s' }} />`)}
+        </div>
+        <button onClick=${go} style=${{ ...bP, width:'100%', padding:14, fontSize:16 }}>Entrar →</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ═══ RETRO BOARD ═══ */
+function RetroBoard({ user }) {
+  const { state, upd, online, cursors, moveCursor } = useRealtime(user);
+  const [phase, setPhase] = useState(0);
+  const [timer, setTimer] = useState(900);
+  const [running, setRunning] = useState(false);
+  const tRef = useRef(null);
+  const bRef = useRef(null);
+
+  useEffect(() => {
+    if (!running) return;
+    tRef.current = setInterval(() => setTimer(p => { if(p<=0){setRunning(false);return 0} return p-1 }), 1000);
+    return () => clearInterval(tRef.current);
+  }, [running]);
+
+  useEffect(() => {
+    if (!bRef.current) return;
+    let last = 0;
+    const h = e => {
+      if (Date.now()-last<400) return; last=Date.now();
+      const r = bRef.current.getBoundingClientRect();
+      const x = ((e.clientX-r.left)/r.width)*100, y = ((e.clientY-r.top)/r.height)*100;
+      if (x>=0&&x<=100&&y>=0&&y<=100) moveCursor(x,y);
+    };
+    const el = bRef.current;
+    el.addEventListener('mousemove',h);
+    return () => el.removeEventListener('mousemove',h);
+  }, [moveCursor, phase]);
+
+  const fmt = s => Math.floor(s/60).toString().padStart(2,'0')+':'+(s%60).toString().padStart(2,'0');
+  const uList = Object.entries(online);
+  const sN = d => upd('notes',d);
+  const sT = d => upd('tasks',d);
+  const sA = d => upd('actions',d);
+  const sO = d => upd('obj',d);
+
+  const content = () => {
+    if (phase===0) return html`<${P1} tasks=${state.tasks} sT=${sT} obj=${state.obj} sO=${sO} user=${user} />`;
+    if (phase===1) return html`<${Board} notes=${state.notes} sN=${sN} user=${user} filter="all" />`;
+    if (phase===2) return html`<${P3} notes=${state.notes} sN=${sN} user=${user} />`;
+    if (phase===3) return html`<${P4} notes=${state.notes} actions=${state.actions} sA=${sA} user=${user} />`;
+    if (phase===4) return html`<${P5} notes=${state.notes} actions=${state.actions} users=${online} user=${user} obj=${state.obj} tasks=${state.tasks} />`;
+    return null;
+  };
+
+  return html`
+    <div ref=${bRef} style=${{ display:'flex', flexDirection:'column', height:'100vh', position:'relative' }}>
+      ${Object.entries(cursors).map(([id,c])=>html`
+        <div key=${id} style=${{ position:'fixed', left:c.x+'%', top:c.y+'%', pointerEvents:'none', zIndex:9999, transition:'left .4s ease-out, top .4s ease-out' }}>
+          <svg width="16" height="16" viewBox="0 0 20 20"><path d="M3 2L17 10L10 11L7 18L3 2Z" fill=${c.color} stroke="#FFF" stroke-width="1.5"/></svg>
+          <span style=${{ position:'absolute', left:14, top:10, background:c.color, color:'#FFF', fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:4, whiteSpace:'nowrap' }}>${c.avatar} ${c.name}</span>
+        </div>
+      `)}
+      <header style=${{ ...gl, padding:'9px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid rgba(0,0,0,0.06)', flexShrink:0, zIndex:100 }}>
+        <div style=${{ display:'flex', alignItems:'center', gap:10 }}>
+          <span style=${{ fontSize:22 }}>🔄</span>
+          <div>
+            <h2 style=${{ fontSize:16, fontWeight:700 }}>RetroFlow</h2>
+            <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
+          </div>
+        </div>
+        <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
+          <div style=${{ background:running?'#1D1D1F':'#F2F2F7', color:running?'#FFF':'#1D1D1F', borderRadius:10, padding:'6px 14px', display:'flex', alignItems:'center', gap:6 }}>
+            <span style=${{ fontSize:18, fontWeight:700, fontVariantNumeric:'tabular-nums' }}>${fmt(timer)}</span>
+            <button onClick=${()=>setRunning(!running)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:running?'#FF3B30':'#34C759', color:'#FFF', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>${running?'⏸':'▶'}</button>
+            <button onClick=${()=>{setTimer(900);setRunning(false)}} style=${{ width:26, height:26, borderRadius:13, border:'none', background:'rgba(128,128,128,0.12)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>↺</button>
+          </div>
+        </div>
+        <div style=${{ display:'flex', alignItems:'center' }}>
+          ${uList.slice(0,8).map(([id,u],i)=>html`<div key=${id} title=${u.name} style=${{ width:28, height:28, borderRadius:14, background:u.color, border:'2px solid #FFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, marginLeft:i>0?-5:0, zIndex:10-i }}>${u.avatar}</div>`)}
+          ${uList.length>0 && html`<span style=${{ fontSize:11, color:'#86868B', marginLeft:8 }}>${uList.length} online</span>`}
+        </div>
+      </header>
+      <div style=${{ padding:'8px 18px', display:'flex', gap:4, flexShrink:0, background:'#FFF', borderBottom:'1px solid #E5E5EA', overflowX:'auto' }}>
+        ${PHASES.map((p,i)=>html`<button key=${p.id} onClick=${()=>{setPhase(i);setTimer(900);setRunning(false)}} style=${{ padding:'8px 14px', borderRadius:9, border:phase===i?'none':'1.5px solid #E5E5EA', background:phase===i?'#1D1D1F':'#FFF', color:phase===i?'#FFF':'#6E6E73', fontSize:12, fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>${p.icon} ${p.label}</button>`)}
+      </div>
+      <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>${content()}</div>
+    </div>
+  `;
+}
+
+/* ═══ PHASE 1: REVIEW ═══ */
+function P1({ tasks, sT, obj, sO, user }) {
+  const [nt, setNt] = useState('');
+  const [eId, setEId] = useState(null);
+  const [eVal, setEVal] = useState('');
+  const add = () => { if(!nt.trim())return; sT([...tasks,{id:uid(),text:nt.trim(),done:false}]); setNt(''); };
+  const tog = id => sT(tasks.map(t=>t.id===id?{...t,done:!t.done}:t));
+  const del = id => sT(tasks.filter(t=>t.id!==id));
+  const saveE = () => { if(!eVal.trim())del(eId); else sT(tasks.map(t=>t.id===eId?{...t,text:eVal.trim()}:t)); setEId(null); };
+  const dc = tasks.filter(t=>t.done).length;
+
+  return html`
+    <div style=${{ maxWidth:860, margin:'0 auto', display:'flex', flexDirection:'column', gap:14 }}>
+      <div style=${{ ...cS, padding:22 }}>
+        <h3 style=${{ fontSize:15, fontWeight:700, marginBottom:12 }}>🎯 Objetivo de la iteración</h3>
+        <textarea value=${obj.text} onInput=${e=>sO({...obj,text:e.target.value})} placeholder="¿Cuál era el objetivo principal?" style=${{ ...iS, height:52, resize:'none' }} />
+        <div style=${{ display:'flex', gap:6, marginTop:10 }}>
+          ${[{v:true,l:'✅ Cumplido',c:'#34C759'},{v:false,l:'❌ No cumplido',c:'#FF3B30'},{v:'partial',l:'⚠️ Parcial',c:'#FF9500'}].map(o=>html`
+            <button key=${String(o.v)} onClick=${()=>sO({...obj,met:o.v})} style=${{ padding:'7px 14px', borderRadius:9, border:obj.met===o.v?'2px solid '+o.c:'1.5px solid #E5E5EA', background:obj.met===o.v?o.c+'10':'#FFF', fontSize:12, fontWeight:600, color:obj.met===o.v?o.c:'#6E6E73' }}>${o.l}</button>
+          `)}
+        </div>
+      </div>
+      <div style=${{ ...cS, padding:22 }}>
+        <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+          <h3 style=${{ fontSize:15, fontWeight:700 }}>📋 Tareas de la iteración</h3>
+          <span style=${{ fontSize:11, fontWeight:700, color:dc===tasks.length&&tasks.length>0?'#34C759':'#86868B', background:'#F2F2F7', padding:'3px 8px', borderRadius:6 }}>${dc}/${tasks.length}</span>
+        </div>
+        ${tasks.length>0 && html`<div style=${{ height:5, background:'#F2F2F7', borderRadius:3, marginBottom:12, overflow:'hidden' }}><div style=${{ height:'100%', width:(tasks.length?(dc/tasks.length)*100:0)+'%', background:'linear-gradient(90deg,#34C759,#007AFF)', borderRadius:3, transition:'width .3s' }} /></div>`}
+        <div style=${{ display:'flex', gap:6, marginBottom:12 }}><input value=${nt} onInput=${e=>setNt(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&add()} placeholder="Añadir tarea..." style=${{ ...iS, flex:1 }} /><button onClick=${add} style=${{ ...bP, padding:'10px 14px' }}>+</button></div>
+        <div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
+          ${tasks.map(t=>html`
+            <div key=${t.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', borderRadius:10, background:t.done?'#F0FFF4':'#F9F9FB', border:'1px solid '+(t.done?'#34C75922':'#E5E5EA') }}>
+              <div onClick=${()=>tog(t.id)} style=${{ width:20, height:20, borderRadius:6, border:t.done?'none':'2px solid #C7C7CC', background:t.done?'#34C759':'#FFF', display:'flex', alignItems:'center', justifyContent:'center', color:'#FFF', fontSize:11, flexShrink:0, cursor:'pointer' }}>${t.done&&'✓'}</div>
+              ${eId===t.id
+                ? html`<div style=${{ flex:1, display:'flex', gap:4 }}><input autofocus value=${eVal} onInput=${e=>setEVal(e.target.value)} onKeyDown=${e=>{if(e.key==='Enter')saveE();if(e.key==='Escape')setEId(null)}} style=${{ ...iS, padding:'6px 10px', fontSize:13, flex:1 }} /><button onClick=${saveE} style=${{ ...bP, padding:'6px 12px', fontSize:12 }}>✓</button></div>`
+                : html`<span onDblClick=${()=>{setEId(t.id);setEVal(t.text)}} style=${{ fontSize:13, color:t.done?'#86868B':'#1D1D1F', textDecoration:t.done?'line-through':'none', flex:1, cursor:'text' }} title="Doble clic para editar">${t.text}</span>`}
+              <button onClick=${()=>del(t.id)} style=${{ border:'none', background:'none', fontSize:14, color:'#C7C7CC', padding:'2px 4px', flexShrink:0 }}>✕</button>
+            </div>
+          `)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ═══ BOARD ═══ */
+function Board({ notes, sN, user, filter }) {
+  const [act, setAct] = useState(null);
+  const [txt, setTxt] = useState('');
+  const [eId, setEId] = useState(null);
+  const [eVal, setEVal] = useState('');
+  const [dragId, setDragId] = useState(null);
+  const [overCat, setOverCat] = useState(null);
+
+  const addN = c => { if(!txt.trim())return; sN([...notes,{id:uid(),text:txt.trim(),category:c,userId:user.id,userName:user.name,userAvatar:user.avatar,voters:[]}]); setTxt(''); setAct(null); };
+  const vote = nid => sN(notes.map(n=>{if(n.id!==nid)return n;const v=n.voters||[];return{...n,voters:v.includes(user.id)?v.filter(x=>x!==user.id):[...v,user.id]}}));
+  const delN = nid => sN(notes.filter(n=>n.id!==nid));
+  const saveE = () => { if(!eVal.trim())delN(eId); else sN(notes.map(n=>n.id===eId?{...n,text:eVal.trim()}:n)); setEId(null); };
+  const drop = (e,c) => { e.preventDefault(); setOverCat(null); if(dragId)sN(notes.map(n=>n.id===dragId?{...n,category:c}:n)); setDragId(null); };
+
+  let fil = notes;
+  if(filter==='mine') fil=notes.filter(n=>n.userId===user.id);
+  else if(CATS.some(c=>c.id===filter)) fil=notes.filter(n=>n.category===filter);
+  const cats2 = CATS.some(c=>c.id===filter)?CATS.filter(c=>c.id===filter):CATS;
+
+  return html`
+    <div style=${{ display:'grid', gridTemplateColumns:cats2.length===1?'1fr':'repeat(4,1fr)', gap:10, height:'100%' }}>
+      ${cats2.map(cat => {
+        const cn = fil.filter(n=>n.category===cat.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
+        return html`
+          <div key=${cat.id} onDragOver=${e=>{e.preventDefault();setOverCat(cat.id)}} onDragLeave=${()=>setOverCat(null)} onDrop=${e=>drop(e,cat.id)}
+            style=${{ ...cS, display:'flex', flexDirection:'column', borderColor:overCat===cat.id?'#007AFF':'#E5E5EA', background:overCat===cat.id?'#007AFF04':'#FFF', transition:'all .2s' }}>
+            <div style=${{ padding:'12px 14px 9px', background:cat.color+'06', borderBottom:'2.5px solid '+cat.color }}>
+              <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style=${{ display:'flex', alignItems:'center', gap:6 }}><span style=${{ fontSize:16 }}>${cat.emoji}</span><span style=${{ fontSize:14, fontWeight:700 }}>${cat.label}</span></div>
+                <span style=${{ background:cat.color+'15', color:cat.color, fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:6 }}>${cn.length}</span>
+              </div>
+            </div>
+            <div style=${{ flex:1, padding:'7px 8px', overflowY:'auto', display:'flex', flexDirection:'column', gap:6, minHeight:60 }}>
+              ${cn.map(note => {
+                const voted=note.voters?.includes(user.id); const mine=note.userId===user.id;
+                return html`
+                  <div key=${note.id} draggable=${true} onDragStart=${e=>{setDragId(note.id);e.dataTransfer.effectAllowed='move'}}
+                    style=${{ background:cat.bg, borderRadius:12, padding:'10px 12px', border:'1px solid '+cat.color+'15', borderLeft:mine?'3px solid '+cat.color:'1px solid '+cat.color+'15', cursor:'grab', opacity:dragId===note.id?0.4:1 }}>
+                    ${eId===note.id
+                      ? html`<div style=${{ marginBottom:6 }}><textarea autofocus value=${eVal} onInput=${e=>setEVal(e.target.value)} onKeyDown=${e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveE()}if(e.key==='Escape')setEId(null)}} style=${{ ...iS, height:48, resize:'none', fontSize:12, padding:'8px 10px' }} /><div style=${{ display:'flex', gap:4, marginTop:4 }}><button onClick=${saveE} style=${{ ...bP, padding:'5px 12px', fontSize:11, background:cat.color }}>Guardar</button><button onClick=${()=>setEId(null)} style=${{ ...bS, padding:'5px 10px', fontSize:11 }}>Cancelar</button></div></div>`
+                      : html`<p onDblClick=${()=>{setEId(note.id);setEVal(note.text)}} style=${{ marginBottom:7, fontSize:12, lineHeight:1.4, cursor:'text' }} title="Doble clic para editar">${note.text}</p>`}
+                    ${eId!==note.id && html`
+                      <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <div style=${{ display:'flex', alignItems:'center', gap:4 }}><span style=${{ fontSize:12 }}>${note.userAvatar}</span><span style=${{ fontSize:10, color:'#86868B' }}>${note.userName}</span></div>
+                        <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                          <button onClick=${()=>vote(note.id)} style=${{ display:'flex', alignItems:'center', gap:3, padding:'2px 8px', borderRadius:6, border:'none', background:voted?cat.color:cat.color+'12', color:voted?'#FFF':cat.color, fontSize:10, fontWeight:700 }}>👍 ${note.voters?.length||0}</button>
+                          ${mine && html`<button onClick=${()=>delN(note.id)} style=${{ border:'none', background:'none', fontSize:12, color:'#C7C7CC', padding:'2px' }}>✕</button>`}
+                        </div>
+                      </div>`}
+                  </div>`;
+              })}
+            </div>
+            ${act===cat.id
+              ? html`<div style=${{ padding:'7px 8px 8px', borderTop:'1px solid #F2F2F7' }}><textarea autofocus value=${txt} onInput=${e=>setTxt(e.target.value)} onKeyDown=${e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addN(cat.id)}}} placeholder="Tu reflexión..." style=${{ ...iS, height:52, resize:'none', fontSize:12 }} /><div style=${{ display:'flex', gap:5, marginTop:5 }}><button onClick=${()=>addN(cat.id)} style=${{ ...bP, flex:1, padding:'7px', fontSize:12, background:cat.color }}>Añadir</button><button onClick=${()=>{setAct(null);setTxt('')}} style=${{ ...bS, padding:'7px 10px', fontSize:11 }}>✕</button></div></div>`
+              : html`<button onClick=${()=>{setAct(cat.id);setTxt('')}} style=${{ margin:'5px 8px 8px', padding:'8px', borderRadius:9, border:'1.5px dashed '+cat.color+'30', background:'transparent', color:cat.color, fontSize:12, fontWeight:600 }}>+ Añadir nota</button>`}
+          </div>`;
+      })}
+    </div>
+  `;
+}
+
+/* ═══ PHASE 3 ═══ */
+function P3({ notes, sN, user }) {
+  const [f, setF] = useState('all');
+  const fi = [{id:'all',label:'📋 Todas',color:'#1D1D1F'},{id:'mine',label:'👤 Mis notas',color:'#5856D6'},...CATS.map(c=>({id:c.id,label:c.emoji+' '+c.label,color:c.color}))];
+  return html`
+    <div style=${{ display:'flex', flexDirection:'column', gap:10, height:'100%' }}>
+      <div style=${{ display:'flex', gap:5, flexWrap:'wrap' }}>${fi.map(x=>html`<button key=${x.id} onClick=${()=>setF(x.id)} style=${{ padding:'7px 12px', borderRadius:9, border:f===x.id?'none':'1.5px solid #E5E5EA', background:f===x.id?x.color:'#FFF', color:f===x.id?'#FFF':'#6E6E73', fontSize:12, fontWeight:600 }}>${x.label}</button>`)}</div>
+      <div style=${{ flex:1 }}><${Board} notes=${notes} sN=${sN} user=${user} filter=${f} /></div>
+    </div>
+  `;
+}
+
+/* ═══ PHASE 4: ACTIONS ═══ */
+function P4({ notes, actions, sA, user }) {
+  const [form, setForm] = useState({text:'',owner:'',date:'',priority:'medium'});
+  const [eId, setEId] = useState(null);
+  const [eF, setEF] = useState({});
+  const topN = [...notes].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0)).slice(0,12);
+  const addA = fn => {
+    const t=fn?fn.text:form.text; if(!t.trim())return;
+    const vs=fn?(fn.voters?.length||0):0; const pri=fn?(vs>=5?'high':vs>=2?'medium':'low'):form.priority;
+    sA([...actions,{id:uid(),text:t.trim(),owner:form.owner||'Sin asignar',date:form.date||'',status:'pending',priority:pri,voteScore:vs,createdBy:user.id,fromCategory:fn?.category||null,noteId:fn?.id||null}]);
+    if(!fn)setForm({text:'',owner:'',date:'',priority:'medium'});
+  };
+  const togN = n => { const ex=actions.find(a=>a.noteId===n.id); if(ex)sA(actions.filter(a=>a.noteId!==n.id)); else addA(n); };
+  const upSt = (id,st) => sA(actions.map(a=>a.id===id?{...a,status:st}:a));
+  const delA = id => sA(actions.filter(a=>a.id!==id));
+  const saveEA = () => { sA(actions.map(a=>a.id===eId?{...a,...eF}:a)); setEId(null); };
+  const priO = {high:3,medium:2,low:1};
+
+  return html`
+    <div style=${{ maxWidth:1000, margin:'0 auto' }}>
+      <div style=${{ display:'grid', gridTemplateColumns:'1fr 320px', gap:14 }}>
+        <div style=${{ ...cS, padding:22 }}>
+          <h3 style=${{ fontSize:17, fontWeight:700, marginBottom:14 }}>🎯 Accionables</h3>
+          <div style=${{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
+            <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Acción concreta..." style=${{ ...iS, flex:2, minWidth:150 }} />
+            <input value=${form.owner} onInput=${e=>setForm({...form,owner:e.target.value})} placeholder="Responsable" style=${{ ...iS, flex:1, minWidth:80 }} />
+            <input type="date" value=${form.date} onInput=${e=>setForm({...form,date:e.target.value})} style=${{ ...iS, width:120, flex:'none' }} />
+            <select value=${form.priority} onChange=${e=>setForm({...form,priority:e.target.value})} style=${{ ...iS, width:100, flex:'none' }}>${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}</select>
+            <button onClick=${()=>addA(null)} style=${bP}>+ Añadir</button>
+          </div>
+          ${actions.length===0&&html`<div style=${{ textAlign:'center', padding:'28px 0', color:'#C7C7CC' }}><p style=${{ fontSize:13 }}>Crea accionables o selecciona notas votadas →</p></div>`}
+          <div style=${{ display:'flex', flexDirection:'column', gap:7 }}>
+            ${[...actions].sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0)).map(a=>{
+              const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1]; const st=STS.find(s=>s.id===a.status); const ct=a.fromCategory?CATS.find(c=>c.id===a.fromCategory):null;
+              if(eId===a.id) return html`
+                <div key=${a.id} style=${{ padding:'14px 16px', borderRadius:13, background:'#F9F9FB', border:'2px solid #007AFF30', animation:'fadeIn .2s' }}>
+                  <div style=${{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                    <input autofocus value=${eF.text} onInput=${e=>setEF({...eF,text:e.target.value})} style=${{ ...iS, flex:2, minWidth:140, fontSize:13 }} />
+                    <input value=${eF.owner} onInput=${e=>setEF({...eF,owner:e.target.value})} style=${{ ...iS, flex:1, minWidth:80, fontSize:13 }} />
+                    <input type="date" value=${eF.date} onInput=${e=>setEF({...eF,date:e.target.value})} style=${{ ...iS, width:120, flex:'none', fontSize:13 }} />
+                    <select value=${eF.priority} onChange=${e=>setEF({...eF,priority:e.target.value})} style=${{ ...iS, width:90, flex:'none', fontSize:13 }}>${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}</select>
+                  </div>
+                  <div style=${{ display:'flex', gap:6 }}><button onClick=${saveEA} style=${{ ...bP, padding:'8px 16px', fontSize:12 }}>Guardar</button><button onClick=${()=>setEId(null)} style=${{ ...bS, padding:'8px 14px', fontSize:12 }}>Cancelar</button></div>
+                </div>`;
+              return html`
+                <div key=${a.id} class="hl" style=${{ padding:'12px 14px', borderRadius:13, background:'#FFF', border:'1.5px solid #E5E5EA', display:'flex', alignItems:'center', gap:10 }}>
+                  <div style=${{ display:'flex', flexDirection:'column', alignItems:'center', gap:1, minWidth:40 }}><span style=${{ fontSize:14 }}>${pr.icon}</span><span style=${{ fontSize:8, fontWeight:700, color:pr.color, textTransform:'uppercase' }}>${pr.label}</span></div>
+                  <div style=${{ flex:1 }}>
+                    ${ct&&html`<span style=${{ fontSize:9, fontWeight:700, color:ct.color, background:ct.color+'10', padding:'1px 5px', borderRadius:3, display:'inline-block', marginBottom:2 }}>${ct.emoji} ${ct.label}</span>`}
+                    <p style=${{ fontSize:13, fontWeight:600 }}>${a.text}</p>
+                    <div style=${{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}><span style=${{ fontSize:11, color:'#007AFF', fontWeight:600 }}>${a.owner}</span>${a.date&&html`<span style=${{ fontSize:10, color:'#86868B' }}>📅 ${fd(a.date)}</span>`}</div>
+                  </div>
+                  <select value=${a.status} onChange=${e=>upSt(a.id,e.target.value)} style=${{ padding:'5px 8px', borderRadius:7, border:'1.5px solid '+st.color+'28', background:st.bg, color:st.color, fontSize:11, fontWeight:600, outline:'none' }}>${STS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}</select>
+                  <button onClick=${()=>{setEId(a.id);setEF({text:a.text,owner:a.owner,date:a.date,priority:a.priority})}} style=${{ border:'none', background:'none', fontSize:14, color:'#86868B' }}>✏️</button>
+                  <button onClick=${()=>delA(a.id)} style=${{ border:'none', background:'none', fontSize:14, color:'#C7C7CC' }}>✕</button>
+                </div>`;
+            })}
+          </div>
+        </div>
+        <div style=${{ ...cS, padding:18 }}>
+          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>🔥 Notas más votadas</h4>
+          <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Clic para añadir / quitar</p>
+          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+            ${topN.map(n=>{const ct=CATS.find(c=>c.id===n.category); const lk=actions.some(a=>a.noteId===n.id);
+              return html`<button key=${n.id} onClick=${()=>togN(n)} style=${{ padding:'9px 10px', borderRadius:10, background:lk?'#1D1D1F':ct.bg, border:'1px solid '+(lk?'#1D1D1F':ct.color+'18'), textAlign:'left', transition:'all .2s' }}>
+                <div style=${{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}><span style=${{ fontSize:11 }}>${ct.emoji}</span><span style=${{ fontSize:11, fontWeight:700, color:lk?'#FFF':ct.color }}>👍 ${n.voters?.length||0}</span>${lk&&html`<span style=${{ fontSize:9, color:'#34C759', fontWeight:700 }}>✓ Añadido</span>`}</div>
+                <p style=${{ fontSize:11, color:lk?'#CCC':'#1D1D1F', lineHeight:1.35 }}>${n.text}</p>
+              </button>`})}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ═══ PHASE 5: DASHBOARD + PDF ═══ */
+function P5({ notes, actions, users, user, obj, tasks }) {
+  const ranking = Object.entries(users).map(([id,u])=>{
+    const mn=notes.filter(n=>n.userId===id); const tn=mn.length;
+    const vr=mn.reduce((s,n)=>s+(n.voters?.length||0),0);
+    const vg=notes.reduce((s,n)=>s+(n.voters?.includes(id)?1:0),0);
+    const ac=actions.filter(a=>a.createdBy===id).length;
+    const cats=new Set(mn.map(n=>n.category)).size;
+    return{id,...u,tn,vr,vg,ac,cats,score:tn*10+vr*8+vg*3+ac*15+(cats>=4?20:0)};
+  }).sort((a,b)=>b.score-a.score);
+  const mx=ranking[0]?.score||1;
+  const tN=notes.length; const tV=notes.reduce((s,n)=>s+(n.voters?.length||0),0);
+  const tD=tasks.filter(t=>t.done).length; const aD=actions.filter(a=>a.status==='done').length;
+  const medals=['🥇','🥈','🥉']; const priO={high:3,medium:2,low:1};
+  const objL=obj.met===true?'Cumplido ✅':obj.met===false?'No cumplido ❌':obj.met==='partial'?'Parcial ⚠️':'Sin evaluar';
+
+  const exportPDF = () => {
+    const nc=CATS.map(c=>({...c,notes:notes.filter(n=>n.category===c.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0))}));
+    const sa=[...actions].sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0));
+    const doc=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>RetroFlow - Informe</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',sans-serif;color:#1D1D1F;padding:40px;max-width:900px;margin:0 auto;font-size:13px;line-height:1.5}h1{font-size:26px;font-weight:700;margin-bottom:4px}h2{font-size:18px;font-weight:700;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid #E5E5EA}.sum{display:flex;gap:12px;margin-bottom:24px}.cd{flex:1;background:#F9F9FB;border-radius:12px;padding:16px;text-align:center;border:1px solid #E5E5EA}.cd .v{font-size:22px;font-weight:800}.cd .l{font-size:11px;color:#86868B;margin-top:2px}.ct{margin-bottom:20px;padding:14px;border-radius:12px;border-left:4px solid}.good{border-color:#34C759;background:#F0FFF4}.bad{border-color:#FF3B30;background:#FFF5F5}.start{border-color:#007AFF;background:#EBF5FF}.stop{border-color:#FF9500;background:#FFF8EB}.nt{padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;justify-content:space-between}.nt:last-child{border-bottom:none}.ac{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E5E5EA}.ac:last-child{border-bottom:none}.bg{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}.rk{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F2F2F7}.rk:last-child{border-bottom:none}.tk{padding:4px 0}.tk.dn{text-decoration:line-through;color:#86868B}.br{height:6px;background:#E5E5EA;border-radius:3px;margin:4px 0 12px;overflow:hidden}.fl{height:100%;border-radius:3px}@media print{body{padding:20px}}</style></head><body>
+<div style="text-align:center;margin-bottom:8px"><span style="font-size:32px">🔄</span></div>
+<h1 style="text-align:center">RetroFlow — Informe de Retrospectiva</h1>
+<p style="text-align:center;color:#86868B;font-size:13px;margin-bottom:24px">${fd(new Date())}</p>
+<div class="sum"><div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div><div class="cd"><div class="v" style="color:#FF9500">${tV}</div><div class="l">Votos</div></div><div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div><div class="cd"><div class="v" style="color:${obj.met===true?'#34C759':obj.met===false?'#FF3B30':'#FF9500'};font-size:14px">${objL}</div><div class="l">Objetivo</div></div></div>
+${obj.text?'<h2>🎯 Objetivo</h2><p style="margin-bottom:16px">'+obj.text+'</p>':''}
+<h2>📋 Tareas (${tD}/${tasks.length})</h2><div class="br"><div class="fl" style="width:${tasks.length?(tD/tasks.length)*100:0}%;background:linear-gradient(90deg,#34C759,#007AFF)"></div></div>
+${tasks.map(t=>'<div class="tk'+(t.done?' dn':'')+'">'+(t.done?'✅':'⬜')+' '+t.text+'</div>').join('')}
+<h2>📝 Notas del equipo</h2>
+${nc.map(c=>c.notes.length===0?'':'<div class="ct '+c.id+'"><h3 style="font-size:14px;font-weight:700;margin-bottom:8px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</h3>'+c.notes.map(n=>'<div class="nt"><div style="flex:1">'+n.text+'</div><div style="font-size:11px;color:#86868B;white-space:nowrap;margin-left:12px">'+n.userAvatar+' '+n.userName+' · 👍 '+(n.voters?.length||0)+'</div></div>').join('')+'</div>').join('')}
+<h2>🎯 Accionables</h2>
+${sa.length===0?'<p style="color:#86868B">No se definieron accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status);return'<div class="ac"><div style="font-size:16px;width:24px;text-align:center">'+pr.icon+'</div><div style="flex:1"><strong>'+a.text+'</strong><div style="font-size:11px;color:#86868B">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span class="bg" style="background:'+st.bg+';color:'+st.color+'">'+st.label+'</span></div>'}).join('')}
+<h2>🏆 Ranking</h2><p style="font-size:11px;color:#86868B;margin-bottom:12px">Notas ×10 · Votos rec. ×8 · Votos dados ×3 · Acciones ×15 · Bonus 4cats +20</p>
+${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;text-align:center;font-size:18px">'+(i<3?medals[i]:(i+1)+'º')+'</div><div><strong>'+r.avatar+' '+r.name+'</strong> <span style="font-weight:800;color:#FFB800">'+r.score+' pts</span><div style="font-size:10px;color:#86868B">📝 '+r.tn+' · ⬆️ '+r.vr+' · 👍 '+r.vg+' · ⚡ '+r.ac+' · 📊 '+r.cats+'/4</div></div></div>').join('')}
+<div style="margin-top:32px;text-align:center;color:#C7C7CC;font-size:11px">RetroFlow · ${new Date().toLocaleString('es-ES')}</div>
+<script>window.onload=function(){window.print()}<\/script></body></html>`;
+    const w=window.open('','_blank');
+    if(w){w.document.write(doc);w.document.close()}
+  };
+
+  return html`
+    <div style=${{ maxWidth:960, margin:'0 auto', display:'flex', flexDirection:'column', gap:14 }}>
+      <div style=${{ display:'flex', justifyContent:'flex-end' }}>
+        <button onClick=${exportPDF} style=${{ ...bP, background:'#007AFF', display:'flex', alignItems:'center', gap:6 }}>📄 Descargar informe PDF</button>
+      </div>
+      <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+        ${[{l:'Notas',v:tN,i:'📝',c:'#007AFF'},{l:'Votos',v:tV,i:'👍',c:'#FF9500'},{l:'Accionables',v:aD+'/'+actions.length,i:'🎯',c:'#34C759'},{l:'Objetivo',v:objL,i:'🏁',c:obj.met===true?'#34C759':obj.met===false?'#FF3B30':'#FF9500'}].map((s,i)=>html`
+          <div key=${i} style=${{ ...cS, padding:18, textAlign:'center' }}><div style=${{ fontSize:24, marginBottom:6 }}>${s.i}</div><div style=${{ fontSize:24, fontWeight:800, color:s.c }}>${s.v}</div><div style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>${s.l}</div></div>`)}
+      </div>
+      <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <div style=${{ ...cS, padding:22 }}>
+          <h3 style=${{ fontSize:15, fontWeight:700, marginBottom:14 }}>📊 Notas por categoría</h3>
+          ${CATS.map(c=>{const cnt=notes.filter(n=>n.category===c.id).length;const pct=tN>0?(cnt/tN)*100:0;return html`
+            <div key=${c.id} style=${{ marginBottom:10 }}><div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4 }}><span style=${{ fontSize:13, fontWeight:600 }}>${c.emoji} ${c.label}</span><span style=${{ fontSize:12, fontWeight:700, color:c.color }}>${cnt}</span></div><div style=${{ height:8, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}><div style=${{ height:'100%', width:pct+'%', background:c.color, borderRadius:4, transition:'width .5s' }} /></div></div>`})}
+        </div>
+        <div style=${{ ...cS, padding:22 }}>
+          <h3 style=${{ fontSize:15, fontWeight:700, marginBottom:14 }}>📋 Progreso</h3>
+          ${[{l:'Tareas',d:tD,t:tasks.length,c:'#007AFF'},{l:'Accionables',d:aD,t:actions.length,c:'#34C759'}].map((r,i)=>html`
+            <div key=${i} style=${{ marginBottom:12 }}><div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4 }}><span style=${{ fontSize:13, fontWeight:600 }}>${r.l}</span><span style=${{ fontSize:12, fontWeight:700, color:r.c }}>${r.d}/${r.t}</span></div><div style=${{ height:8, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}><div style=${{ height:'100%', width:(r.t>0?(r.d/r.t)*100:0)+'%', background:r.c, borderRadius:4, transition:'width .5s' }} /></div></div>`)}
+        </div>
+      </div>
+      <div style=${{ ...cS, padding:24 }}>
+        <h3 style=${{ fontSize:18, fontWeight:700, marginBottom:4 }}>🏆 Ranking</h3>
+        <p style=${{ fontSize:11, color:'#86868B', marginBottom:18 }}>Notas ×10 · Votos rec. ×8 · Votos dados ×3 · Acciones ×15 · Bonus 4cats +20</p>
+        <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+          ${ranking.map((r,i)=>{const isMe=r.id===user.id;const bw=mx>0?(r.score/mx)*100:0;
+            const bg=i===0?'linear-gradient(90deg,#FFD60A,#FF9500)':i===1?'linear-gradient(90deg,#C0C0C0,#999)':i===2?'linear-gradient(90deg,#CD7F32,#B8860B)':'#007AFF';
+            return html`
+              <div key=${r.id} style=${{ display:'flex', alignItems:'center', gap:12, padding:'14px 18px', borderRadius:14, background:isMe?'#007AFF06':i<3?'#FFFBEB':'#F9F9FB', border:isMe?'2px solid #007AFF25':i<3?'1.5px solid #FFD60A25':'1.5px solid #E5E5EA' }}>
+                <div style=${{ width:32, textAlign:'center', fontSize:i<3?22:14, fontWeight:700, color:'#86868B' }}>${i<3?medals[i]:(i+1)+'º'}</div>
+                <div style=${{ width:36, height:36, borderRadius:18, background:r.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0, border:'2px solid #FFF', boxShadow:'0 2px 6px rgba(0,0,0,0.06)' }}>${r.avatar}</div>
+                <div style=${{ flex:1 }}>
+                  <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}><span style=${{ fontSize:14, fontWeight:700 }}>${r.name}</span><span style=${{ fontSize:18, fontWeight:800, color:i<3?'#FFB800':'#86868B' }}>${r.score}</span><span style=${{ fontSize:10, color:'#86868B' }}>pts</span></div>
+                  <div style=${{ height:5, background:'#E5E5EA', borderRadius:3, overflow:'hidden', marginBottom:5 }}><div style=${{ height:'100%', width:bw+'%', background:bg, borderRadius:3, transition:'width .5s' }} /></div>
+                  <div style=${{ display:'flex', gap:10, flexWrap:'wrap' }}><span style=${{ fontSize:10, color:'#86868B' }}>📝 ${r.tn}</span><span style=${{ fontSize:10, color:'#86868B' }}>⬆️ ${r.vr}</span><span style=${{ fontSize:10, color:'#86868B' }}>👍 ${r.vg}</span><span style=${{ fontSize:10, color:'#86868B' }}>⚡ ${r.ac}</span><span style=${{ fontSize:10, color:'#86868B' }}>📊 ${r.cats}/4</span></div>
+                </div>
+              </div>`})}
+        </div>
+        <h4 style=${{ fontSize:15, fontWeight:700, marginTop:24, marginBottom:12 }}>🏅 Logros</h4>
+        <div style=${{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))', gap:8 }}>
+          ${BADGES.map(b=>{const ms={n:notes.filter(n=>n.userId===user.id).length,vg:notes.reduce((s,n)=>s+(n.voters?.includes(user.id)?1:0),0),a:actions.filter(a=>a.createdBy===user.id).length,cats:new Set(notes.filter(n=>n.userId===user.id).map(n=>n.category)).size};
+            return html`<div key=${b.id} style=${{ textAlign:'center', padding:'14px 10px', borderRadius:14, background:b.c(ms)?'#FFD60A08':'#F2F2F7', border:b.c(ms)?'1.5px solid #FFD60A28':'1.5px solid transparent', opacity:b.c(ms)?1:0.3 }}><div style=${{ fontSize:28 }}>${b.icon}</div><div style=${{ fontSize:11, fontWeight:700, marginTop:4 }}>${b.label}</div></div>`})}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+render(html`<${App} />`, document.getElementById('app'));
+</script>
+</body>
+</html>
