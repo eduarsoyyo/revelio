@@ -92,16 +92,62 @@ const cS = { background:'#FFF', borderRadius:20, border:'1.5px solid #E5E5EA', o
 const params = new URLSearchParams(window.location.search);
 const SALA = params.get('sala') || 'general';
 const SALA_DISPLAY = SALA.charAt(0).toUpperCase() + SALA.slice(1);
+const TIPO = params.get('tipo') || 'agile';
 const IS_ADMIN = params.has('admin');
-const DEFAULT_TASKS = [
-  'Completar historias de usuario planificadas',
-  'Resolver bugs / incidencias del sprint',
-  'Code reviews pendientes',
-  'Testing / QA de entregables',
-  'Actualizar documentación',
-  'Preparar demo del sprint',
-  'Actualizar y refinar backlog',
-].map(t => ({ id: uid(), text: t, done: false }));
+
+const TASK_TEMPLATES = {
+  agile: {
+    label: 'Agile / Scrum', icon: '🏃', color: '#007AFF',
+    tasks: [
+      'Completar historias de usuario planificadas',
+      'Resolver bugs / incidencias del sprint',
+      'Code reviews pendientes',
+      'Testing / QA de entregables',
+      'Actualizar documentación',
+      'Preparar demo del sprint',
+      'Actualizar y refinar backlog',
+    ]
+  },
+  waterfall: {
+    label: 'Waterfall', icon: '🏗️', color: '#5856D6',
+    tasks: [
+      'Revisar entregables de la fase actual',
+      'Validar cumplimiento de requisitos',
+      'Verificar documentación de diseño / técnica',
+      'Comprobar trazabilidad requisitos → pruebas',
+      'Revisar plan de proyecto vs. avance real',
+      'Gestionar solicitudes de cambio (CCB)',
+      'Preparar entregables de la siguiente fase',
+    ]
+  },
+  itil: {
+    label: 'ITIL / Servicio', icon: '🛎️', color: '#FF9500',
+    tasks: [
+      'Revisar SLAs y cumplimiento de niveles de servicio',
+      'Analizar incidencias recurrentes (gestión de problemas)',
+      'Revisar backlog de peticiones de servicio',
+      'Validar cambios implementados (PIR)',
+      'Actualizar CMDB / base de conocimiento',
+      'Revisar capacity y disponibilidad',
+      'Seguimiento de mejoras continuas (CSI)',
+    ]
+  },
+  kanban: {
+    label: 'Kanban', icon: '📋', color: '#34C759',
+    tasks: [
+      'Revisar WIP limits y cumplimiento',
+      'Analizar cuellos de botella detectados',
+      'Revisar lead time y cycle time',
+      'Validar entregables completados',
+      'Priorizar y refinar el backlog',
+      'Actualizar tablero y políticas de flujo',
+      'Identificar bloqueos y dependencias',
+    ]
+  },
+};
+
+const TIPO_INFO = TASK_TEMPLATES[TIPO] || TASK_TEMPLATES.agile;
+const DEFAULT_TASKS = TIPO_INFO.tasks.map(t => ({ id: uid(), text: t, done: false }));
 
 /* ═══ REALTIME STATE ═══ */
 function useRealtime(user) {
@@ -227,9 +273,9 @@ function NeedLink() {
 
 /* ═══ ROOM PICKER ═══ */
 const DEFAULT_ROOMS = [
-  { name: 'VWFS - Impulso Fleet', slug: 'vwfs' },
-  { name: 'Endesa - Billing Boost', slug: 'endesa' },
-  { name: 'ADA - OTDP', slug: 'ada' },
+  { name: 'VWFS - Impulso Fleet', slug: 'vwfs', tipo: 'agile' },
+  { name: 'Endesa - Billing Boost', slug: 'endesa', tipo: 'waterfall' },
+  { name: 'ADA - OTDP', slug: 'ada', tipo: 'itil' },
 ];
 
 function loadRooms() {
@@ -245,18 +291,19 @@ function saveRooms(rooms) {
 
 function RoomPicker() {
   const [room, setRoom] = useState('');
+  const [tipo, setTipo] = useState('agile');
   const [rooms, setRooms] = useState(loadRooms);
   const [tab, setTab] = useState('dashboard');
   const [metrics] = useState(() => {
     try { return JSON.parse(localStorage.getItem('retroflow-metrics') || '{}'); } catch { return {}; }
   });
 
-  const go = (slug) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(slug); };
+  const go = (slug, t) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(slug) + '&tipo=' + (t || 'agile'); };
   const create = () => {
     if (!room.trim()) return;
     const slug = room.trim().toLowerCase().replace(/\s+/g, '-');
-    if (!rooms.find(r => r.slug === slug)) { const u = [...rooms, { name: room.trim(), slug }]; setRooms(u); saveRooms(u); }
-    go(slug);
+    if (!rooms.find(r => r.slug === slug)) { const u = [...rooms, { name: room.trim(), slug, tipo }]; setRooms(u); saveRooms(u); }
+    go(slug, tipo);
   };
   const remove = (slug) => { const u = rooms.filter(r => r.slug !== slug); setRooms(u); saveRooms(u); };
 
@@ -304,10 +351,62 @@ function RoomPicker() {
 
         ${tab === 'dashboard' ? html`
           ${totalRetros === 0 ? html`
-            <div style=${{ textAlign:'center', padding:'60px 0', color:'#C7C7CC' }}>
-              <div style=${{ fontSize:48, marginBottom:8 }}>📊</div>
-              <p style=${{ fontSize:15, fontWeight:600, color:'#86868B' }}>Aún no hay datos</p>
-              <p style=${{ fontSize:13 }}>Las métricas aparecen cuando guardas retros con 💾</p>
+            <!-- Empty state KPIs -->
+            <div style=${{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:16 }}>
+              ${[
+                {l:'Retros',i:'📊'},{l:'Notas',i:'📝'},{l:'Votos',i:'👍'},
+                {l:'Accionables',i:'🎯'},{l:'Completados',i:'✅'},{l:'Personas',i:'👥'},
+              ].map((k,i) => html`
+                <div key=${i} style=${{ ...cS, padding:'14px 8px', textAlign:'center', opacity:0.5 }}>
+                  <div style=${{ fontSize:18, marginBottom:4 }}>${k.i}</div>
+                  <div style=${{ fontSize:22, fontWeight:800, color:'#C7C7CC' }}>—</div>
+                  <div style=${{ fontSize:9, color:'#C7C7CC', marginTop:2 }}>${k.l}</div>
+                </div>
+              `)}
+            </div>
+            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+              <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
+                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:8, color:'#86868B' }}>📈 Notas por retro</h3>
+                <div style=${{ display:'flex', alignItems:'flex-end', gap:6, height:80, justifyContent:'center' }}>
+                  ${[30,50,20,70,40,60].map((h,i) => html`<div key=${i} style=${{ width:20, height:h+'%', background:'#E5E5EA', borderRadius:'3px 3px 0 0' }} />`)}
+                </div>
+                <p style=${{ fontSize:10, color:'#C7C7CC', textAlign:'center', marginTop:10 }}>Sin datos aún</p>
+              </div>
+              <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
+                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:8, color:'#86868B' }}>👥 Participantes por retro</h3>
+                <div style=${{ display:'flex', alignItems:'flex-end', gap:6, height:80, justifyContent:'center' }}>
+                  ${[40,60,30,50,70,45].map((h,i) => html`<div key=${i} style=${{ width:20, height:h+'%', background:'#E5E5EA', borderRadius:'3px 3px 0 0' }} />`)}
+                </div>
+                <p style=${{ fontSize:10, color:'#C7C7CC', textAlign:'center', marginTop:10 }}>Sin datos aún</p>
+              </div>
+            </div>
+            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+              <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
+                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:12, color:'#86868B' }}>🎯 Accionables</h3>
+                <div style=${{ display:'flex', alignItems:'center', gap:20 }}>
+                  <div style=${{ position:'relative', width:85, height:85 }}>
+                    <svg viewBox="0 0 36 36" style=${{ width:85, height:85 }}>
+                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#F2F2F7" stroke-width="3" />
+                    </svg>
+                    <div style=${{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', fontSize:14, fontWeight:800, color:'#C7C7CC' }}>—</div>
+                  </div>
+                  <p style=${{ fontSize:11, color:'#C7C7CC' }}>Sin datos aún</p>
+                </div>
+              </div>
+              <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
+                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:12, color:'#86868B' }}>📂 Notas por proyecto</h3>
+                <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+                  ${['Proyecto A','Proyecto B','Proyecto C'].map((p,i) => html`
+                    <div key=${i}><div style=${{ display:'flex', justifyContent:'space-between', marginBottom:2 }}><span style=${{ fontSize:11, color:'#C7C7CC' }}>${p}</span></div>
+                    <div style=${{ height:7, background:'#F2F2F7', borderRadius:4 }} /></div>
+                  `)}
+                </div>
+                <p style=${{ fontSize:10, color:'#C7C7CC', textAlign:'center', marginTop:10 }}>Sin datos aún</p>
+              </div>
+            </div>
+            <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
+              <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:8, color:'#86868B' }}>📋 Portfolio de proyectos</h3>
+              <p style=${{ fontSize:12, color:'#C7C7CC', textAlign:'center', padding:'20px 0' }}>Los datos del portfolio aparecen cuando guardes retros con 💾</p>
             </div>
           ` : html`
             <!-- KPIs -->
@@ -418,7 +517,7 @@ function RoomPicker() {
                 <table style=${{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
                   <thead>
                     <tr style=${{ borderBottom:'2px solid #E5E5EA' }}>
-                      ${['Proyecto','Retros','Notas','Votos','Accionables','% Hecho','Participantes','Última'].map(h=>html`
+                      ${['Proyecto','Tipo','Retros','Notas','Votos','Accionables','% Hecho','Participantes','Última'].map(h=>html`
                         <th key=${h} style=${{ padding:'7px 8px', textAlign:'left', fontWeight:700, color:'#86868B', fontSize:9, textTransform:'uppercase' }}>${h}</th>
                       `)}
                     </tr>
@@ -426,11 +525,13 @@ function RoomPicker() {
                   <tbody>
                     ${salaStats.map((s,i) => {
                       const cr = s.actions>0 ? Math.round((s.done/s.actions)*100) : 0;
+                      const rTipo = TASK_TEMPLATES[s.tipo] || TASK_TEMPLATES.agile;
                       return html`
                         <tr key=${s.slug} style=${{ borderBottom:'1px solid #F2F2F7' }}>
                           <td style=${{ padding:'8px', fontWeight:600 }}>
-                            <button onClick=${()=>go(s.slug)} style=${{ border:'none', background:'none', cursor:'pointer', fontWeight:600, color:'#007AFF', fontSize:11, padding:0 }}>${s.name}</button>
+                            <button onClick=${()=>go(s.slug, s.tipo)} style=${{ border:'none', background:'none', cursor:'pointer', fontWeight:600, color:'#007AFF', fontSize:11, padding:0 }}>${s.name}</button>
                           </td>
+                          <td style=${{ padding:'8px' }}><span style=${{ fontSize:9, fontWeight:600, color:rTipo.color, background:rTipo.color+'10', padding:'2px 6px', borderRadius:4 }}>${rTipo.icon} ${rTipo.label}</span></td>
                           <td style=${{ padding:'8px' }}><span style=${{ fontWeight:700, color:'#007AFF' }}>${s.retros}</span></td>
                           <td style=${{ padding:'8px', fontWeight:600 }}>${s.notes}</td>
                           <td style=${{ padding:'8px' }}>${s.votes}</td>
@@ -464,24 +565,35 @@ function RoomPicker() {
         ` : html`
           <!-- SALAS TAB -->
           <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Crear nueva sala</p>
-          <div style=${{ display:'flex', gap:6, marginBottom:20 }}>
+          <div style=${{ display:'flex', gap:6, marginBottom:10, flexWrap:'wrap' }}>
             <input value=${room} onInput=${e=>setRoom(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&create()}
-              placeholder="Nombre del proyecto..." style=${{ ...iS, flex:1, fontSize:15, background:'#FFF' }} />
+              placeholder="Nombre del proyecto..." style=${{ ...iS, flex:2, minWidth:160, fontSize:15, background:'#FFF' }} />
             <button onClick=${create} style=${{ ...bP, padding:'12px 20px' }}>Crear →</button>
+          </div>
+          <p style=${{ fontSize:10, color:'#86868B', marginBottom:6 }}>Metodología (define las tareas precargadas)</p>
+          <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6, marginBottom:20 }}>
+            ${Object.entries(TASK_TEMPLATES).map(([k, v]) => html`
+              <button key=${k} onClick=${()=>setTipo(k)}
+                style=${{ padding:'10px 8px', borderRadius:12, border:tipo===k?'2px solid '+v.color:'1.5px solid #E5E5EA', background:tipo===k?v.color+'10':'#FFF', textAlign:'center', transition:'all .15s' }}>
+                <div style=${{ fontSize:20, marginBottom:4 }}>${v.icon}</div>
+                <div style=${{ fontSize:11, fontWeight:700, color:tipo===k?v.color:'#6E6E73' }}>${v.label}</div>
+              </button>
+            `)}
           </div>
           ${rooms.length>0 && html`
             <p style=${{ fontSize:11, color:'#86868B', marginBottom:10, fontWeight:600, textTransform:'uppercase' }}>Salas (${rooms.length})</p>
             <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
               ${rooms.map(r => {
                 const rm=metrics[r.slug]||[];
-                const link=window.location.origin+window.location.pathname+'?sala='+r.slug;
+                const rTipo = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
+                const link=window.location.origin+window.location.pathname+'?sala='+r.slug+'&tipo='+(r.tipo||'agile');
                 return html`
                 <div key=${r.slug} style=${{ ...cS }}>
                   <div style=${{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px' }}>
-                    <button onClick=${()=>go(r.slug)} style=${{ display:'flex', alignItems:'center', gap:10, flex:1, textAlign:'left', border:'none', background:'none', cursor:'pointer', padding:0 }}>
-                      <div style=${{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>📂</div>
+                    <button onClick=${()=>go(r.slug, r.tipo)} style=${{ display:'flex', alignItems:'center', gap:10, flex:1, textAlign:'left', border:'none', background:'none', cursor:'pointer', padding:0 }}>
+                      <div style=${{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg,'+rTipo.color+','+rTipo.color+'99)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>${rTipo.icon}</div>
                       <div>
-                        <span style=${{ fontSize:14, fontWeight:600, color:'#1D1D1F' }}>${r.name}</span>
+                        <span style=${{ fontSize:14, fontWeight:600, color:'#1D1D1F' }}>${r.name} <span style=${{ fontSize:9, fontWeight:500, color:rTipo.color, background:rTipo.color+'10', padding:'1px 6px', borderRadius:4 }}>${rTipo.label}</span></span>
                         <div style=${{ fontSize:11, color:'#86868B' }}>${window.location.host}?sala=${r.slug}</div>
                       </div>
                     </button>
@@ -646,7 +758,7 @@ function RetroBoard({ user }) {
         <div style=${{ display:'flex', alignItems:'center', gap:10 }}>
           <span style=${{ fontSize:22 }}>🔄</span>
           <div>
-            <h2 style=${{ fontSize:16, fontWeight:700 }}>RetroFlow <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span></h2>
+            <h2 style=${{ fontSize:16, fontWeight:700 }}>RetroFlow <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span> <span style=${{ fontSize:10, fontWeight:500, color:TIPO_INFO.color, background:TIPO_INFO.color+'10', padding:'2px 6px', borderRadius:5, marginLeft:2 }}>${TIPO_INFO.icon} ${TIPO_INFO.label}</span></h2>
             <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
           </div>
           <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🗑 Nueva</button>
