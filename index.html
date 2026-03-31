@@ -88,7 +88,10 @@ const bS = { padding:'10px 18px', borderRadius:12, border:'1.5px solid #E5E5EA',
 const iS = { padding:'12px 16px', borderRadius:12, border:'1.5px solid #E5E5EA', fontSize:14, outline:'none', fontFamily:'inherit', width:'100%', boxSizing:'border-box', background:'#FAFAFA' };
 const cS = { background:'#FFF', borderRadius:20, border:'1.5px solid #E5E5EA', overflow:'hidden' };
 
-/* ═══ DEFAULT TASKS ═══ */
+/* ═══ ROOM FROM URL ═══ */
+const params = new URLSearchParams(window.location.search);
+const SALA = params.get('sala') || 'general';
+const SALA_DISPLAY = SALA.charAt(0).toUpperCase() + SALA.slice(1);
 const DEFAULT_TASKS = [
   'Completar historias de usuario planificadas',
   'Resolver bugs / incidencias del sprint',
@@ -111,7 +114,7 @@ function useRealtime(user) {
 
   useEffect(() => {
     if (!user) return;
-    const ch = supabase.channel('retroflow-live', { config:{ presence:{ key:user.id } } });
+    const ch = supabase.channel('retro-' + SALA, { config:{ presence:{ key:user.id } } });
 
     // Presence: only for online users
     ch.on('presence', { event:'sync' }, () => {
@@ -193,8 +196,48 @@ function useRealtime(user) {
 /* ═══ APP ═══ */
 function App() {
   const [user, setUser] = useState(null);
+
+  // No sala in URL → show room picker
+  if (!params.has('sala')) return html`<${RoomPicker} />`;
   if (!user) return html`<${Login} onJoin=${setUser} />`;
   return html`<${RetroBoard} user=${user} />`;
+}
+
+/* ═══ ROOM PICKER ═══ */
+function RoomPicker() {
+  const [room, setRoom] = useState('');
+  const go = (name) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(name.toLowerCase().trim()); };
+
+  return html`
+    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:460, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)' }}>
+        <div style=${{ textAlign:'center', marginBottom:28 }}>
+          <div style=${{ width:56, height:56, borderRadius:18, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28, marginBottom:12 }}>🔄</div>
+          <h1 style=${{ fontSize:26, fontWeight:700, marginBottom:3 }}>RetroFlow</h1>
+          <p style=${{ color:'#86868B', fontSize:14 }}>Selecciona o crea una sala de retrospectiva</p>
+        </div>
+        <div style=${{ display:'flex', gap:6, marginBottom:20 }}>
+          <input value=${room} onInput=${e=>setRoom(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&room.trim()&&go(room)}
+            placeholder="Nombre de la sala..." style=${{ ...iS, flex:1, fontSize:16, background:'#FFF' }} />
+          <button onClick=${()=>room.trim()&&go(room)} style=${{ ...bP, padding:'12px 20px' }}>Entrar</button>
+        </div>
+        <p style=${{ fontSize:11, color:'#86868B', marginBottom:10, fontWeight:600, textTransform:'uppercase' }}>O elige una</p>
+        <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+          ${['VWFS - Impulso Fleet', 'Endesa - Billing Boost', 'ADA - OTDP'].map(r => html`
+            <button key=${r} onClick=${()=>go(r.split(' - ')[0].toLowerCase())} class="hl"
+              style=${{ ...cS, padding:'14px 18px', display:'flex', alignItems:'center', gap:12, textAlign:'left', transition:'all .2s' }}>
+              <div style=${{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>📂</div>
+              <div>
+                <span style=${{ fontSize:14, fontWeight:600 }}>${r}</span>
+                <div style=${{ fontSize:11, color:'#86868B' }}>${window.location.host}?sala=${r.split(' - ')[0].toLowerCase()}</div>
+              </div>
+            </button>
+          `)}
+        </div>
+        <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:16, textAlign:'center' }}>Cada sala es independiente. Comparte la URL con tu equipo.</p>
+      </div>
+    </div>
+  `;
 }
 
 /* ═══ LOGIN ═══ */
@@ -286,7 +329,7 @@ function RetroBoard({ user }) {
         <div style=${{ display:'flex', alignItems:'center', gap:10 }}>
           <span style=${{ fontSize:22 }}>🔄</span>
           <div>
-            <h2 style=${{ fontSize:16, fontWeight:700 }}>RetroFlow</h2>
+            <h2 style=${{ fontSize:16, fontWeight:700 }}>RetroFlow <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span></h2>
             <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
           </div>
           <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🗑 Nueva retro</button>
@@ -553,7 +596,7 @@ function P5({ notes, actions, users, user, obj, tasks }) {
     const doc=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>RetroFlow - Informe</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',sans-serif;color:#1D1D1F;padding:40px;max-width:900px;margin:0 auto;font-size:13px;line-height:1.5}h1{font-size:26px;font-weight:700;margin-bottom:4px}h2{font-size:18px;font-weight:700;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid #E5E5EA}.sum{display:flex;gap:12px;margin-bottom:24px}.cd{flex:1;background:#F9F9FB;border-radius:12px;padding:16px;text-align:center;border:1px solid #E5E5EA}.cd .v{font-size:22px;font-weight:800}.cd .l{font-size:11px;color:#86868B;margin-top:2px}.ct{margin-bottom:20px;padding:14px;border-radius:12px;border-left:4px solid}.good{border-color:#34C759;background:#F0FFF4}.bad{border-color:#FF3B30;background:#FFF5F5}.start{border-color:#007AFF;background:#EBF5FF}.stop{border-color:#FF9500;background:#FFF8EB}.nt{padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;justify-content:space-between}.nt:last-child{border-bottom:none}.ac{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E5E5EA}.ac:last-child{border-bottom:none}.bg{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}.rk{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F2F2F7}.rk:last-child{border-bottom:none}.tk{padding:4px 0}.tk.dn{text-decoration:line-through;color:#86868B}.br{height:6px;background:#E5E5EA;border-radius:3px;margin:4px 0 12px;overflow:hidden}.fl{height:100%;border-radius:3px}@media print{body{padding:20px}}</style></head><body>
 <div style="text-align:center;margin-bottom:8px"><span style="font-size:32px">🔄</span></div>
-<h1 style="text-align:center">RetroFlow — Informe de Retrospectiva</h1>
+<h1 style="text-align:center">RetroFlow — ${SALA_DISPLAY}</h1>
 <p style="text-align:center;color:#86868B;font-size:13px;margin-bottom:24px">${fd(new Date())}</p>
 <div class="sum"><div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div><div class="cd"><div class="v" style="color:#FF9500">${tV}</div><div class="l">Votos</div></div><div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div><div class="cd"><div class="v" style="color:${obj.met===true?'#34C759':obj.met===false?'#FF3B30':'#FF9500'};font-size:14px">${objL}</div><div class="l">Objetivo</div></div></div>
 ${obj.text?'<h2>🎯 Objetivo</h2><p style="margin-bottom:16px">'+obj.text+'</p>':''}
