@@ -308,6 +308,35 @@ function RetroBoard({ user }) {
   const sA = d => upd('actions',d);
   const sO = d => upd('obj',d);
 
+  const fileRef = useRef(null);
+
+  const saveRetro = () => {
+    const data = { sala: SALA, date: new Date().toISOString(), ...state };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'retro-' + SALA + '-' + new Date().toISOString().split('T')[0] + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const loadRetro = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.notes) upd('notes', data.notes);
+        if (data.tasks) upd('tasks', data.tasks);
+        if (data.actions) upd('actions', data.actions);
+        if (data.obj) upd('obj', data.obj);
+      } catch (err) { console.error('Error cargando retro:', err); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const content = () => {
     if (phase===0) return html`<${P1} tasks=${state.tasks} sT=${sT} obj=${state.obj} sO=${sO} user=${user} />`;
     if (phase===1) return html`<${Board} notes=${state.notes} sN=${sN} user=${user} filter="all" />`;
@@ -332,7 +361,10 @@ function RetroBoard({ user }) {
             <h2 style=${{ fontSize:16, fontWeight:700 }}>RetroFlow <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span></h2>
             <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
           </div>
-          <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🗑 Nueva retro</button>
+          <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🗑 Nueva</button>
+          <button onClick=${saveRetro} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #34C75940', background:'#FFF', color:'#34C759', fontSize:11, fontWeight:600 }}>💾 Guardar</button>
+          <button onClick=${()=>fileRef.current.click()} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #007AFF40', background:'#FFF', color:'#007AFF', fontSize:11, fontWeight:600 }}>📂 Cargar</button>
+          <input ref=${fileRef} type="file" accept=".json" onChange=${loadRetro} style=${{ display:'none' }} />
         </div>
         ${showReset && html`
           <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.3)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }} onClick=${()=>setShowReset(false)}>
