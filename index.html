@@ -95,26 +95,33 @@ function useRealtime(user) {
   const [cursors, setCursors] = useState({});
   const chRef = useRef(null);
   const stRef = useRef(state);
+  const cursRef = useRef({});
   stRef.current = state;
 
   useEffect(() => {
     if (!user) return;
     const ch = supabase.channel('retroflow-live', { config:{ presence:{ key:user.id } } });
 
+    // Presence: only for online users
     ch.on('presence', { event:'sync' }, () => {
       const ps = ch.presenceState();
-      const u = {}, c = {};
+      const u = {};
       Object.entries(ps).forEach(([k, arr]) => {
         if (arr.length > 0) {
-          const p = arr[0];
-          u[k] = { name:p.name, avatar:p.avatar, color:p.color };
-          if (k !== user.id && p.cx != null) c[k] = { x:p.cx, y:p.cy, name:p.name, avatar:p.avatar, color:p.color };
+          u[k] = { name:arr[0].name, avatar:arr[0].avatar, color:arr[0].color };
         }
       });
       setOnline(u);
-      setCursors(c);
     });
 
+    // Broadcast: cursor positions (fast, no rate limit)
+    ch.on('broadcast', { event:'cursor' }, ({ payload }) => {
+      if (payload.id === user.id) return;
+      cursRef.current = { ...cursRef.current, [payload.id]: { x:payload.x, y:payload.y, name:payload.name, avatar:payload.avatar, color:payload.color, ts:Date.now() } };
+      setCursors({ ...cursRef.current });
+    });
+
+    // Broadcast: state sync
     ch.on('broadcast', { event:'sync' }, ({ payload }) => {
       if (payload.from === user.id) return;
       setState(prev => ({ ...prev, [payload.key]: payload.data }));
@@ -130,13 +137,22 @@ function useRealtime(user) {
 
     ch.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        await ch.track({ name:user.name, avatar:user.avatar, color:user.color, cx:50, cy:50 });
+        await ch.track({ name:user.name, avatar:user.avatar, color:user.color });
         setTimeout(() => ch.send({ type:'broadcast', event:'req', payload:{ from:user.id } }), 600);
       }
     });
 
+    // Clean stale cursors every 3s
+    const cleanIv = setInterval(() => {
+      const now = Date.now();
+      let changed = false;
+      const c = { ...cursRef.current };
+      Object.keys(c).forEach(k => { if (now - c[k].ts > 5000) { delete c[k]; changed = true; } });
+      if (changed) { cursRef.current = c; setCursors(c); }
+    }, 3000);
+
     chRef.current = ch;
-    return () => supabase.removeChannel(ch);
+    return () => { supabase.removeChannel(ch); clearInterval(cleanIv); };
   }, [user]);
 
   const upd = useCallback((key, data) => {
@@ -145,7 +161,9 @@ function useRealtime(user) {
   }, [user]);
 
   const moveCursor = useCallback((x, y) => {
-    if (chRef.current && user) chRef.current.track({ name:user.name, avatar:user.avatar, color:user.color, cx:x, cy:y });
+    if (chRef.current && user) {
+      chRef.current.send({ type:'broadcast', event:'cursor', payload:{ id:user.id, x, y, name:user.name, avatar:user.avatar, color:user.color } });
+    }
   }, [user]);
 
   return { state, upd, online, cursors, moveCursor };
