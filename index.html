@@ -92,6 +92,7 @@ const cS = { background:'#FFF', borderRadius:20, border:'1.5px solid #E5E5EA', o
 const params = new URLSearchParams(window.location.search);
 const SALA = params.get('sala') || 'general';
 const SALA_DISPLAY = SALA.charAt(0).toUpperCase() + SALA.slice(1);
+const IS_ADMIN = params.has('admin');
 const DEFAULT_TASKS = [
   'Completar historias de usuario planificadas',
   'Resolver bugs / incidencias del sprint',
@@ -197,10 +198,31 @@ function useRealtime(user) {
 function App() {
   const [user, setUser] = useState(null);
 
-  // No sala in URL → show room picker
-  if (!params.has('sala')) return html`<${RoomPicker} />`;
+  // No sala → admin sees picker, others see "pide el enlace"
+  if (!params.has('sala')) {
+    if (IS_ADMIN) return html`<${RoomPicker} />`;
+    return html`<${NeedLink} />`;
+  }
   if (!user) return html`<${Login} onJoin=${setUser} />`;
   return html`<${RetroBoard} user=${user} />`;
+}
+
+/* ═══ NEED LINK SCREEN ═══ */
+function NeedLink() {
+  return html`
+    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:400, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)', textAlign:'center' }}>
+        <div style=${{ width:56, height:56, borderRadius:18, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28, marginBottom:16 }}>🔄</div>
+        <h1 style=${{ fontSize:24, fontWeight:700, marginBottom:8 }}>RetroFlow</h1>
+        <div style=${{ fontSize:48, marginBottom:16 }}>🔗</div>
+        <h2 style=${{ fontSize:18, fontWeight:700, marginBottom:8, color:'#1D1D1F' }}>Necesitas un enlace</h2>
+        <p style=${{ fontSize:14, color:'#86868B', lineHeight:1.6 }}>
+          Pide a tu Scrum Master el enlace directo a la sala de tu retrospectiva.
+        </p>
+        <p style=${{ fontSize:12, color:'#C7C7CC', marginTop:16 }}>El enlace tiene este formato: ${window.location.host}?sala=nombre</p>
+      </div>
+    </div>
+  `;
 }
 
 /* ═══ ROOM PICKER ═══ */
@@ -214,25 +236,32 @@ function RoomPicker() {
         <div style=${{ textAlign:'center', marginBottom:28 }}>
           <div style=${{ width:56, height:56, borderRadius:18, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28, marginBottom:12 }}>🔄</div>
           <h1 style=${{ fontSize:26, fontWeight:700, marginBottom:3 }}>RetroFlow</h1>
-          <p style=${{ color:'#86868B', fontSize:14 }}>Selecciona o crea una sala de retrospectiva</p>
+          <p style=${{ color:'#86868B', fontSize:14 }}>Panel de administración</p>
         </div>
+        <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Crear nueva sala</p>
         <div style=${{ display:'flex', gap:6, marginBottom:20 }}>
           <input value=${room} onInput=${e=>setRoom(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&room.trim()&&go(room)}
-            placeholder="Nombre de la sala..." style=${{ ...iS, flex:1, fontSize:16, background:'#FFF' }} />
-          <button onClick=${()=>room.trim()&&go(room)} style=${{ ...bP, padding:'12px 20px' }}>Entrar</button>
+            placeholder="Escribe un nombre (ej: miproyecto)..." style=${{ ...iS, flex:1, fontSize:15, background:'#FFF' }} />
+          <button onClick=${()=>room.trim()&&go(room)} style=${{ ...bP, padding:'12px 20px' }}>Crear →</button>
         </div>
-        <p style=${{ fontSize:11, color:'#86868B', marginBottom:10, fontWeight:600, textTransform:'uppercase' }}>O elige una</p>
+        <p style=${{ fontSize:11, color:'#86868B', marginBottom:10, fontWeight:600, textTransform:'uppercase' }}>Salas existentes</p>
         <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-          ${['VWFS - Impulso Fleet', 'Endesa - Billing Boost', 'ADA - OTDP'].map(r => html`
-            <button key=${r} onClick=${()=>go(r.split(' - ')[0].toLowerCase())} class="hl"
-              style=${{ ...cS, padding:'14px 18px', display:'flex', alignItems:'center', gap:12, textAlign:'left', transition:'all .2s' }}>
-              <div style=${{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>📂</div>
-              <div>
-                <span style=${{ fontSize:14, fontWeight:600 }}>${r}</span>
-                <div style=${{ fontSize:11, color:'#86868B' }}>${window.location.host}?sala=${r.split(' - ')[0].toLowerCase()}</div>
-              </div>
-            </button>
-          `)}
+          ${['VWFS - Impulso Fleet', 'Endesa - Billing Boost', 'ADA - OTDP'].map(r => {
+            const slug = r.split(' - ')[0].toLowerCase();
+            const link = window.location.origin + window.location.pathname + '?sala=' + slug;
+            return html`
+            <div key=${r} style=${{ display:'flex', gap:6, alignItems:'center' }}>
+              <button onClick=${()=>go(slug)} class="hl"
+                style=${{ ...cS, flex:1, padding:'14px 18px', display:'flex', alignItems:'center', gap:12, textAlign:'left', transition:'all .2s' }}>
+                <div style=${{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>📂</div>
+                <div>
+                  <span style=${{ fontSize:14, fontWeight:600 }}>${r}</span>
+                  <div style=${{ fontSize:11, color:'#86868B' }}>${window.location.host}?sala=${slug}</div>
+                </div>
+              </button>
+              <button onClick=${()=>{navigator.clipboard.writeText(link)}} style=${{ ...bS, padding:'8px 12px', fontSize:11, flexShrink:0 }} title="Copiar enlace">📋 Copiar</button>
+            </div>`;
+          })}
         </div>
         <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:16, textAlign:'center' }}>Cada sala es independiente. Comparte la URL con tu equipo.</p>
       </div>
@@ -380,8 +409,11 @@ function RetroBoard({ user }) {
           </div>
         `}
         <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
-          <div style=${{ background:running?'#1D1D1F':'#F2F2F7', color:running?'#FFF':'#1D1D1F', borderRadius:10, padding:'6px 14px', display:'flex', alignItems:'center', gap:6 }}>
-            <span style=${{ fontSize:18, fontWeight:700, fontVariantNumeric:'tabular-nums' }}>${fmt(timer)}</span>
+          <div style=${{ background:running?'#1D1D1F':'#F2F2F7', color:running?'#FFF':'#1D1D1F', borderRadius:10, padding:'6px 10px', display:'flex', alignItems:'center', gap:5 }}>
+            ${!running && html`<div style=${{ display:'flex', gap:2 }}>
+              ${[5,10,15,20].map(m => html`<button key=${m} onClick=${()=>{setTimer(m*60);setRunning(false)}} style=${{ padding:'3px 6px', borderRadius:6, border:'none', background:timer===m*60?'#007AFF':'transparent', color:timer===m*60?'#FFF':running?'#FFF':'#86868B', fontSize:10, fontWeight:600 }}>${m}'</button>`)}
+            </div>`}
+            <span style=${{ fontSize:18, fontWeight:700, fontVariantNumeric:'tabular-nums', minWidth:52, textAlign:'center' }}>${fmt(timer)}</span>
             <button onClick=${()=>setRunning(!running)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:running?'#FF3B30':'#34C759', color:'#FFF', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>${running?'⏸':'▶'}</button>
             <button onClick=${()=>{setTimer(900);setRunning(false)}} style=${{ width:26, height:26, borderRadius:13, border:'none', background:'rgba(128,128,128,0.12)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>↺</button>
           </div>
@@ -392,7 +424,7 @@ function RetroBoard({ user }) {
         </div>
       </header>
       <div style=${{ padding:'8px 18px', display:'flex', gap:4, flexShrink:0, background:'#FFF', borderBottom:'1px solid #E5E5EA', overflowX:'auto' }}>
-        ${PHASES.map((p,i)=>html`<button key=${p.id} onClick=${()=>{setPhase(i);setTimer(900);setRunning(false)}} style=${{ padding:'8px 14px', borderRadius:9, border:phase===i?'none':'1.5px solid #E5E5EA', background:phase===i?'#1D1D1F':'#FFF', color:phase===i?'#FFF':'#6E6E73', fontSize:12, fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>${p.icon} ${p.label}</button>`)}
+        ${PHASES.map((p,i)=>html`<button key=${p.id} onClick=${()=>setPhase(i)} style=${{ padding:'8px 14px', borderRadius:9, border:phase===i?'none':'1.5px solid #E5E5EA', background:phase===i?'#1D1D1F':'#FFF', color:phase===i?'#FFF':'#6E6E73', fontSize:12, fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>${p.icon} ${p.label}</button>`)}
       </div>
       <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>${content()}</div>
     </div>
@@ -453,7 +485,7 @@ function Board({ notes, sN, user, filter }) {
   const [dragId, setDragId] = useState(null);
   const [overCat, setOverCat] = useState(null);
 
-  const addN = c => { if(!txt.trim())return; sN([...notes,{id:uid(),text:txt.trim(),category:c,userId:user.id,userName:user.name,userAvatar:user.avatar,voters:[]}]); setTxt(''); setAct(null); };
+  const addN = c => { if(!txt.trim())return; sN([...notes,{id:uid(),text:txt.trim(),category:c,userId:user.id,userName:user.name,userAvatar:user.avatar,userColor:user.color,voters:[]}]); setTxt(''); setAct(null); };
   const vote = nid => sN(notes.map(n=>{if(n.id!==nid)return n;const v=n.voters||[];return{...n,voters:v.includes(user.id)?v.filter(x=>x!==user.id):[...v,user.id]}}));
   const delN = nid => sN(notes.filter(n=>n.id!==nid));
   const saveE = () => { if(!eVal.trim())delN(eId); else sN(notes.map(n=>n.id===eId?{...n,text:eVal.trim()}:n)); setEId(null); };
@@ -609,13 +641,18 @@ function P4({ notes, actions, sA, user }) {
 
 /* ═══ PHASE 5: DASHBOARD + PDF ═══ */
 function P5({ notes, actions, users, user, obj, tasks }) {
-  const ranking = Object.entries(users).map(([id,u])=>{
-    const mn=notes.filter(n=>n.userId===id);
-    const tarjetas=mn.length;
-    const votosRecibidos=mn.reduce((s,n)=>s+(n.voters?.length||0),0);
-    const score=tarjetas+votosRecibidos;
-    return{id,...u,tarjetas,votosRecibidos,score};
-  }).sort((a,b)=>b.score-a.score);
+  // Build ranking from notes (not from online users — so it works even if someone disconnects)
+  const authorMap = {};
+  notes.forEach(n => {
+    if (!authorMap[n.userId]) authorMap[n.userId] = { name: n.userName, avatar: n.userAvatar, color: n.userColor || '#007AFF', tarjetas: 0, votosRecibidos: 0 };
+    authorMap[n.userId].tarjetas++;
+    authorMap[n.userId].votosRecibidos += (n.voters?.length || 0);
+  });
+  const ranking = Object.entries(authorMap).map(([id, d]) => ({
+    id, name: d.name, avatar: d.avatar, color: d.color,
+    tarjetas: d.tarjetas, votosRecibidos: d.votosRecibidos,
+    score: d.tarjetas + d.votosRecibidos,
+  })).sort((a, b) => b.score - a.score);
   const mx=ranking[0]?.score||1;
   const tN=notes.length; const tV=notes.reduce((s,n)=>s+(n.voters?.length||0),0);
   const tD=tasks.filter(t=>t.done).length; const aD=actions.filter(a=>a.status==='done').length;
