@@ -871,6 +871,7 @@ function RetroBoard({ user, onLogout }) {
   const [timer, setTimer] = useState(900);
   const [running, setRunning] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [toast, setToast] = useState(null);
   const tRef = useRef(null);
   const bRef = useRef(null);
@@ -991,6 +992,7 @@ function RetroBoard({ user, onLogout }) {
           <button onClick=${saveRetro} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #34C75940', background:'#FFF', color:'#34C759', fontSize:11, fontWeight:600 }}>💾 Guardar</button>
           <button onClick=${()=>fileRef.current.click()} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #007AFF40', background:'#FFF', color:'#007AFF', fontSize:11, fontWeight:600 }}>📂 Cargar</button>
           <input ref=${fileRef} type="file" accept=".json" onChange=${loadRetro} style=${{ display:'none' }} />
+          <button onClick=${()=>setShowGuide(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #5856D640', background:'#FFF', color:'#5856D6', fontSize:11, fontWeight:600 }}>📖 Guía</button>
         </div>
         ${showReset && html`
           <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.3)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }} onClick=${()=>setShowReset(false)}>
@@ -1001,6 +1003,51 @@ function RetroBoard({ user, onLogout }) {
               <div style=${{ display:'flex', gap:8, justifyContent:'center' }}>
                 <button onClick=${()=>setShowReset(false)} style=${{ ...bS, padding:'10px 20px' }}>Cancelar</button>
                 <button onClick=${()=>{reset();setShowReset(false);setPhase(0);setTimer(900);setRunning(false)}} style=${{ ...bP, padding:'10px 20px', background:'#FF3B30' }}>Borrar y empezar</button>
+              </div>
+            </div>
+          </div>
+        `}
+        ${showGuide && html`
+          <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.4)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }} onClick=${()=>setShowGuide(false)}>
+            <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:600, width:'100%', maxHeight:'85vh', overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', display:'flex', flexDirection:'column' }}>
+              <div style=${{ padding:'24px 28px 16px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
+                <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div><h2 style=${{ fontSize:20, fontWeight:700 }}>📖 Libro de Hechizos</h2><p style=${{ fontSize:12, color:'#86868B' }}>Todo lo que necesitas para dominar revelio</p></div>
+                  <button onClick=${()=>setShowGuide(false)} style=${{ width:30, height:30, borderRadius:15, border:'none', background:'#F2F2F7', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                </div>
+              </div>
+              <div style=${{ padding:'20px 28px 28px', overflowY:'auto', flex:1 }}>
+                <h3 style=${{ fontSize:14, fontWeight:700, color:'#007AFF', marginBottom:12 }}>🧙 Para el equipo</h3>
+                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>1. Entra con el enlace</h4><p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5 }}>Tu SM te dará una URL tipo <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?sala=mi-proyecto</code>. Pon tu nombre, elige patronus y casa. Clic en 🪄 Revelio!</p></div>
+                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>2. Las 6 fases</h4>
+                  <div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
+                    ${[
+                      {i:'📋',t:'Repaso Inicial',d:'Revisa objetivo y tareas. Marca las completadas.'},
+                      {i:'✍️',t:'Análisis Individual',d:'Escribe notas en Good/Bad/Start/Stop. Arrastra entre columnas. Las tuyas tienen borde grueso.'},
+                      {i:'💬',t:'Puesta en Común',d:'Filtra por categoría o "Mis notas". Vota con 👍. Reacciona con emojis rápidos (🔥💡❤️😂🎯🤯).'},
+                      {i:'⚠️',t:'Riesgos',d:'Crea riesgos o convierte notas Bad/Stop. Vota impacto y probabilidad. El mapa de calor se actualiza en tiempo real.'},
+                      {i:'🎯',t:'Accionables',d:'Crea acciones o convierte notas/riesgos en accionables. Asigna responsable, fecha y prioridad.'},
+                      {i:'📊',t:'Dashboard',d:'Ranking, métricas y descarga del informe PDF con todo.'},
+                    ].map((p,i)=>html`<div key=${i} style=${{ padding:'7px 10px', borderRadius:8, background:'#F9F9FB', border:'1px solid #E5E5EA' }}><span style=${{ fontSize:12, fontWeight:700 }}>${p.i} ${p.t}</span><p style=${{ fontSize:11, color:'#6E6E73', margin:'2px 0 0', lineHeight:1.4 }}>${p.d}</p></div>`)}
+                  </div>
+                </div>
+                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>3. Tips rápidos</h4>
+                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>✏️ Edita tus notas con el lápiz, elimina con ✕</p><p>🔄 Si cierras y vuelves al enlace, entras automáticamente</p><p>👤 Cambia de usuario con el botón de tu nombre arriba a la derecha</p><p>⏱️ Timer con presets de 5, 10, 15 y 20 minutos</p></div>
+                </div>
+                <div style=${{ height:1, background:'#E5E5EA', margin:'16px 0' }} />
+                <h3 style=${{ fontSize:14, fontWeight:700, color:'#5856D6', marginBottom:12 }}>🏰 Para el Scrum Master</h3>
+                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Panel admin</h4>
+                  <p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5, marginBottom:6 }}>Accede con <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?admin</code> al final de la URL.</p>
+                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>📂 <strong>Crear salas</strong> — Nombre + metodología (Agile/Waterfall/ITIL/Kanban)</p><p>📋 <strong>Copiar enlace</strong> — Botón 📋 en cada sala para Slack/Teams</p><p>📊 <strong>Dashboard</strong> — KPIs, gráficos, tabla portfolio. Filtra por proyecto</p><p>👥 <strong>Usuarios</strong> — Quién ha entrado y cuándo en cada sala</p></div>
+                </div>
+                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Datos y persistencia</h4>
+                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>💾 <strong>Guardar</strong> — JSON + métricas para el dashboard</p><p>📂 <strong>Cargar</strong> — Restaura una retro desde JSON</p><p>📄 <strong>PDF</strong> — Informe completo desde el Dashboard</p><p>🗑 <strong>Nueva retro</strong> — Borra notas y tareas. Accionables abiertos y riesgos se mantienen</p></div>
+                </div>
+                <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:14 }}>
+                  <div style=${{ padding:'10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}><p style=${{ fontSize:11, fontWeight:700, color:'#34C759', marginBottom:4 }}>Se mantiene entre retros</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>⚠️ Riesgos abiertos<br/>🎯 Accionables pendientes<br/>👤 Identidad del usuario<br/>📊 Métricas del admin</p></div>
+                  <div style=${{ padding:'10px', borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}><p style=${{ fontSize:11, fontWeight:700, color:'#FF3B30', marginBottom:4 }}>Se resetea</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>📝 Notas del tablero<br/>📋 Tareas de la iteración<br/>🎯 Objetivo<br/>✅ Accionables completados</p></div>
+                </div>
+                <div style=${{ textAlign:'center', padding:'8px 0 0', color:'#C7C7CC', fontSize:11 }}><p>Hecho con ✨ y sin Horcruxes</p></div>
               </div>
             </div>
           </div>
