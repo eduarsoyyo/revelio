@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pulse</title>
+<title>revelio</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/comfortaa@5.0.18/latin-400.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-36 -36 72 72'><rect x='-36' y='-36' width='72' height='72' rx='18' fill='%235856D6'/><circle cx='0' cy='0' r='6' fill='white'/><circle cx='0' cy='0' r='15' fill='none' stroke='white' stroke-width='2.5' opacity='0.8'/><circle cx='0' cy='0' r='24' fill='none' stroke='white' stroke-width='2' opacity='0.5'/></svg>">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -15,6 +16,7 @@
   @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
   .hl { transition: transform .15s, box-shadow .15s; }
   .hl:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.07); }
+  .wm { font-family: 'Comfortaa', sans-serif; font-weight: 400; letter-spacing: 2px; background: linear-gradient(90deg,#007AFF,#5856D6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: inline-block; }
 </style>
 <script type="importmap">
 {
@@ -64,8 +66,8 @@ const PHASES = [
   { id:'review', label:'Repaso Inicial', icon:'📋' },
   { id:'individual', label:'Análisis Individual', icon:'✍️' },
   { id:'discuss', label:'Puesta en Común', icon:'💬' },
-  { id:'actions', label:'Accionables', icon:'🎯' },
   { id:'risks', label:'Riesgos', icon:'⚠️' },
+  { id:'actions', label:'Accionables', icon:'🎯' },
   { id:'dashboard', label:'Dashboard', icon:'📊' },
 ];
 const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
@@ -279,7 +281,7 @@ function NeedLink() {
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:400, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)', textAlign:'center' }}>
         <${Logo} size=${56} />
-        <h1 style=${{ fontSize:24, fontWeight:700, marginBottom:8 }}>Pulse</h1>
+        <h1 class="wm" style=${{ fontSize:28, marginBottom:8 }}>revelio</h1>
         <div style=${{ fontSize:48, marginBottom:16 }}>🔗</div>
         <h2 style=${{ fontSize:18, fontWeight:700, marginBottom:8, color:'#1D1D1F' }}>Necesitas un enlace</h2>
         <p style=${{ fontSize:14, color:'#86868B', lineHeight:1.6 }}>
@@ -428,7 +430,7 @@ function RoomPicker() {
       <div style=${{ maxWidth:960, margin:'0 auto' }}>
         <div style=${{ textAlign:'center', marginBottom:20 }}>
           <${Logo} size=${48} />
-          <h1 style=${{ fontSize:24, fontWeight:700, marginBottom:2 }}>Pulse</h1>
+          <h1 class="wm" style=${{ fontSize:28, marginBottom:2 }}>revelio</h1>
           <p style=${{ color:'#86868B', fontSize:13 }}>Panel de administración</p>
         </div>
 
@@ -728,8 +730,8 @@ function Login({ onJoin }) {
       <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:420, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)' }}>
         <div style=${{ textAlign:'center', marginBottom:28 }}>
           <${Logo} size=${56} />
-          <h1 style=${{ fontSize:26, fontWeight:700, marginBottom:3 }}>Pulse</h1>
-          <p style=${{ color:'#86868B', fontSize:14 }}>Toma el pulso a tu equipo</p>
+          <h1 class="wm" style=${{ fontSize:30, marginBottom:3 }}>revelio</h1>
+          <p style=${{ color:'#86868B', fontSize:14 }}>Revela lo que tu equipo necesita</p>
         </div>
         <input value=${nm} onInput=${e=>setNm(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&go()}
           placeholder="Tu nombre..." style=${{ ...iS, marginBottom:18, textAlign:'center', fontSize:16, background:'#FFF' }} />
@@ -837,8 +839,8 @@ function RetroBoard({ user, onLogout }) {
     if (phase===0) return html`<${P1} tasks=${state.tasks} sT=${sT} obj=${state.obj} sO=${sO} user=${user} />`;
     if (phase===1) return html`<${Board} notes=${state.notes} sN=${sN} user=${user} filter="all" />`;
     if (phase===2) return html`<${P3} notes=${state.notes} sN=${sN} user=${user} />`;
-    if (phase===3) return html`<${P4} notes=${state.notes} actions=${state.actions} sA=${sA} user=${user} />`;
-    if (phase===4) return html`<${P5Risks} risks=${state.risks} sR=${sR} notes=${state.notes} user=${user} />`;
+    if (phase===3) return html`<${P5Risks} risks=${state.risks} sR=${sR} notes=${state.notes} user=${user} />`;
+    if (phase===4) return html`<${P4} notes=${state.notes} actions=${state.actions} sA=${sA} user=${user} />`;
     if (phase===5) return html`<${P6} notes=${state.notes} actions=${state.actions} risks=${state.risks} users=${online} user=${user} obj=${state.obj} tasks=${state.tasks} />`;
     return null;
   };
@@ -855,7 +857,7 @@ function RetroBoard({ user, onLogout }) {
         <div style=${{ display:'flex', alignItems:'center', gap:10 }}>
           <${Logo} size=${32} />
           <div>
-            <h2 style=${{ fontSize:16, fontWeight:700 }}>Pulse <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span> <span style=${{ fontSize:10, fontWeight:500, color:TIPO_INFO.color, background:TIPO_INFO.color+'10', padding:'2px 6px', borderRadius:5, marginLeft:2 }}>${TIPO_INFO.icon} ${TIPO_INFO.label}</span></h2>
+            <h2 style=${{ fontSize:16, fontWeight:700 }}><span class="wm" style=${{ fontSize:18 }}>revelio</span> <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span> <span style=${{ fontSize:10, fontWeight:500, color:TIPO_INFO.color, background:TIPO_INFO.color+'10', padding:'2px 6px', borderRadius:5, marginLeft:2 }}>${TIPO_INFO.icon} ${TIPO_INFO.label}</span></h2>
             <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
           </div>
           <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🗑 Nueva</button>
@@ -1325,10 +1327,11 @@ function P6({ notes, actions, risks, users, user, obj, tasks }) {
   const exportPDF = () => {
     const nc=CATS.map(c=>({...c,notes:notes.filter(n=>n.category===c.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0))}));
     const sa=[...actions].sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0));
-    const doc=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pulse - Informe</title>
+    const doc=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>revelio - Informe</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/comfortaa@5.0.18/latin-400.css">
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',sans-serif;color:#1D1D1F;padding:40px;max-width:900px;margin:0 auto;font-size:13px;line-height:1.5}h1{font-size:26px;font-weight:700;margin-bottom:4px}h2{font-size:18px;font-weight:700;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid #E5E5EA}.sum{display:flex;gap:12px;margin-bottom:24px}.cd{flex:1;background:#F9F9FB;border-radius:12px;padding:16px;text-align:center;border:1px solid #E5E5EA}.cd .v{font-size:22px;font-weight:800}.cd .l{font-size:11px;color:#86868B;margin-top:2px}.ct{margin-bottom:20px;padding:14px;border-radius:12px;border-left:4px solid}.good{border-color:#34C759;background:#F0FFF4}.bad{border-color:#FF3B30;background:#FFF5F5}.start{border-color:#007AFF;background:#EBF5FF}.stop{border-color:#FF9500;background:#FFF8EB}.nt{padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;justify-content:space-between}.nt:last-child{border-bottom:none}.ac{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E5E5EA}.ac:last-child{border-bottom:none}.bg{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}.rk{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F2F2F7}.rk:last-child{border-bottom:none}.tk{padding:4px 0}.tk.dn{text-decoration:line-through;color:#86868B}.br{height:6px;background:#E5E5EA;border-radius:3px;margin:4px 0 12px;overflow:hidden}.fl{height:100%;border-radius:3px}@media print{body{padding:20px}}</style></head><body>
 <div style="text-align:center;margin-bottom:8px"><svg viewBox="-36 -36 72 72" width="48" height="48"><rect x="-36" y="-36" width="72" height="72" rx="18" fill="#5856D6"/><circle cx="0" cy="0" r="6" fill="white"/><circle cx="0" cy="0" r="15" fill="none" stroke="white" stroke-width="2.5" opacity="0.8"/><circle cx="0" cy="0" r="24" fill="none" stroke="white" stroke-width="2" opacity="0.5"/></svg></div>
-<h1 style="text-align:center">Pulse — ${SALA_DISPLAY}</h1>
+<h1 style="text-align:center;font-family:'Comfortaa',sans-serif;font-weight:400;letter-spacing:2px;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio — ${SALA_DISPLAY}</h1>
 <p style="text-align:center;color:#86868B;font-size:13px;margin-bottom:24px">${fd(new Date())}</p>
 <div class="sum"><div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div><div class="cd"><div class="v" style="color:#FF9500">${tV}</div><div class="l">Votos</div></div><div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div><div class="cd"><div class="v" style="color:#FF3B30">${openRisks.length}</div><div class="l">Riesgos</div></div><div class="cd"><div class="v" style="color:${obj.met===true?'#34C759':obj.met===false?'#FF3B30':'#FF9500'};font-size:14px">${objL}</div><div class="l">Objetivo</div></div></div>
 ${obj.text?'<h2>🎯 Objetivo</h2><p style="margin-bottom:16px">'+obj.text+'</p>':''}
@@ -1342,7 +1345,7 @@ ${sa.length===0?'<p style="color:#86868B">No se definieron accionables</p>':sa.m
 ${risks.length===0?'<p style="color:#86868B">No se identificaron riesgos</p>':risks.map((r,i)=>{const imp=getRiskLevel(r.impactVotes);const prob=getRiskLevel(r.probVotes);const hc=getHeatColor(imp,prob);const st=RISK_STATUS.find(s=>s.id===r.status)||RISK_STATUS[0];return'<div class="ac" style="border-left:4px solid '+hc+'"><div style="font-weight:800;color:'+hc+';min-width:28px">R'+(i+1)+'</div><div style="flex:1"><strong>'+r.text+'</strong>'+(r.mitigation?'<div style="font-size:11px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:11px;color:#86868B">Impacto: '+imp.label+' · Prob: '+prob.label+' · Owner: '+r.owner+'</div></div><span class="bg" style="background:'+st.color+'20;color:'+st.color+'">'+st.label+'</span></div>'}).join('')}
 <h2>🏆 Ranking</h2><p style="font-size:11px;color:#86868B;margin-bottom:12px">Tarjetas aportadas + votos recibidos</p>
 ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;text-align:center;font-size:18px">'+(i<3?medals[i]:(i+1)+'º')+'</div><div><strong>'+r.avatar+' '+r.name+'</strong> <span style="font-weight:800;color:#FFB800">'+r.score+' pts</span><div style="font-size:10px;color:#86868B">📝 '+r.tarjetas+' tarjetas · 👍 '+r.votosRecibidos+' votos recibidos</div></div></div>').join('')}
-<div style="margin-top:32px;text-align:center;color:#C7C7CC;font-size:11px">Pulse · ${new Date().toLocaleString('es-ES')}</div>
+<div style="margin-top:32px;text-align:center;color:#C7C7CC;font-size:11px;font-family:'Comfortaa',sans-serif">revelio · ${new Date().toLocaleString('es-ES')}</div>
 <script>window.onload=function(){window.print()}<\/script></body></html>`;
     const w=window.open('','_blank');
     if(w){w.document.write(doc);w.document.close()}
