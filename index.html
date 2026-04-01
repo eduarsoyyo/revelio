@@ -91,21 +91,6 @@ const bS = { padding:'10px 18px', borderRadius:12, border:'1.5px solid #E5E5EA',
 const iS = { padding:'12px 16px', borderRadius:12, border:'1.5px solid #E5E5EA', fontSize:14, outline:'none', fontFamily:'inherit', width:'100%', boxSizing:'border-box', background:'#FAFAFA' };
 const cS = { background:'#FFF', borderRadius:20, border:'1.5px solid #E5E5EA', overflow:'hidden' };
 
-/* ═══ LOGO SVG ═══ */
-function Logo({ size }) {
-  const s = size || 56;
-  const r = Math.round(s * 0.32);
-  return html`
-    <div style=${{ width:s, height:s, borderRadius:r, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-      <svg viewBox="-36 -36 72 72" width=${s*0.65} height=${s*0.65}>
-        <circle cx="0" cy="0" r="6" fill="#FFF"/>
-        <circle cx="0" cy="0" r="15" fill="none" stroke="#FFF" stroke-width="2.5" opacity="0.8"/>
-        <circle cx="0" cy="0" r="24" fill="none" stroke="#FFF" stroke-width="2" opacity="0.5"/>
-        <circle cx="0" cy="0" r="33" fill="none" stroke="#FFF" stroke-width="1.5" opacity="0.25"/>
-      </svg>
-    </div>`;
-}
-
 /* ═══ ROOM FROM URL ═══ */
 const params = new URLSearchParams(window.location.search);
 const SALA = params.get('sala') || 'general';
@@ -280,7 +265,7 @@ function NeedLink() {
   return html`
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:400, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)', textAlign:'center' }}>
-        <${Logo} size=${56} />
+        
         <h1 class="wm" style=${{ fontSize:28, marginBottom:8 }}>revelio</h1>
         <div style=${{ fontSize:48, marginBottom:16 }}>🔗</div>
         <h2 style=${{ fontSize:18, fontWeight:700, marginBottom:8, color:'#1D1D1F' }}>Necesitas un enlace</h2>
@@ -391,6 +376,7 @@ function RoomPicker() {
   const [rooms, setRooms] = useState(loadRooms);
   const [tab, setTab] = useState('dashboard');
   const [metrics] = useState(loadMetrics);
+  const [filterProject, setFilterProject] = useState('all');
 
   const go = (slug, t) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(slug) + '&tipo=' + (t || 'agile'); };
   const create = () => {
@@ -404,7 +390,9 @@ function RoomPicker() {
   };
   const remove = (slug) => { const u = rooms.filter(r => r.slug !== slug); setRooms(u); saveRooms(u); };
 
-  const allEntries = Object.values(metrics).flat();
+  // Filtered metrics
+  const filteredMetrics = filterProject === 'all' ? metrics : { [filterProject]: metrics[filterProject] || [] };
+  const allEntries = Object.values(filteredMetrics).flat();
   const totalRetros = allEntries.length;
   const totalNotes = allEntries.reduce((s, e) => s + (e.notes || 0), 0);
   const totalActions = allEntries.reduce((s, e) => s + (e.actions || 0), 0);
@@ -414,7 +402,8 @@ function RoomPicker() {
   const actionRate = totalActions > 0 ? Math.round((totalActionsDone / totalActions) * 100) : 0;
 
   // Risk metrics across all salas
-  const allRisks = rooms.flatMap(r => {
+  const filteredRooms = filterProject === 'all' ? rooms : rooms.filter(r => r.slug === filterProject);
+  const allRisks = filteredRooms.flatMap(r => {
     try { const s = localStorage.getItem('rf-risks-' + r.slug); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const totalRisksDetected = allRisks.length;
@@ -448,7 +437,7 @@ function RoomPicker() {
     <div style=${{ minHeight:'100vh', background:'#F5F5F7', padding:'24px 16px' }}>
       <div style=${{ maxWidth:960, margin:'0 auto' }}>
         <div style=${{ textAlign:'center', marginBottom:20 }}>
-          <${Logo} size=${48} />
+          
           <h1 class="wm" style=${{ fontSize:28, marginBottom:2 }}>revelio</h1>
           <p style=${{ color:'#86868B', fontSize:13 }}>Panel de administración</p>
         </div>
@@ -460,6 +449,15 @@ function RoomPicker() {
         </div>
 
         ${tab === 'dashboard' ? html`
+          <!-- Project filter -->
+          <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:16, flexWrap:'wrap' }}>
+            <span style=${{ fontSize:11, color:'#86868B', fontWeight:600 }}>Filtrar:</span>
+            <button onClick=${()=>setFilterProject('all')} style=${{ padding:'5px 12px', borderRadius:8, border:filterProject==='all'?'none':'1.5px solid #E5E5EA', background:filterProject==='all'?'#1D1D1F':'#FFF', color:filterProject==='all'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600 }}>Todos</button>
+            ${rooms.map(r => html`
+              <button key=${r.slug} onClick=${()=>setFilterProject(r.slug)} style=${{ padding:'5px 12px', borderRadius:8, border:filterProject===r.slug?'none':'1.5px solid #E5E5EA', background:filterProject===r.slug?'#007AFF':'#FFF', color:filterProject===r.slug?'#FFF':'#6E6E73', fontSize:11, fontWeight:600 }}>${r.name}</button>
+            `)}
+          </div>
+
           ${totalRetros === 0 ? html`
             <!-- Empty state KPIs -->
             <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
@@ -785,7 +783,7 @@ function Login({ onJoin }) {
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:420, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)' }}>
         <div style=${{ textAlign:'center', marginBottom:28 }}>
-          <${Logo} size=${56} />
+          
           <h1 class="wm" style=${{ fontSize:30, marginBottom:3 }}>revelio</h1>
           <p style=${{ color:'#86868B', fontSize:14 }}>Revela lo que tu equipo necesita</p>
         </div>
@@ -905,7 +903,7 @@ function RetroBoard({ user, onLogout }) {
     if (phase===1) return html`<${Board} notes=${state.notes} sN=${sN} user=${user} filter="all" />`;
     if (phase===2) return html`<${P3} notes=${state.notes} sN=${sN} user=${user} />`;
     if (phase===3) return html`<${P5Risks} risks=${state.risks} sR=${sR} notes=${state.notes} user=${user} />`;
-    if (phase===4) return html`<${P4} notes=${state.notes} actions=${state.actions} sA=${sA} user=${user} />`;
+    if (phase===4) return html`<${P4} notes=${state.notes} actions=${state.actions} risks=${state.risks} sA=${sA} user=${user} />`;
     if (phase===5) return html`<${P6} notes=${state.notes} actions=${state.actions} risks=${state.risks} users=${online} user=${user} obj=${state.obj} tasks=${state.tasks} />`;
     return null;
   };
@@ -920,7 +918,7 @@ function RetroBoard({ user, onLogout }) {
       `)}
       <header style=${{ ...gl, padding:'9px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid rgba(0,0,0,0.06)', flexShrink:0, zIndex:100 }}>
         <div style=${{ display:'flex', alignItems:'center', gap:10 }}>
-          <${Logo} size=${32} />
+          
           <div>
             <h2 style=${{ fontSize:16, fontWeight:700 }}><span class="wm" style=${{ fontSize:18 }}>revelio</span> <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span> <span style=${{ fontSize:10, fontWeight:500, color:TIPO_INFO.color, background:TIPO_INFO.color+'10', padding:'2px 6px', borderRadius:5, marginLeft:2 }}>${TIPO_INFO.icon} ${TIPO_INFO.label}</span></h2>
             <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
@@ -1101,18 +1099,25 @@ function P3({ notes, sN, user }) {
 }
 
 /* ═══ PHASE 4: ACTIONS ═══ */
-function P4({ notes, actions, sA, user }) {
+function P4({ notes, actions, risks, sA, user }) {
   const [form, setForm] = useState({text:'',owner:'',date:'',priority:'medium'});
   const [eId, setEId] = useState(null);
   const [eF, setEF] = useState({});
   const topN = [...notes].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0)).slice(0,12);
+  const openRisks = (risks||[]).filter(r => r.status !== 'mitigated');
   const addA = fn => {
     const t=fn?fn.text:form.text; if(!t.trim())return;
     const vs=fn?(fn.voters?.length||0):0; const pri=fn?(vs>=5?'high':vs>=2?'medium':'low'):form.priority;
-    sA([...actions,{id:uid(),text:t.trim(),owner:form.owner||'Sin asignar',date:form.date||'',status:'pending',priority:pri,voteScore:vs,createdBy:user.id,fromCategory:fn?.category||null,noteId:fn?.id||null}]);
+    sA([...actions,{id:uid(),text:t.trim(),owner:form.owner||'Sin asignar',date:form.date||'',status:'pending',priority:pri,voteScore:vs,createdBy:user.id,fromCategory:fn?.category||null,noteId:fn?.id||null,riskId:null}]);
     if(!fn)setForm({text:'',owner:'',date:'',priority:'medium'});
   };
+  const addAFromRisk = r => {
+    const imp = getRiskLevel(r.impactVotes);
+    const pri = imp.id==='alto'?'high':imp.id==='medio'?'medium':'low';
+    sA([...actions,{id:uid(),text:'Mitigar: '+r.text,owner:r.owner||'Sin asignar',date:'',status:'pending',priority:pri,voteScore:0,createdBy:user.id,fromCategory:null,noteId:null,riskId:r.id}]);
+  };
   const togN = n => { const ex=actions.find(a=>a.noteId===n.id); if(ex)sA(actions.filter(a=>a.noteId!==n.id)); else addA(n); };
+  const togR = r => { const ex=actions.find(a=>a.riskId===r.id); if(ex)sA(actions.filter(a=>a.riskId!==r.id)); else addAFromRisk(r); };
   const upSt = (id,st) => sA(actions.map(a=>a.id===id?{...a,status:st}:a));
   const delA = id => sA(actions.filter(a=>a.id!==id));
   const saveEA = () => { sA(actions.map(a=>a.id===eId?{...a,...eF}:a)); setEId(null); };
@@ -1159,16 +1164,34 @@ function P4({ notes, actions, sA, user }) {
             })}
           </div>
         </div>
-        <div style=${{ ...cS, padding:18 }}>
+        <div style=${{ ...cS, padding:18, overflowY:'auto', maxHeight:'80vh' }}>
           <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>🔥 Notas más votadas</h4>
-          <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Clic para añadir / quitar</p>
-          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+          <p style=${{ fontSize:10, color:'#86868B', marginBottom:10 }}>Clic para añadir / quitar</p>
+          <div style=${{ display:'flex', flexDirection:'column', gap:6, marginBottom:16 }}>
             ${topN.map(n=>{const ct=CATS.find(c=>c.id===n.category); const lk=actions.some(a=>a.noteId===n.id);
               return html`<button key=${n.id} onClick=${()=>togN(n)} style=${{ padding:'9px 10px', borderRadius:10, background:lk?'#1D1D1F':ct.bg, border:'1px solid '+(lk?'#1D1D1F':ct.color+'18'), textAlign:'left', transition:'all .2s' }}>
                 <div style=${{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}><span style=${{ fontSize:11 }}>${ct.emoji}</span><span style=${{ fontSize:11, fontWeight:700, color:lk?'#FFF':ct.color }}>👍 ${n.voters?.length||0}</span>${lk&&html`<span style=${{ fontSize:9, color:'#34C759', fontWeight:700 }}>✓ Añadido</span>`}</div>
                 <p style=${{ fontSize:11, color:lk?'#CCC':'#1D1D1F', lineHeight:1.35 }}>${n.text}</p>
               </button>`})}
           </div>
+          ${openRisks.length > 0 && html`
+            <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>⚠️ Riesgos abiertos</h4>
+            <p style=${{ fontSize:10, color:'#86868B', marginBottom:10 }}>Clic para crear accionable de mitigación</p>
+            <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+              ${openRisks.map(r => {
+                const lk = actions.some(a => a.riskId === r.id);
+                const imp = getRiskLevel(r.impactVotes);
+                const hc = getHeatColor(imp, getRiskLevel(r.probVotes));
+                return html`<button key=${r.id} onClick=${()=>togR(r)} style=${{ padding:'9px 10px', borderRadius:10, background:lk?'#1D1D1F':'#FFF5F5', border:'1px solid '+(lk?'#1D1D1F':hc+'30'), borderLeft:'3px solid '+(lk?'#34C759':hc), textAlign:'left', transition:'all .2s' }}>
+                  <div style=${{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}>
+                    <span style=${{ fontSize:10, fontWeight:700, color:lk?'#FFF':hc }}>⚠️ ${imp.label}</span>
+                    ${lk&&html`<span style=${{ fontSize:9, color:'#34C759', fontWeight:700 }}>✓ Accionable</span>`}
+                  </div>
+                  <p style=${{ fontSize:11, color:lk?'#CCC':'#1D1D1F', lineHeight:1.35 }}>${r.text}</p>
+                </button>`;
+              })}
+            </div>
+          `}
         </div>
       </div>
     </div>
@@ -1231,14 +1254,13 @@ function P5Risks({ risks, sR, notes, user }) {
   }));
 
   return html`
-    <div style=${{ maxWidth:1000, margin:'0 auto' }}>
-      <!-- Heat map + table layout -->
-      <div style=${{ display:'grid', gridTemplateColumns:'280px 1fr', gap:14, marginBottom:14 }}>
-        <!-- Heat Map Matrix -->
-        <div style=${{ ...cS, padding:'18px' }}>
-          <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:12 }}>⚠️ Mapa de calor</h3>
-          <div style=${{ position:'relative' }}>
-            <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2 }}>
+    <div style=${{ maxWidth:1100, margin:'0 auto' }}>
+      <!-- Heat map full width -->
+      <div style=${{ ...cS, padding:'22px', marginBottom:14 }}>
+        <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:14 }}>⚠️ Mapa de calor de riesgos</h3>
+        <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, alignItems:'start' }}>
+          <div style=${{ position:'relative', paddingLeft:40 }}>
+            <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:3 }}>
               ${['alto','medio','bajo'].map(prob =>
                 ['bajo','medio','alto'].map(imp => {
                   const probLvl = RISK_LEVELS.find(l=>l.id===prob);
@@ -1246,26 +1268,42 @@ function P5Risks({ risks, sR, notes, user }) {
                   const color = getHeatColor(impLvl, probLvl);
                   const inCell = heatData.filter(r => r.impLvl.id===imp && r.probLvl.id===prob);
                   return html`
-                    <div key=${prob+imp} style=${{ background:color+'20', border:'1px solid '+color+'30', borderRadius:6, padding:6, minHeight:50, display:'flex', flexWrap:'wrap', gap:3, alignContent:'flex-start' }}>
+                    <div key=${prob+imp} style=${{ background:color+'20', border:'1.5px solid '+color+'30', borderRadius:10, padding:10, minHeight:90, display:'flex', flexWrap:'wrap', gap:5, alignContent:'flex-start' }}>
                       ${inCell.map((r,i) => html`
-                        <div key=${r.id} style=${{ width:24, height:24, borderRadius:12, background:color, color:'#FFF', fontSize:8, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #FFF' }} title=${r.text}>R${risks.indexOf(r)+1}</div>
+                        <div key=${r.id} style=${{ width:34, height:34, borderRadius:17, background:color, color:'#FFF', fontSize:11, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2.5px solid #FFF', boxShadow:'0 2px 6px '+color+'40' }} title=${r.text}>R${risks.indexOf(r)+1}</div>
                       `)}
                     </div>`;
                 })
               )}
             </div>
-            <div style=${{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:9, color:'#86868B' }}>
+            <div style=${{ display:'flex', justifyContent:'space-between', marginTop:8, fontSize:11, color:'#86868B', fontWeight:600, paddingLeft:0 }}>
               <span>Bajo</span><span>Medio</span><span>Alto</span>
             </div>
-            <div style=${{ position:'absolute', left:-18, top:0, bottom:20, display:'flex', flexDirection:'column', justifyContent:'space-between', fontSize:9, color:'#86868B' }}>
-              <span>A</span><span>M</span><span>B</span>
+            <div style=${{ position:'absolute', left:8, top:0, bottom:28, display:'flex', flexDirection:'column', justifyContent:'space-between', fontSize:11, color:'#86868B', fontWeight:600 }}>
+              <span>Alta</span><span>Media</span><span>Baja</span>
             </div>
-            <div style=${{ textAlign:'center', fontSize:9, color:'#86868B', marginTop:2 }}>IMPACTO →</div>
-            <div style=${{ position:'absolute', left:-28, top:'40%', transform:'rotate(-90deg)', fontSize:9, color:'#86868B' }}>PROB.</div>
+            <div style=${{ textAlign:'center', fontSize:11, color:'#86868B', marginTop:4, fontWeight:600 }}>IMPACTO →</div>
+            <div style=${{ position:'absolute', left:-8, top:'40%', transform:'rotate(-90deg)', fontSize:11, color:'#86868B', fontWeight:600 }}>PROB. →</div>
+          </div>
+          <!-- Legend / summary -->
+          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+            ${heatData.length === 0 ? html`<p style=${{ fontSize:13, color:'#C7C7CC', padding:'20px 0' }}>No hay riesgos abiertos</p>` :
+              heatData.map((r, i) => {
+                const hc = getHeatColor(r.impLvl, r.probLvl);
+                return html`
+                  <div key=${r.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:8, background:'#F9F9FB', borderLeft:'3px solid '+hc }}>
+                    <span style=${{ fontSize:12, fontWeight:800, color:hc, minWidth:28 }}>R${risks.indexOf(r)+1}</span>
+                    <span style=${{ fontSize:12, flex:1 }}>${r.text}</span>
+                    <span style=${{ fontSize:9, padding:'2px 6px', borderRadius:4, background:hc+'15', color:hc, fontWeight:700 }}>${r.impLvl.label} × ${r.probLvl.label}</span>
+                  </div>`;
+              })
+            }
           </div>
         </div>
+      </div>
 
-        <!-- Risk list -->
+      <!-- Risk list + form -->
+      <div style=${{ display:'grid', gridTemplateColumns:'1fr 320px', gap:14, marginBottom:14 }}>
         <div style=${{ ...cS, padding:'18px' }}>
           <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:10 }}>📋 Registro de riesgos (${openRisks.length} abiertos)</h3>
           <!-- New risk form -->
@@ -1345,25 +1383,24 @@ function P5Risks({ risks, sR, notes, user }) {
             </details>
           `}
         </div>
-      </div>
-
-      <!-- Bad/Stop notes to convert -->
-      ${badStopNotes.length > 0 && html`
+        <!-- Sidebar: Bad/Stop notes to convert -->
         <div style=${{ ...cS, padding:'18px' }}>
-          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>🔥 Notas Bad/Stop — clic para convertir en riesgo</h4>
-          <p style=${{ fontSize:10, color:'#86868B', marginBottom:10 }}>Clic para añadir / quitar del registro</p>
-          <div style=${{ display:'flex', flexWrap:'wrap', gap:6 }}>
-            ${badStopNotes.slice(0,10).map(n => {
-              const ct = CATS.find(c=>c.id===n.category);
-              const linked = risks.some(r => r.fromNote === n.id);
-              return html`<button key=${n.id} onClick=${()=>toggleFromNote(n)} style=${{ padding:'8px 10px', borderRadius:9, background:linked?'#1D1D1F':ct.bg, border:'1px solid '+(linked?'#1D1D1F':ct.color+'18'), textAlign:'left', maxWidth:220, transition:'all .2s' }}>
-                <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:2 }}><span style=${{ fontSize:10 }}>${ct.emoji}</span><span style=${{ fontSize:10, fontWeight:700, color:linked?'#FFF':ct.color }}>👍 ${n.voters?.length||0}</span>${linked&&html`<span style=${{ fontSize:8, color:'#34C759', fontWeight:700 }}>✓ Riesgo</span>`}</div>
-                <p style=${{ fontSize:10, color:linked?'#CCC':'#1D1D1F', lineHeight:1.3, margin:0 }}>${n.text}</p>
-              </button>`;
-            })}
+          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>🔥 Notas Bad / Stop</h4>
+          <p style=${{ fontSize:10, color:'#86868B', marginBottom:10 }}>Clic para convertir en riesgo</p>
+          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+            ${badStopNotes.length === 0 ? html`<p style=${{ fontSize:11, color:'#C7C7CC' }}>No hay notas Bad/Stop</p>` :
+              badStopNotes.slice(0,12).map(n => {
+                const ct = CATS.find(c=>c.id===n.category);
+                const linked = risks.some(r => r.fromNote === n.id);
+                return html`<button key=${n.id} onClick=${()=>toggleFromNote(n)} style=${{ padding:'8px 10px', borderRadius:9, background:linked?'#1D1D1F':ct.bg, border:'1px solid '+(linked?'#1D1D1F':ct.color+'18'), textAlign:'left', transition:'all .2s' }}>
+                  <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:2 }}><span style=${{ fontSize:10 }}>${ct.emoji}</span><span style=${{ fontSize:10, fontWeight:700, color:linked?'#FFF':ct.color }}>👍 ${n.voters?.length||0}</span>${linked&&html`<span style=${{ fontSize:8, color:'#34C759', fontWeight:700 }}>✓ Riesgo</span>`}</div>
+                  <p style=${{ fontSize:10, color:linked?'#CCC':'#1D1D1F', lineHeight:1.3, margin:0 }}>${n.text}</p>
+                </button>`;
+              })
+            }
           </div>
         </div>
-      `}
+      </div>
     </div>
   `;
 }
@@ -1395,8 +1432,9 @@ function P6({ notes, actions, risks, users, user, obj, tasks }) {
     const doc=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>revelio - Informe</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/comfortaa@5.0.18/latin-400.css">
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',sans-serif;color:#1D1D1F;padding:40px;max-width:900px;margin:0 auto;font-size:13px;line-height:1.5}h1{font-size:26px;font-weight:700;margin-bottom:4px}h2{font-size:18px;font-weight:700;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid #E5E5EA}.sum{display:flex;gap:12px;margin-bottom:24px}.cd{flex:1;background:#F9F9FB;border-radius:12px;padding:16px;text-align:center;border:1px solid #E5E5EA}.cd .v{font-size:22px;font-weight:800}.cd .l{font-size:11px;color:#86868B;margin-top:2px}.ct{margin-bottom:20px;padding:14px;border-radius:12px;border-left:4px solid}.good{border-color:#34C759;background:#F0FFF4}.bad{border-color:#FF3B30;background:#FFF5F5}.start{border-color:#007AFF;background:#EBF5FF}.stop{border-color:#FF9500;background:#FFF8EB}.nt{padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;justify-content:space-between}.nt:last-child{border-bottom:none}.ac{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E5E5EA}.ac:last-child{border-bottom:none}.bg{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}.rk{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F2F2F7}.rk:last-child{border-bottom:none}.tk{padding:4px 0}.tk.dn{text-decoration:line-through;color:#86868B}.br{height:6px;background:#E5E5EA;border-radius:3px;margin:4px 0 12px;overflow:hidden}.fl{height:100%;border-radius:3px}@media print{body{padding:20px}}</style></head><body>
-<div style="text-align:center;margin-bottom:8px"><svg viewBox="-36 -36 72 72" width="48" height="48"><rect x="-36" y="-36" width="72" height="72" rx="18" fill="#5856D6"/><circle cx="0" cy="0" r="6" fill="white"/><circle cx="0" cy="0" r="15" fill="none" stroke="white" stroke-width="2.5" opacity="0.8"/><circle cx="0" cy="0" r="24" fill="none" stroke="white" stroke-width="2" opacity="0.5"/></svg></div>
-<h1 style="text-align:center;font-family:'Comfortaa',sans-serif;font-weight:400;letter-spacing:2px;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio — ${SALA_DISPLAY}</h1>
+<div style="text-align:center;margin-bottom:8px"><span style="font-family:'Comfortaa',sans-serif;font-size:28px;font-weight:400;letter-spacing:2px;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio</span></div>
+<p style="text-align:center;font-size:20px;font-weight:700;margin-bottom:4px">${SALA_DISPLAY}</p>
+<p style="text-align:center;font-size:12px;color:#86868B;margin-bottom:4px">${TIPO_INFO.icon} ${TIPO_INFO.label}</p>
 <p style="text-align:center;color:#86868B;font-size:13px;margin-bottom:24px">${fd(new Date())}</p>
 <div class="sum"><div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div><div class="cd"><div class="v" style="color:#FF9500">${tV}</div><div class="l">Votos</div></div><div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div><div class="cd"><div class="v" style="color:#FF3B30">${openRisks.length}</div><div class="l">Riesgos</div></div><div class="cd"><div class="v" style="color:${obj.met===true?'#34C759':obj.met===false?'#FF3B30':'#FF9500'};font-size:14px">${objL}</div><div class="l">Objetivo</div></div></div>
 ${obj.text?'<h2>🎯 Objetivo</h2><p style="margin-bottom:16px">'+obj.text+'</p>':''}
