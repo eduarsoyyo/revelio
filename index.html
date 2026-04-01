@@ -604,16 +604,21 @@ function PhaseReview({ state, upd, user, showMsg }) {
 }
 
 /* ══════════════════════════════════════════════
-   PHASE: NOTES
+   PHASE: NOTES  (drag-drop + inline edit)
 ══════════════════════════════════════════════ */
 function PhaseNotes({ state, upd, user, showMsg }) {
   const { notes } = state;
-  const [cat,  setCat]  = useState('good');
-  const [text, setText] = useState('');
+  const [cat,    setCat]    = useState('good');
+  const [text,   setText]   = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editTx, setEditTx] = useState('');
+  const [dragId, setDragId] = useState(null);
+  const [overCat,setOverCat]= useState(null);
 
   const add = () => {
     if (!text.trim()) return;
-    const n = {id:uid(), text:text.trim(), category:cat, userId:user.id, userName:user.name, userAvatar:user.avatar, userColor:user.color, voters:[], reactions:{}};
+    const n = {id:uid(), text:text.trim(), category:cat, userId:user.id, userName:user.name,
+               userAvatar:user.avatar, userColor:user.color, voters:[], reactions:{}};
     upd('notes', [...notes, n]);
     setText('');
     showMsg('📝 Nota añadida ✨');
@@ -638,10 +643,31 @@ function PhaseNotes({ state, upd, user, showMsg }) {
     }));
   };
 
-  const del = id => upd('notes', notes.filter(n=>n.id!==id));
+  const del  = id => upd('notes', notes.filter(n=>n.id!==id));
+
+  const startEdit = (n) => { setEditId(n.id); setEditTx(n.text); };
+  const saveEdit  = (id) => {
+    if (editTx.trim()) upd('notes', notes.map(n=>n.id===id?{...n,text:editTx.trim()}:n));
+    setEditId(null);
+  };
+
+  // ── Drag & Drop handlers ──
+  const onDragStart = (e, id) => { setDragId(id); e.dataTransfer.effectAllowed='move'; };
+  const onDragOver  = (e, catId) => { e.preventDefault(); setOverCat(catId); };
+  const onDragLeave = () => setOverCat(null);
+  const onDrop      = (e, targetCat) => {
+    e.preventDefault();
+    if (dragId && targetCat) {
+      upd('notes', notes.map(n => n.id===dragId ? {...n, category:targetCat} : n));
+      showMsg('🔀 Nota movida');
+    }
+    setDragId(null); setOverCat(null);
+  };
+  const onDragEnd = () => { setDragId(null); setOverCat(null); };
 
   return html`
-    <div style=${{maxWidth:920,margin:'0 auto'}}>
+    <div style=${{maxWidth:960,margin:'0 auto'}}>
+      <!-- Input -->
       <div class="card" style=${{marginBottom:14}}>
         <div style=${{display:'flex',gap:7,marginBottom:10}}>
           ${CATS.map(c => html`
@@ -657,20 +683,54 @@ function PhaseNotes({ state, upd, user, showMsg }) {
             style=${{flex:1,padding:'10px 12px',borderRadius:10,border:'1.5px solid #E5E5EA',fontSize:13,resize:'none',outline:'none',fontFamily:'inherit'}} />
           <button onClick=${add} style=${{padding:'0 18px',background:'linear-gradient(135deg,#007AFF,#5856D6)',color:'#FFF',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:18}}>+</button>
         </div>
+        <p style=${{fontSize:10,color:'#C7C7CC',marginTop:5}}>💡 Arrastra las notas entre columnas · Doble clic para editar</p>
       </div>
+
+      <!-- Columns -->
       <div style=${{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}}>
         ${CATS.map(c => {
           const cn = [...notes.filter(n=>n.category===c.id)].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
+          const isOver = overCat===c.id;
           return html`
-            <div key=${c.id} style=${{background:c.bg,borderRadius:14,padding:13,border:`1.5px solid ${c.color}28`}}>
+            <div key=${c.id}
+              onDragOver=${e=>onDragOver(e,c.id)}
+              onDragLeave=${onDragLeave}
+              onDrop=${e=>onDrop(e,c.id)}
+              style=${{
+                background:isOver?c.color+'18':c.bg,
+                borderRadius:14,padding:13,
+                border:isOver?`2px dashed ${c.color}`:`1.5px solid ${c.color}28`,
+                transition:'all .15s', minHeight:120,
+              }}>
               <div style=${{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
                 <span style=${{fontSize:15}}>${c.emoji}</span>
                 <span style=${{fontWeight:700,color:c.color,fontSize:12}}>${c.label}</span>
                 <span style=${{marginLeft:'auto',background:c.color+'20',color:c.color,fontSize:10,fontWeight:700,padding:'1px 7px',borderRadius:6}}>${cn.length}</span>
               </div>
+
               ${cn.map(n => html`
-                <div key=${n.id} class="hl" style=${{background:'#FFF',borderRadius:10,padding:10,marginBottom:8,boxShadow:'0 1px 4px rgba(0,0,0,.05)'}}>
-                  <p style=${{fontSize:12,lineHeight:1.45,marginBottom:6}}>${n.text}</p>
+                <div key=${n.id}
+                  draggable=${true}
+                  onDragStart=${e=>onDragStart(e,n.id)}
+                  onDragEnd=${onDragEnd}
+                  class="hl"
+                  style=${{
+                    background:dragId===n.id?'#F2F2F7':'#FFF',
+                    borderRadius:10,padding:10,marginBottom:8,
+                    boxShadow:'0 1px 4px rgba(0,0,0,.05)',
+                    cursor:'grab',opacity:dragId===n.id?.5:1,
+                    transition:'opacity .15s',
+                  }}>
+                  <!-- Edit mode -->
+                  ${editId===n.id
+                    ? html`
+                      <textarea value=${editTx} onInput=${e=>setEditTx(e.target.value)}
+                        onKeyDown=${e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveEdit(n.id);}if(e.key==='Escape')setEditId(null);}}
+                        onBlur=${()=>saveEdit(n.id)} autoFocus rows=2
+                        style=${{width:'100%',padding:'6px 8px',borderRadius:8,border:`1.5px solid ${c.color}`,fontSize:12,resize:'none',outline:'none',fontFamily:'inherit',marginBottom:4}} />`
+                    : html`<p onDblClick=${()=>startEdit(n)} style=${{fontSize:12,lineHeight:1.45,marginBottom:6,cursor:'text'}}>${n.text}</p>`
+                  }
+
                   <div style=${{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
                     <span style=${{fontSize:11}}>${n.userAvatar}</span>
                     <span style=${{fontSize:10,color:'#86868B'}}>${n.userName}</span>
@@ -679,19 +739,27 @@ function PhaseNotes({ state, upd, user, showMsg }) {
                       background:(n.voters||[]).includes(user.id)?c.color+'22':'#F2F2F7',
                       color:(n.voters||[]).includes(user.id)?c.color:'#86868B',
                     }}>▲ ${n.voters?.length||0}</button>
-                    ${n.userId===user.id && html`<button onClick=${()=>del(n.id)} style=${{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'#C7C7CC'}}>✕</button>`}
+                    ${n.userId===user.id && html`
+                      <button onClick=${()=>startEdit(n)} style=${{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'#86868B'}} title="Editar">✏️</button>
+                      <button onClick=${()=>del(n.id)} style=${{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'#C7C7CC'}} title="Eliminar">✕</button>
+                    `}
                   </div>
                   <div style=${{display:'flex',gap:3,marginTop:5,flexWrap:'wrap'}}>
                     ${EMOJIS.map(e => html`
                       <button key=${e} onClick=${()=>react(n.id,e)} style=${{
                         padding:'1px 5px',borderRadius:5,border:'none',cursor:'pointer',fontSize:10,
-                        background:(n.reactions?.[e]||[]).includes(user.id)?'#007AFF18':'#F2F2F7',
+                        background:(n.reactions?.[e]||[]).includes(user.id)?c.color+'22':'#F2F2F7',
                       }}>${e}${(n.reactions?.[e]||[]).length>0?' '+n.reactions[e].length:''}</button>
                     `)}
                   </div>
                 </div>
               `)}
-              ${cn.length===0 && html`<p style=${{color:c.color,fontSize:11,opacity:.5,textAlign:'center',padding:'10px 0'}}>Sin notas</p>`}
+
+              ${cn.length===0 && html`
+                <div style=${{textAlign:'center',padding:'16px 0',color:c.color,opacity:.4,fontSize:12,border:`1.5px dashed ${c.color}40`,borderRadius:8}}>
+                  Suelta aquí · ${c.emoji}
+                </div>
+              `}
             </div>`;
         })}
       </div>
@@ -1099,12 +1167,13 @@ function GuideModal({ onClose }) {
 }
 
 /* ══════════════════════════════════════════════
-   ADMIN
+   ADMIN  (portfolio dashboard + rooms mgmt)
 ══════════════════════════════════════════════ */
 function Admin() {
   const [rooms,    setRooms]    = useState([]);
   const [retros,   setRetros]   = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [tab,      setTab]      = useState('dashboard');
   const [expanded, setExpanded] = useState(null);
   const [slug,  setSlug]  = useState('');
   const [name,  setName]  = useState('');
@@ -1127,7 +1196,6 @@ function Admin() {
     setSlug(''); setName('');
     msg('✅ Sala creada');
   };
-
   const delRoom = async s => {
     if (!confirm(`¿Eliminar sala "${s}"?`)) return;
     await dbDeleteRoom(s);
@@ -1138,27 +1206,261 @@ function Admin() {
   const retrosFor = s => retros.filter(r=>r.sala===s);
   const go = (s,t) => location.href = `?sala=${s}&tipo=${t||'agile'}`;
 
+  // ── Portfolio stats ──
+  const salaStats = rooms.map(room => {
+    const sr    = retrosFor(room.slug);
+    const notes = sr.reduce((s,r)=>s+(r.data?.notes?.length||0),0);
+    const votes = sr.reduce((s,r)=>s+(r.data?.notes?.reduce((a,n)=>a+(n.voters?.length||0),0)||0),0);
+    const acts  = sr.reduce((s,r)=>s+(r.data?.actions?.length||0),0);
+    const done  = sr.reduce((s,r)=>s+(r.data?.actions?.filter(a=>a.status==='done').length||0),0);
+    const parts = [...new Set(sr.flatMap(r=>r.data?.notes?.map(n=>n.userName)||[]))];
+    const last  = sr.find(r=>r.status==='active') || sr[0];
+    const ti    = TASK_TEMPLATES[room.tipo] || TASK_TEMPLATES.agile;
+    return { slug:room.slug, name:room.name, tipo:room.tipo, tipoInfo:ti, retros:sr.length, notes, votes, acts, done, parts:parts.length, last };
+  });
+
+  const glob = {
+    retros:  retros.length,
+    notes:   salaStats.reduce((s,x)=>s+x.notes,0),
+    votes:   salaStats.reduce((s,x)=>s+x.votes,0),
+    acts:    salaStats.reduce((s,x)=>s+x.acts,0),
+    done:    salaStats.reduce((s,x)=>s+x.done,0),
+    parts:   [...new Set(retros.flatMap(r=>r.data?.notes?.map(n=>n.userName)||[]))].length,
+  };
+
+  // Recent retros chronologically for sparkline
+  const chronoRetros = [...retros]
+    .filter(r=>r.data?.notes?.length>0)
+    .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
+    .slice(-12);
+
+  const maxNotes = Math.max(...chronoRetros.map(r=>r.data?.notes?.length||0), 1);
+  const maxParts = Math.max(...chronoRetros.map(r=>{
+    return [...new Set(r.data?.notes?.map(n=>n.userName)||[])].length;
+  }), 1);
+  const maxSalaNotes = Math.max(...salaStats.map(s=>s.notes), 1);
+
+  const PALETTE = ['#007AFF','#5856D6','#34C759','#FF9500','#FF3B30','#00C7BE','#AF52DE','#FF2D55'];
+  const bc = i => PALETTE[i % PALETTE.length];
+
   if (loading) return html`
     <div style=${{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F2F2F7'}}>
       <div style=${{textAlign:'center',color:'#86868B'}}>
-        <div style=${{fontSize:32,animation:'spin 1s linear infinite',display:'inline-block'}}>⏳</div>
-        <p style=${{marginTop:8}}>Cargando…</p>
+        <div style=${{fontSize:32,animation:'spin 1s linear infinite',display:'inline-block',marginBottom:8}}>⏳</div>
+        <p>Cargando datos…</p>
       </div>
     </div>`;
 
   return html`
     <div style=${{minHeight:'100vh',background:'#F2F2F7'}}>
-      <div style=${{background:'rgba(255,255,255,.92)',backdropFilter:'blur(14px)',borderBottom:'1px solid #E5E5EA',padding:'12px 20px',position:'sticky',top:0,zIndex:100}}>
-        <div style=${{maxWidth:900,margin:'0 auto',display:'flex',alignItems:'center',gap:12}}>
+
+      <!-- HEADER -->
+      <div style=${{background:'rgba(255,255,255,.93)',backdropFilter:'blur(14px)',borderBottom:'1px solid #E5E5EA',padding:'10px 20px',position:'sticky',top:0,zIndex:100}}>
+        <div style=${{maxWidth:1100,margin:'0 auto',display:'flex',alignItems:'center',gap:12}}>
           <div style=${{fontFamily:"'Comfortaa',sans-serif",fontSize:20,background:'linear-gradient(90deg,#007AFF,#5856D6)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>revelio</div>
-          <h2 style=${{fontSize:15,fontWeight:700}}>🏰 Admin</h2>
-          <button onClick=${()=>location.href='/'} style=${{marginLeft:'auto',background:'none',border:'1px solid #E5E5EA',borderRadius:8,padding:'4px 12px',fontSize:12,cursor:'pointer',color:'#86868B'}}>← Inicio</button>
+          <h2 style=${{fontSize:15,fontWeight:700}}>🏰 Panel de Administración</h2>
+          <div style=${{marginLeft:'auto',display:'flex',gap:6}}>
+            <button onClick=${()=>setTab('dashboard')} style=${{padding:'5px 14px',borderRadius:8,border:'none',background:tab==='dashboard'?'#007AFF':'#F2F2F7',color:tab==='dashboard'?'#FFF':'#86868B',fontSize:12,fontWeight:600,cursor:'pointer'}}>📊 Dashboard</button>
+            <button onClick=${()=>setTab('rooms')}     style=${{padding:'5px 14px',borderRadius:8,border:'none',background:tab==='rooms'?'#007AFF':'#F2F2F7',color:tab==='rooms'?'#FFF':'#86868B',fontSize:12,fontWeight:600,cursor:'pointer'}}>📂 Salas</button>
+            <button onClick=${()=>location.href='/'} style=${{padding:'5px 12px',borderRadius:8,border:'1px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#86868B'}}>← Inicio</button>
+          </div>
         </div>
       </div>
-      <div style=${{maxWidth:900,margin:'0 auto',padding:20}}>
+
+      <div style=${{maxWidth:1100,margin:'0 auto',padding:'20px 16px'}}>
+
+      ${tab==='dashboard' ? html`
+
+        <!-- ══ DASHBOARD ══ -->
+
+        <!-- Global KPI cards -->
+        <div style=${{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10,marginBottom:16}}>
+          ${[
+            ['📋', glob.retros,  'Retros',        '#007AFF'],
+            ['📝', glob.notes,   'Notas',          '#5856D6'],
+            ['▲',  glob.votes,   'Votos',          '#FF9500'],
+            ['🎯', glob.acts,    'Accionables',    '#34C759'],
+            ['✅', glob.done,    'Completados',    '#30d158'],
+            ['👥', glob.parts,   'Participantes',  '#AF52DE'],
+          ].map(([ic,v,l,c]) => html`
+            <div class="card" style=${{textAlign:'center',padding:'14px 8px'}}>
+              <div style=${{fontSize:11,marginBottom:4}}>${ic}</div>
+              <div style=${{fontSize:22,fontWeight:800,color:c,lineHeight:1}}>${v}</div>
+              <div style=${{fontSize:10,color:'#86868B',marginTop:3}}>${l}</div>
+            </div>
+          `)}
+        </div>
+
+        <!-- Charts row 1: Sparklines -->
+        <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+
+          <!-- Notas por retro (últimas 12) -->
+          <div class="card">
+            <div style=${{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+              <h3 style=${{fontSize:13,fontWeight:700}}>📈 Notas por retro</h3>
+              <span style=${{fontSize:10,color:'#86868B'}}>últimas ${chronoRetros.length} sesiones</span>
+            </div>
+            ${chronoRetros.length === 0
+              ? html`<div style=${{height:80,display:'flex',alignItems:'center',justifyContent:'center',color:'#C7C7CC',fontSize:12}}>Sin datos aún</div>`
+              : html`
+                <div style=${{display:'flex',alignItems:'flex-end',gap:4,height:80}}>
+                  ${chronoRetros.map((r,i) => {
+                    const v = r.data?.notes?.length||0;
+                    const h = Math.max((v/maxNotes)*100, 4);
+                    const room = rooms.find(rm=>rm.slug===r.sala);
+                    return html`
+                      <div key=${i} style=${{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}} title="${room?.name||r.sala}: ${v} notas">
+                        <span style=${{fontSize:9,color:'#86868B',fontWeight:700}}>${v||''}</span>
+                        <div style=${{width:'100%',height:h+'%',minHeight:4,background:`linear-gradient(180deg,#007AFF,#5856D6)`,borderRadius:'3px 3px 0 0',transition:'height .4s'}}></div>
+                      </div>`;
+                  })}
+                </div>
+                <div style=${{display:'flex',gap:4,marginTop:4}}>
+                  ${chronoRetros.map((r,i)=>{
+                    const room=rooms.find(rm=>rm.slug===r.sala);
+                    return html`<div key=${i} style=${{flex:1,fontSize:8,color:'#C7C7CC',textAlign:'center',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}} title=${room?.name||r.sala}>${(room?.name||r.sala).slice(0,4)}</div>`;
+                  })}
+                </div>
+              `
+            }
+          </div>
+
+          <!-- Participantes por retro -->
+          <div class="card">
+            <div style=${{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+              <h3 style=${{fontSize:13,fontWeight:700}}>👥 Participantes por retro</h3>
+              <span style=${{fontSize:10,color:'#86868B'}}>últimas ${chronoRetros.length} sesiones</span>
+            </div>
+            ${chronoRetros.length === 0
+              ? html`<div style=${{height:80,display:'flex',alignItems:'center',justifyContent:'center',color:'#C7C7CC',fontSize:12}}>Sin datos aún</div>`
+              : html`
+                <div style=${{display:'flex',alignItems:'flex-end',gap:4,height:80}}>
+                  ${chronoRetros.map((r,i) => {
+                    const parts = [...new Set(r.data?.notes?.map(n=>n.userName)||[])].length;
+                    const h = Math.max((parts/maxParts)*100, 4);
+                    return html`
+                      <div key=${i} style=${{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                        <span style=${{fontSize:9,color:'#86868B',fontWeight:700}}>${parts||''}</span>
+                        <div style=${{width:'100%',height:h+'%',minHeight:4,background:`linear-gradient(180deg,#34C759,#30d158)`,borderRadius:'3px 3px 0 0'}}></div>
+                      </div>`;
+                  })}
+                </div>
+              `
+            }
+          </div>
+        </div>
+
+        <!-- Charts row 2: Donut + Notas por proyecto -->
+        <div style=${{display:'grid',gridTemplateColumns:'200px 1fr',gap:12,marginBottom:12}}>
+
+          <!-- Donut accionables -->
+          <div class="card" style=${{textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+            <h3 style=${{fontSize:12,fontWeight:700,marginBottom:12}}>🎯 Accionables</h3>
+            ${glob.acts === 0
+              ? html`<div style=${{color:'#C7C7CC',fontSize:12,padding:'20px 0'}}>Sin datos</div>`
+              : (() => {
+                  const pct = Math.round(glob.done/glob.acts*100);
+                  const r=54, circ=2*Math.PI*r;
+                  const dash = (pct/100)*circ;
+                  return html`
+                    <svg width="130" height="130" viewBox="0 0 130 130">
+                      <circle cx="65" cy="65" r=${r} fill="none" stroke="#F2F2F7" stroke-width="14"/>
+                      <circle cx="65" cy="65" r=${r} fill="none" stroke="#34C759" stroke-width="14"
+                        stroke-dasharray="${dash} ${circ}" stroke-dashoffset=${circ/4}
+                        stroke-linecap="round" style=${{transition:'stroke-dasharray .6s ease'}}/>
+                      <text x="65" y="60" text-anchor="middle" font-size="20" font-weight="800" fill="#1D1D1F">${pct}%</text>
+                      <text x="65" y="76" text-anchor="middle" font-size="10" fill="#86868B">completado</text>
+                    </svg>
+                    <div style=${{fontSize:11,color:'#86868B',marginTop:4}}>
+                      <span style=${{color:'#34C759',fontWeight:700}}>${glob.done}</span> completados de <b>${glob.acts}</b>
+                    </div>`;
+                })()
+            }
+          </div>
+
+          <!-- Notas por proyecto (barras horizontales) -->
+          <div class="card">
+            <h3 style=${{fontSize:13,fontWeight:700,marginBottom:14}}>📝 Notas totales por proyecto</h3>
+            ${salaStats.length===0
+              ? html`<p style=${{color:'#C7C7CC',fontSize:12,textAlign:'center',padding:20}}>Crea salas para ver datos</p>`
+              : salaStats.map((s,i) => {
+                  const w = maxSalaNotes>0 ? (s.notes/maxSalaNotes)*100 : 0;
+                  return html`
+                    <div key=${s.slug} style=${{marginBottom:10}}>
+                      <div style=${{display:'flex',justifyContent:'space-between',marginBottom:3,alignItems:'center'}}>
+                        <div style=${{display:'flex',alignItems:'center',gap:6}}>
+                          <button onClick=${()=>go(s.slug,s.tipo)} style=${{background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:'#007AFF',padding:0}}>${s.name}</button>
+                          <span style=${{background:s.tipoInfo.color+'15',color:s.tipoInfo.color,fontSize:9,padding:'1px 5px',borderRadius:4,fontWeight:700}}>${s.tipoInfo.icon} ${s.tipoInfo.label}</span>
+                        </div>
+                        <span style=${{fontSize:11,fontWeight:700,color:bc(i)}}>${s.notes}</span>
+                      </div>
+                      <div style=${{height:8,background:'#F2F2F7',borderRadius:4,overflow:'hidden'}}>
+                        <div style=${{height:'100%',width:w+'%',background:bc(i),borderRadius:4,transition:'width .5s ease'}}></div>
+                      </div>
+                    </div>`;
+                })
+            }
+          </div>
+        </div>
+
+        <!-- Portfolio table -->
+        <div class="card">
+          <h3 style=${{fontSize:13,fontWeight:700,marginBottom:14}}>📋 Portfolio de proyectos</h3>
+          ${salaStats.length===0
+            ? html`<p style=${{color:'#C7C7CC',fontSize:12,textAlign:'center',padding:20}}>Sin salas configuradas</p>`
+            : html`
+              <div style=${{overflowX:'auto'}}>
+                <table style=${{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+                  <thead>
+                    <tr style=${{borderBottom:'2px solid #E5E5EA'}}>
+                      ${['Proyecto','Tipo','Retros','Notas','Votos','Accionables','% Hecho','Participantes','Última retro'].map(h=>html`
+                        <th key=${h} style=${{padding:'7px 8px',textAlign:'left',fontWeight:700,color:'#86868B',fontSize:9,textTransform:'uppercase',whiteSpace:'nowrap'}}>${h}</th>
+                      `)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${salaStats.map((s,i) => {
+                      const pct = s.acts>0 ? Math.round(s.done/s.acts*100) : 0;
+                      const pctColor = pct>=75?'#34C759':pct>=40?'#FF9500':'#FF3B30';
+                      return html`
+                        <tr key=${s.slug} style=${{borderBottom:'1px solid #F2F2F7',transition:'background .1s'}}
+                          onMouseOver=${e=>e.currentTarget.style.background='#F9F9FB'}
+                          onMouseOut=${e=>e.currentTarget.style.background='transparent'}>
+                          <td style=${{padding:'9px 8px'}}>
+                            <button onClick=${()=>go(s.slug,s.tipo)} style=${{background:'none',border:'none',cursor:'pointer',fontWeight:700,color:'#007AFF',fontSize:12,padding:0}}>${s.name}</button>
+                          </td>
+                          <td style=${{padding:'9px 8px'}}><span style=${{background:s.tipoInfo.color+'15',color:s.tipoInfo.color,fontSize:9,padding:'2px 6px',borderRadius:5,fontWeight:700,whiteSpace:'nowrap'}}>${s.tipoInfo.icon} ${s.tipoInfo.label}</span></td>
+                          <td style=${{padding:'9px 8px',fontWeight:700,color:'#007AFF'}}>${s.retros}</td>
+                          <td style=${{padding:'9px 8px',fontWeight:600}}>${s.notes}</td>
+                          <td style=${{padding:'9px 8px',color:'#FF9500',fontWeight:600}}>${s.votes}</td>
+                          <td style=${{padding:'9px 8px'}}>${s.acts}</td>
+                          <td style=${{padding:'9px 8px'}}>
+                            <div style=${{display:'flex',alignItems:'center',gap:6}}>
+                              <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden',minWidth:40}}>
+                                <div style=${{height:'100%',width:pct+'%',background:pctColor,borderRadius:3}}></div>
+                              </div>
+                              <span style=${{color:pctColor,fontWeight:700,fontSize:10,minWidth:28}}>${pct}%</span>
+                            </div>
+                          </td>
+                          <td style=${{padding:'9px 8px',fontWeight:600,color:'#AF52DE'}}>${s.parts}</td>
+                          <td style=${{padding:'9px 8px',color:'#86868B'}}>
+                            ${s.last ? fd(s.last.created_at) : '—'}
+                            ${s.last?.status==='active'?html`<span style=${{marginLeft:4,background:'#34C75918',color:'#34C759',padding:'1px 5px',borderRadius:4,fontSize:9,fontWeight:700}}>● Activa</span>`:''}
+                          </td>
+                        </tr>`;
+                    })}
+                  </tbody>
+                </table>
+              </div>`
+          }
+        </div>
+
+      ` : html`
+
+        <!-- ══ ROOMS ══ -->
 
         <!-- Add room -->
-        <div class="card" style=${{marginBottom:16}}>
+        <div class="card" style=${{marginBottom:14}}>
           <h3 style=${{fontSize:13,fontWeight:700,marginBottom:12}}>➕ Nueva sala</h3>
           <div style=${{display:'flex',gap:8,flexWrap:'wrap'}}>
             <input value=${slug} onInput=${e=>setSlug(e.target.value)} placeholder="slug (ej: vwfs)"
@@ -1174,52 +1476,51 @@ function Admin() {
 
         <!-- Rooms list -->
         <div class="card">
-          <h3 style=${{fontSize:13,fontWeight:700,marginBottom:14}}>📋 Salas (${rooms.length})</h3>
-          ${rooms.length===0 && html`<p style=${{color:'#86868B',textAlign:'center',padding:20,fontSize:13}}>Sin salas. Crea la primera ☝️</p>`}
+          <h3 style=${{fontSize:13,fontWeight:700,marginBottom:14}}>📋 Salas configuradas (${rooms.length})</h3>
+          ${rooms.length===0 && html`<p style=${{color:'#C7C7CC',textAlign:'center',padding:24,fontSize:13}}>Sin salas. Crea la primera ☝️</p>`}
           ${rooms.map(room => {
             const sr   = retrosFor(room.slug);
             const act  = sr.find(r=>r.status==='active');
             const ti   = TASK_TEMPLATES[room.tipo]||TASK_TEMPLATES.agile;
-            const notes = sr.reduce((s,r)=>s+(r.data?.notes?.length||0),0);
-            const acts  = sr.reduce((s,r)=>s+(r.data?.actions?.length||0),0);
-            const isExp = expanded===room.slug;
+            const notes= sr.reduce((s,r)=>s+(r.data?.notes?.length||0),0);
+            const acts = sr.reduce((s,r)=>s+(r.data?.actions?.length||0),0);
+            const isExp= expanded===room.slug;
             return html`
               <div key=${room.slug} style=${{borderBottom:'1px solid #F2F2F7',paddingBottom:14,marginBottom:14}}>
                 <div style=${{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
                   <div style=${{flex:1,minWidth:200}}>
-                    <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
+                    <div style=${{display:'flex',alignItems:'center',gap:7,marginBottom:3}}>
                       <button onClick=${()=>go(room.slug,room.tipo)} style=${{background:'none',border:'none',cursor:'pointer',fontWeight:700,color:'#007AFF',fontSize:14,padding:0}}>${room.name}</button>
                       ${act&&html`<span style=${{background:'#34C75918',color:'#34C759',padding:'1px 7px',borderRadius:5,fontSize:10,fontWeight:700}}>● Activa</span>`}
                     </div>
-                    <div style=${{fontSize:10,color:'#86868B',display:'flex',gap:8,alignItems:'center'}}>
+                    <div style=${{fontSize:10,color:'#86868B',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
                       <span style=${{background:ti.color+'15',color:ti.color,padding:'1px 6px',borderRadius:4,fontWeight:600}}>${ti.icon} ${ti.label}</span>
-                      <span>slug: <code>${room.slug}</code></span>
-                      <span>·</span>
-                      <span>${sr.length} retros · ${notes} notas · ${acts} accionables</span>
+                      <code>${room.slug}</code>
+                      <span>·</span><span>${sr.length} retros</span>
+                      <span>·</span><span>${notes} notas</span>
+                      <span>·</span><span>${acts} accionables</span>
                     </div>
                   </div>
                   <div style=${{display:'flex',gap:6,flexWrap:'wrap'}}>
-                    <button onClick=${()=>{ navigator.clipboard.writeText(`${location.origin}?sala=${room.slug}&tipo=${room.tipo}`); msg('📋 Copiado'); }} style=${{padding:'5px 10px',borderRadius:8,border:'1px solid #E5E5EA',background:'#FFF',cursor:'pointer',fontSize:11}}>📋 Copiar enlace</button>
-                    <button onClick=${()=>setExpanded(isExp?null:room.slug)} style=${{padding:'5px 10px',borderRadius:8,border:'1px solid #E5E5EA',background:isExp?'#EBF5FF':'#FFF',color:isExp?'#007AFF':'#1D1D1F',cursor:'pointer',fontSize:11}}>
-                      📂 Retros (${sr.length})
-                    </button>
+                    <button onClick=${()=>{navigator.clipboard.writeText(`${location.origin}?sala=${room.slug}&tipo=${room.tipo}`);msg('📋 Enlace copiado');}} style=${{padding:'5px 10px',borderRadius:8,border:'1px solid #E5E5EA',background:'#FFF',cursor:'pointer',fontSize:11}}>📋 Copiar enlace</button>
+                    <button onClick=${()=>setExpanded(isExp?null:room.slug)} style=${{padding:'5px 10px',borderRadius:8,border:'1px solid #E5E5EA',background:isExp?'#EBF5FF':'#FFF',color:isExp?'#007AFF':'#1D1D1F',cursor:'pointer',fontSize:11}}>📂 Retros (${sr.length})</button>
                     <button onClick=${()=>go(room.slug,room.tipo)} style=${{padding:'5px 10px',borderRadius:8,border:'1px solid #007AFF',background:'#EBF5FF',color:'#007AFF',cursor:'pointer',fontSize:11,fontWeight:600}}>Entrar →</button>
                     <button onClick=${()=>delRoom(room.slug)} style=${{padding:'5px 8px',borderRadius:8,border:'1px solid #FF3B3020',background:'#FFF5F5',color:'#FF3B30',cursor:'pointer',fontSize:11}}>🗑️</button>
                   </div>
                 </div>
                 ${isExp && html`
-                  <div style=${{marginTop:12,background:'#F9F9FB',borderRadius:12,padding:12}}>
+                  <div style=${{marginTop:10,background:'#F9F9FB',borderRadius:12,padding:12}}>
                     <p style=${{fontSize:11,fontWeight:600,color:'#86868B',marginBottom:8}}>Historial de retros</p>
-                    ${sr.length===0 && html`<p style=${{fontSize:12,color:'#C7C7CC',textAlign:'center',padding:'10px 0'}}>Sin retros aún</p>`}
+                    ${sr.length===0 && html`<p style=${{fontSize:12,color:'#C7C7CC',textAlign:'center',padding:'12px 0'}}>Sin retros guardadas aún</p>`}
                     ${sr.map(r=>{
-                      const nC = r.data?.notes?.length||0;
-                      const aC = r.data?.actions?.length||0;
+                      const nC=r.data?.notes?.length||0, aC=r.data?.actions?.length||0;
+                      const doneC=r.data?.actions?.filter(a=>a.status==='done').length||0;
                       return html`
                         <div key=${r.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid #E5E5EA',fontSize:12}}>
                           <span style=${{background:r.status==='active'?'#34C75920':'#86868B18',color:r.status==='active'?'#34C759':'#86868B',padding:'1px 7px',borderRadius:5,fontSize:10,fontWeight:700,whiteSpace:'nowrap'}}>
                             ${r.status==='active'?'● Activa':'Cerrada'}
                           </span>
-                          <span style=${{color:'#86868B',flex:1}}>${fd(r.created_at)} · ${nC} notas · ${aC} accionables</span>
+                          <span style=${{flex:1,color:'#86868B'}}>${fd(r.created_at)} · <b>${nC}</b> notas · <b>${aC}</b> accionables (<span style=${{color:'#34C759'}}>${doneC} ✅</span>)</span>
                           ${r.status==='active'&&html`<button onClick=${()=>go(room.slug,room.tipo)} style=${{padding:'3px 9px',borderRadius:6,border:'1px solid #007AFF',color:'#007AFF',background:'#EBF5FF',cursor:'pointer',fontSize:11,fontWeight:600}}>Abrir</button>`}
                         </div>`;
                     })}
@@ -1228,6 +1529,8 @@ function Admin() {
               </div>`;
           })}
         </div>
+
+      `}
       </div>
 
       ${toast && html`
