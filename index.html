@@ -1024,6 +1024,9 @@ function RetroBoard({ user, onLogout }) {
         ${PHASES.map((p,i)=>html`<button key=${p.id} onClick=${()=>setPhase(i)} style=${{ padding:'8px 14px', borderRadius:9, border:phase===i?'none':'1.5px solid #E5E5EA', background:phase===i?'#1D1D1F':'#FFF', color:phase===i?'#FFF':'#6E6E73', fontSize:12, fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>${p.icon} ${p.label}</button>`)}
       </div>
       <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>${content()}</div>
+      ${toast && html`
+        <div style=${{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', padding:'12px 24px', borderRadius:14, fontSize:14, fontWeight:600, boxShadow:'0 8px 30px rgba(0,0,0,0.15)', zIndex:300, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8 }}>${toast}</div>
+      `}
     </div>
   `;
 }
@@ -1175,6 +1178,7 @@ function P4({ notes, actions, risks, sA, user }) {
   const [form, setForm] = useState({text:'',owner:'',date:'',priority:'medium'});
   const [eId, setEId] = useState(null);
   const [eF, setEF] = useState({});
+  const [actFilter, setActFilter] = useState('all');
   const topN = [...notes].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0)).slice(0,12);
   const openRisks = (risks||[]).filter(r => r.status !== 'mitigated');
   const addA = fn => {
@@ -1199,7 +1203,14 @@ function P4({ notes, actions, risks, sA, user }) {
     <div style=${{ maxWidth:1000, margin:'0 auto' }}>
       <div style=${{ display:'grid', gridTemplateColumns:'1fr 320px', gap:14 }}>
         <div style=${{ ...cS, padding:22 }}>
-          <h3 style=${{ fontSize:17, fontWeight:700, marginBottom:14 }}>🎯 Accionables</h3>
+          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+            <h3 style=${{ fontSize:17, fontWeight:700 }}>🎯 Accionables</h3>
+            <div style=${{ display:'flex', gap:4 }}>
+              ${[{id:'all',label:'Todos'},{id:'mine',label:'👤 Mis accionables'},{id:'done',label:'✅ Completados'}].map(f => html`
+                <button key=${f.id} onClick=${()=>setActFilter(f.id)} style=${{ padding:'4px 10px', borderRadius:7, border:actFilter===f.id?'none':'1px solid #E5E5EA', background:actFilter===f.id?'#1D1D1F':'#FFF', color:actFilter===f.id?'#FFF':'#6E6E73', fontSize:10, fontWeight:600 }}>${f.label}</button>
+              `)}
+            </div>
+          </div>
           <div style=${{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
             <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Acción concreta..." style=${{ ...iS, flex:2, minWidth:150 }} />
             <input value=${form.owner} onInput=${e=>setForm({...form,owner:e.target.value})} placeholder="Responsable" style=${{ ...iS, flex:1, minWidth:80 }} />
@@ -1207,9 +1218,9 @@ function P4({ notes, actions, risks, sA, user }) {
             <select value=${form.priority} onChange=${e=>setForm({...form,priority:e.target.value})} style=${{ ...iS, width:100, flex:'none' }}>${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}</select>
             <button onClick=${()=>addA(null)} style=${bP}>+ Añadir</button>
           </div>
-          ${actions.length===0&&html`<div style=${{ textAlign:'center', padding:'28px 0', color:'#C7C7CC' }}><p style=${{ fontSize:13 }}>Crea accionables o selecciona notas votadas →</p></div>`}
+          ${actions.length===0&&html`<div style=${{ textAlign:'center', padding:'28px 0', color:'#C7C7CC' }}><p style=${{ fontSize:13 }}>Crea accionables o selecciona notas/riesgos →</p></div>`}
           <div style=${{ display:'flex', flexDirection:'column', gap:7 }}>
-            ${[...actions].sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0)).map(a=>{
+            ${[...actions].filter(a => actFilter==='mine' ? a.createdBy===user.id : actFilter==='done' ? a.status==='done' : true).sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0)).map(a=>{
               const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1]; const st=STS.find(s=>s.id===a.status); const ct=a.fromCategory?CATS.find(c=>c.id===a.fromCategory):null;
               if(eId===a.id) return html`
                 <div key=${a.id} style=${{ padding:'14px 16px', borderRadius:13, background:'#F9F9FB', border:'2px solid #007AFF30', animation:'fadeIn .2s' }}>
@@ -1275,6 +1286,7 @@ function P5Risks({ risks, sR, notes, user }) {
   const [form, setForm] = useState({ text:'', mitigation:'', owner:'' });
   const [eId, setEId] = useState(null);
   const [eF, setEF] = useState({});
+  const [riskFilter, setRiskFilter] = useState('all');
 
   const badStopNotes = notes.filter(n => n.category === 'bad' || n.category === 'stop').sort((a,b) => (b.voters?.length||0) - (a.voters?.length||0));
 
@@ -1315,8 +1327,10 @@ function P5Risks({ risks, sR, notes, user }) {
   const delRisk = (id) => sR(risks.filter(r => r.id !== id));
   const saveEdit = () => { sR(risks.map(r => r.id===eId ? {...r,...eF} : r)); setEId(null); };
 
-  const openRisks = risks.filter(r => r.status !== 'mitigated');
-  const mitigatedRisks = risks.filter(r => r.status === 'mitigated');
+  const allOpen = risks.filter(r => r.status !== 'mitigated');
+  const allMitigated = risks.filter(r => r.status === 'mitigated');
+  const openRisks = riskFilter === 'mine' ? allOpen.filter(r => r.createdBy === user.id) : allOpen;
+  const mitigatedRisks = riskFilter === 'mine' ? allMitigated.filter(r => r.createdBy === user.id) : allMitigated;
 
   // Heat map data
   const heatData = openRisks.map(r => ({
@@ -1377,7 +1391,14 @@ function P5Risks({ risks, sR, notes, user }) {
       <!-- Risk list + form -->
       <div style=${{ display:'grid', gridTemplateColumns:'1fr 320px', gap:14, marginBottom:14 }}>
         <div style=${{ ...cS, padding:'18px' }}>
-          <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:10 }}>📋 Registro de riesgos (${openRisks.length} abiertos)</h3>
+          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+            <h3 style=${{ fontSize:14, fontWeight:700 }}>📋 Registro de riesgos (${openRisks.length} abiertos)</h3>
+            <div style=${{ display:'flex', gap:4 }}>
+              ${[{id:'all',label:'Todos'},{id:'mine',label:'👤 Mis riesgos'}].map(f => html`
+                <button key=${f.id} onClick=${()=>setRiskFilter(f.id)} style=${{ padding:'4px 10px', borderRadius:7, border:riskFilter===f.id?'none':'1px solid #E5E5EA', background:riskFilter===f.id?'#1D1D1F':'#FFF', color:riskFilter===f.id?'#FFF':'#6E6E73', fontSize:10, fontWeight:600 }}>${f.label}</button>
+              `)}
+            </div>
+          </div>
           <!-- New risk form -->
           <div style=${{ display:'flex', gap:5, marginBottom:14, flexWrap:'wrap' }}>
             <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Descripción del riesgo..." style=${{ ...iS, flex:2, minWidth:140, fontSize:13 }} />
@@ -1443,16 +1464,19 @@ function P5Risks({ risks, sR, notes, user }) {
             })}
           </div>
           ${mitigatedRisks.length > 0 && html`
-            <details style=${{ marginTop:12 }}>
-              <summary style=${{ fontSize:11, color:'#86868B', cursor:'pointer', fontWeight:600 }}>✅ Mitigados (${mitigatedRisks.length})</summary>
-              <div style=${{ display:'flex', flexDirection:'column', gap:4, marginTop:6 }}>
-                ${mitigatedRisks.map(r => html`
-                  <div key=${r.id} style=${{ padding:'6px 10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920', fontSize:11, color:'#86868B', textDecoration:'line-through', display:'flex', justifyContent:'space-between' }}>
-                    <span>${r.text}</span><span>🛡️ ${r.mitigation}</span>
+            <div style=${{ marginTop:14 }}>
+              <h4 style=${{ fontSize:12, fontWeight:700, color:'#34C759', marginBottom:8 }}>✅ Mitigados (${mitigatedRisks.length})</h4>
+              <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
+                ${mitigatedRisks.map((r, i) => html`
+                  <div key=${r.id} style=${{ padding:'8px 10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920', fontSize:11, display:'flex', alignItems:'center', gap:8 }}>
+                    <span style=${{ color:'#34C759', fontWeight:700, minWidth:24 }}>R${risks.indexOf(r)+1}</span>
+                    <span style=${{ flex:1, color:'#86868B', textDecoration:'line-through' }}>${r.text}</span>
+                    ${r.mitigation && html`<span style=${{ fontSize:10, color:'#86868B' }}>🛡️ ${r.mitigation}</span>`}
+                    <button onClick=${()=>updateStatus(r.id,'open')} style=${{ border:'none', background:'#FF950015', color:'#FF9500', fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:5, cursor:'pointer' }} title="Reabrir">↩ Reabrir</button>
                   </div>
                 `)}
               </div>
-            </details>
+            </div>
           `}
         </div>
         <!-- Sidebar: Bad/Stop notes to convert -->
