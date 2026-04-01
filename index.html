@@ -71,6 +71,7 @@ const PHASES = [
   { id:'dashboard', label:'Dashboard', icon:'📊' },
 ];
 const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
+const REACTIONS = ['🔥','💡','❤️','😂','🎯','🤯'];
 const COLRS = ['#007AFF','#FF3B30','#34C759','#FF9500','#AF52DE','#FF2D55','#5856D6','#00C7BE'];
 const BADGES = [
   { id:'first',label:'Primera Nota',icon:'🏅',c:s=>s.n>=1 },
@@ -262,17 +263,68 @@ function App() {
 
 /* ═══ NEED LINK SCREEN ═══ */
 function NeedLink() {
+  const phases = [
+    { icon:'📋', name:'Pensadero', desc:'Revisa el objetivo y las tareas. Como el Pensieve de Dumbledore: mira atrás antes de avanzar.', spell:'Memoria revelio!' },
+    { icon:'✍️', name:'Revelio', desc:'Cada mago escribe sus notas en Good, Bad, Start y Stop. Anónimo hasta la puesta en común.', spell:'Revelio notae!' },
+    { icon:'💬', name:'Priori Incantatem', desc:'Las varitas se conectan. Debatid, votad y descubrid qué piensa el equipo de verdad.', spell:'Connectum ideas!' },
+    { icon:'⚠️', name:'Mapa del Merodeador', desc:'Detecta riesgos ocultos antes de que se conviertan en Voldemorts. Vota impacto y probabilidad.', spell:'Juro que mis intenciones no son buenas!' },
+    { icon:'🎯', name:'Expecto Patronum', desc:'Convoca acciones protectoras. Asigna responsable, fecha y prioridad a cada accionable.', spell:'Patronum actionem!' },
+    { icon:'📊', name:'El Sombrero Seleccionador', desc:'Ranking, métricas y el informe PDF. ¿Quién ha sido el MVP de esta retro?', spell:'Sorteo finalem!' },
+  ];
+
   return html`
-    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:400, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)', textAlign:'center' }}>
-        
-        <h1 class="wm" style=${{ fontSize:28, marginBottom:8 }}>revelio</h1>
-        <div style=${{ fontSize:48, marginBottom:16 }}>🔗</div>
-        <h2 style=${{ fontSize:18, fontWeight:700, marginBottom:8, color:'#1D1D1F' }}>Necesitas un enlace</h2>
-        <p style=${{ fontSize:14, color:'#86868B', lineHeight:1.6 }}>
-          Pide a tu Scrum Master el enlace directo a la sala de tu retrospectiva.
-        </p>
-        <p style=${{ fontSize:12, color:'#C7C7CC', marginTop:16 }}>El enlace tiene este formato: ${window.location.host}?sala=nombre</p>
+    <div style=${{ minHeight:'100vh', background:'#F5F5F7' }}>
+      <!-- Hero -->
+      <div style=${{ textAlign:'center', padding:'60px 20px 40px' }}>
+        <h1 class="wm" style=${{ fontSize:48, marginBottom:8, lineHeight:1.1 }}>revelio</h1>
+        <p style=${{ fontSize:18, color:'#86868B', maxWidth:440, margin:'0 auto 8px', lineHeight:1.5 }}>El hechizo que revela lo que tu equipo necesita decir (pero no sabe cómo)</p>
+        <p style=${{ fontSize:13, color:'#C7C7CC' }}>Retrospectivas colaborativas en tiempo real. Sin cuentas, sin setup, sin excusas.</p>
+      </div>
+
+      <!-- How it works -->
+      <div style=${{ maxWidth:700, margin:'0 auto', padding:'0 20px 40px' }}>
+        <h2 style=${{ textAlign:'center', fontSize:16, fontWeight:700, marginBottom:24, color:'#1D1D1F' }}>¿Cómo funciona? 6 hechizos en 45 minutos</h2>
+        <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
+          ${phases.map((p, i) => html`
+            <div key=${i} style=${{ ...gl, borderRadius:16, padding:'18px 22px', display:'flex', gap:16, alignItems:'flex-start', boxShadow:'0 2px 12px rgba(0,0,0,0.03)', border:'1px solid rgba(0,0,0,0.04)' }}>
+              <div style=${{ width:44, height:44, borderRadius:14, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>${p.icon}</div>
+              <div style=${{ flex:1 }}>
+                <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                  <span style=${{ fontSize:11, fontWeight:700, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6 }}>${i+1}/6</span>
+                  <span style=${{ fontSize:15, fontWeight:700 }}>${p.name}</span>
+                </div>
+                <p style=${{ fontSize:13, color:'#6E6E73', lineHeight:1.5, margin:0 }}>${p.desc}</p>
+                <p style=${{ fontSize:10, color:'#C7C7CC', fontStyle:'italic', marginTop:4 }}>✨ "${p.spell}"</p>
+              </div>
+            </div>
+          `)}
+        </div>
+      </div>
+
+      <!-- Features -->
+      <div style=${{ background:'#FFF', padding:'40px 20px', borderTop:'1px solid #E5E5EA' }}>
+        <div style=${{ maxWidth:600, margin:'0 auto', display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, textAlign:'center' }}>
+          ${[
+            { icon:'🧙', title:'Tiempo real', desc:'Ves las notas y cursores de todos al instante. Magia.' },
+            { icon:'🗳️', title:'Voto secreto', desc:'Vota impacto, prioridad y riesgos. Democracia mágica.' },
+            { icon:'📄', title:'PDF y backup', desc:'Descarga el informe. Los datos nunca se quedan en la nube.' },
+          ].map((f,i) => html`
+            <div key=${i} style=${{ padding:'16px 12px' }}>
+              <div style=${{ fontSize:28, marginBottom:8 }}>${f.icon}</div>
+              <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>${f.title}</h3>
+              <p style=${{ fontSize:11, color:'#86868B', lineHeight:1.4 }}>${f.desc}</p>
+            </div>
+          `)}
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div style=${{ textAlign:'center', padding:'40px 20px 60px' }}>
+        <div style=${{ fontSize:40, marginBottom:12 }}>🪄</div>
+        <h2 style=${{ fontSize:18, fontWeight:700, marginBottom:8 }}>¿Listo para la retro?</h2>
+        <p style=${{ fontSize:14, color:'#86868B', marginBottom:4 }}>Pide a tu Scrum Master el enlace de tu sala.</p>
+        <p style=${{ fontSize:12, color:'#C7C7CC' }}>El enlace es algo como: <code style=${{ background:'#F2F2F7', padding:'2px 8px', borderRadius:4 }}>${window.location.host}?sala=tu-proyecto</code></p>
+        <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:20 }}>Hecho con ✨ y sin Horcruxes</p>
       </div>
     </div>
   `;
@@ -783,12 +835,11 @@ function Login({ onJoin }) {
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style=${{ ...gl, borderRadius:28, padding:'44px 38px', maxWidth:420, width:'100%', boxShadow:'0 8px 60px rgba(0,0,0,0.06)' }}>
         <div style=${{ textAlign:'center', marginBottom:28 }}>
-          
           <h1 class="wm" style=${{ fontSize:30, marginBottom:3 }}>revelio</h1>
-          <p style=${{ color:'#86868B', fontSize:14 }}>Revela lo que tu equipo necesita</p>
+          <p style=${{ color:'#86868B', fontSize:14 }}>Sala: <strong style=${{ color:'#007AFF' }}>${SALA_DISPLAY}</strong></p>
         </div>
         <input value=${nm} onInput=${e=>handleName(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&go()}
-          placeholder="Tu nombre..." style=${{ ...iS, marginBottom: warn ? 8 : 18, textAlign:'center', fontSize:16, background:'#FFF', borderColor: warn ? '#FF9500' : '#E5E5EA' }} />
+          placeholder="¿Cómo te llamas, mago?" style=${{ ...iS, marginBottom: warn ? 8 : 18, textAlign:'center', fontSize:16, background:'#FFF', borderColor: warn ? '#FF9500' : '#E5E5EA' }} />
         ${warn && html`
           <div style=${{ background:'#FFF8EB', border:'1.5px solid #FF950030', borderRadius:10, padding:'10px 14px', marginBottom:14 }}>
             <p style=${{ fontSize:12, color:'#FF9500', fontWeight:600, marginBottom:6 }}>⚠️ "${warn}" ya existe en esta sala</p>
@@ -798,15 +849,15 @@ function Login({ onJoin }) {
             </div>
           </div>
         `}
-        <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Avatar</p>
+        <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Tu patronus</p>
         <div style=${{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:14 }}>
           ${AVATARS.map(a => html`<button key=${a} onClick=${()=>setAv(a)} style=${{ width:40, height:40, borderRadius:11, border:av===a?'2.5px solid '+col:'2px solid #E5E5EA', background:av===a?col+'10':'#FFF', fontSize:19, display:'flex', alignItems:'center', justifyContent:'center' }}>${a}</button>`)}
         </div>
-        <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Color</p>
+        <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Casa</p>
         <div style=${{ display:'flex', gap:5, marginBottom:24 }}>
           ${COLRS.map(c => html`<button key=${c} onClick=${()=>setCol(c)} style=${{ width:28, height:28, borderRadius:14, background:c, border:col===c?'3px solid #1D1D1F':'3px solid transparent', transform:col===c?'scale(1.15)':'scale(1)', transition:'all .15s' }} />`)}
         </div>
-        <button onClick=${go} style=${{ ...bP, width:'100%', padding:14, fontSize:16 }}>Entrar →</button>
+        <button onClick=${go} style=${{ ...bP, width:'100%', padding:14, fontSize:16 }}>🪄 Revelio!</button>
       </div>
     </div>
   `;
@@ -819,8 +870,19 @@ function RetroBoard({ user, onLogout }) {
   const [timer, setTimer] = useState(900);
   const [running, setRunning] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [toast, setToast] = useState(null);
   const tRef = useRef(null);
   const bRef = useRef(null);
+
+  const SAVE_QUOTES = [
+    '✨ Mischief managed! Retro guardada.',
+    '🪄 Accio backup! Archivo descargado.',
+    '🧙 Dumbledore estaría orgulloso. Guardado.',
+    '⚡ Más rápido que un Nimbus 2000. Listo.',
+    '🦉 Una lechuza lleva tu retro a buen puerto.',
+    '🔮 El Pensadero ha registrado esta sesión.',
+  ];
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   useEffect(() => {
     if (!running) return;
@@ -878,6 +940,7 @@ function RetroBoard({ user, onLogout }) {
         tasksTotal: state.tasks.length,
       });
     } catch {}
+    showToast(SAVE_QUOTES[Math.floor(Math.random()*SAVE_QUOTES.length)]);
   };
 
   const loadRetro = (e) => {
@@ -1019,8 +1082,9 @@ function Board({ notes, sN, user, filter }) {
   const [dragId, setDragId] = useState(null);
   const [overCat, setOverCat] = useState(null);
 
-  const addN = c => { if(!txt.trim())return; sN([...notes,{id:uid(),text:txt.trim(),category:c,userId:user.id,userName:user.name,userAvatar:user.avatar,userColor:user.color,voters:[]}]); setTxt(''); setAct(null); };
+  const addN = c => { if(!txt.trim())return; sN([...notes,{id:uid(),text:txt.trim(),category:c,userId:user.id,userName:user.name,userAvatar:user.avatar,userColor:user.color,voters:[],reactions:{}}]); setTxt(''); setAct(null); };
   const vote = nid => sN(notes.map(n=>{if(n.id!==nid)return n;const v=n.voters||[];return{...n,voters:v.includes(user.id)?v.filter(x=>x!==user.id):[...v,user.id]}}));
+  const react = (nid, emoji) => sN(notes.map(n=>{if(n.id!==nid)return n;const r={...(n.reactions||{})};if(!r[emoji])r[emoji]=[];r[emoji]=r[emoji].includes(user.id)?r[emoji].filter(x=>x!==user.id):[...r[emoji],user.id];if(r[emoji].length===0)delete r[emoji];return{...n,reactions:r}}));
   const delN = nid => sN(notes.filter(n=>n.id!==nid));
   const saveE = () => { if(!eVal.trim())delN(eId); else sN(notes.map(n=>n.id===eId?{...n,text:eVal.trim()}:n)); setEId(null); };
   const drop = (e,c) => { e.preventDefault(); setOverCat(null); if(dragId)sN(notes.map(n=>n.id===dragId?{...n,category:c}:n)); setDragId(null); };
@@ -1058,14 +1122,22 @@ function Board({ notes, sN, user, filter }) {
                           </div>
                         </div>`
                       : html`
-                        <p style=${{ marginBottom:7, fontSize:12, lineHeight:1.4 }}>${note.text}</p>
+                        <p style=${{ marginBottom:5, fontSize:12, lineHeight:1.4 }}>${note.text}</p>
+                        ${Object.keys(note.reactions||{}).length > 0 && html`
+                          <div style=${{ display:'flex', gap:3, marginBottom:5, flexWrap:'wrap' }}>
+                            ${Object.entries(note.reactions||{}).map(([emoji, users]) => users.length > 0 && html`
+                              <span key=${emoji} onClick=${()=>react(note.id, emoji)} style=${{ padding:'1px 5px', borderRadius:6, background:users.includes(user.id)?cat.color+'20':'#F2F2F7', border:users.includes(user.id)?'1px solid '+cat.color+'40':'1px solid transparent', fontSize:10, cursor:'pointer' }}>${emoji} ${users.length}</span>
+                            `)}
+                          </div>
+                        `}
                         <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                           <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
                             <span style=${{ fontSize:12 }}>${note.userAvatar}</span>
                             <span style=${{ fontSize:10, color:'#86868B' }}>${note.userName}</span>
                           </div>
-                          <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                            <button onClick=${()=>vote(note.id)} style=${{ display:'flex', alignItems:'center', gap:3, padding:'2px 8px', borderRadius:6, border:'none', background:voted?cat.color:cat.color+'12', color:voted?'#FFF':cat.color, fontSize:10, fontWeight:700 }}>👍 ${note.voters?.length||0}</button>
+                          <div style=${{ display:'flex', alignItems:'center', gap:3 }}>
+                            ${REACTIONS.map(emoji => html`<button key=${emoji} onClick=${()=>react(note.id, emoji)} style=${{ border:'none', background:'none', fontSize:10, padding:'1px', cursor:'pointer', opacity:0.4, transition:'opacity .15s' }} onMouseOver=${e=>{e.target.style.opacity=1}} onMouseOut=${e=>{e.target.style.opacity=0.4}}>${emoji}</button>`)}
+                            <button onClick=${()=>vote(note.id)} style=${{ display:'flex', alignItems:'center', gap:3, padding:'2px 8px', borderRadius:6, border:'none', background:voted?cat.color:cat.color+'12', color:voted?'#FFF':cat.color, fontSize:10, fontWeight:700, marginLeft:3 }}>👍 ${note.voters?.length||0}</button>
                             ${mine && html`
                               <button onClick=${()=>{setEId(note.id);setEVal(note.text)}} style=${{ border:'none', background:'none', fontSize:12, cursor:'pointer', color:'#86868B', padding:'2px' }} title="Editar">✏️</button>
                               <button onClick=${()=>delN(note.id)} style=${{ border:'none', background:'none', fontSize:12, cursor:'pointer', color:'#C7C7CC', padding:'2px' }} title="Eliminar">✕</button>
