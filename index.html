@@ -233,10 +233,11 @@ function useRealtime(user) {
 
   const reset = useCallback(() => {
     const currentRisks = stRef.current.risks || [];
-    const fresh = { notes:[], tasks:DEFAULT_TASKS.map(t=>({...t,id:uid()})), actions:[], obj:{text:'',met:null}, risks:currentRisks };
+    const openActions = (stRef.current.actions || []).filter(a => a.status !== 'done' && a.status !== 'discarded');
+    const fresh = { notes:[], tasks:DEFAULT_TASKS.map(t=>({...t,id:uid()})), actions:openActions, obj:{text:'',met:null}, risks:currentRisks };
     setState(fresh);
     if (chRef.current && user) {
-      ['notes','tasks','actions','obj'].forEach(k => {
+      Object.keys(fresh).forEach(k => {
         chRef.current.send({ type:'broadcast', event:'sync', payload:{ key:k, data:fresh[k], from:user.id } });
       });
     }
@@ -996,7 +997,7 @@ function RetroBoard({ user, onLogout }) {
             <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 32px', maxWidth:380, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.15)', textAlign:'center' }}>
               <div style=${{ fontSize:36, marginBottom:12 }}>🗑</div>
               <h3 style=${{ fontSize:18, fontWeight:700, marginBottom:8 }}>¿Nueva retrospectiva?</h3>
-              <p style=${{ fontSize:13, color:'#86868B', marginBottom:20 }}>Se borrarán todas las notas, tareas y accionables para todos los participantes.</p>
+              <p style=${{ fontSize:13, color:'#86868B', marginBottom:20 }}>Se borran notas, tareas y objetivo. Los accionables abiertos y los riesgos se mantienen.</p>
               <div style=${{ display:'flex', gap:8, justifyContent:'center' }}>
                 <button onClick=${()=>setShowReset(false)} style=${{ ...bS, padding:'10px 20px' }}>Cancelar</button>
                 <button onClick=${()=>{reset();setShowReset(false);setPhase(0);setTimer(900);setRunning(false)}} style=${{ ...bP, padding:'10px 20px', background:'#FF3B30' }}>Borrar y empezar</button>
