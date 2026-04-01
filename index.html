@@ -936,8 +936,6 @@ function RetroBoard({ user, onLogout }) {
   const sO = d => upd('obj',d);
   const sR = d => { upd('risks',d); saveRisks(d); };
 
-  const fileRef = useRef(null);
-
   const saveRetro = () => {
     const data = { sala: SALA, date: new Date().toISOString(), ...state };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -969,24 +967,6 @@ function RetroBoard({ user, onLogout }) {
     sbSaveRetroSnapshot(SALA, TIPO, state, user.id).catch(() => {});
   };
 
-  const loadRetro = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (data.notes) upd('notes', data.notes);
-        if (data.tasks) upd('tasks', data.tasks);
-        if (data.actions) upd('actions', data.actions);
-        if (data.obj) upd('obj', data.obj);
-        if (data.risks) { upd('risks', data.risks); saveRisks(data.risks); }
-      } catch (err) { console.error('Error cargando retro:', err); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
   const content = () => {
     if (phase===0) return html`<${P1} tasks=${state.tasks} sT=${sT} obj=${state.obj} sO=${sO} user=${user} />`;
     if (phase===1) return html`<${Board} notes=${state.notes} sN=${sN} user=${user} filter="all" />`;
@@ -1012,25 +992,14 @@ function RetroBoard({ user, onLogout }) {
             <h2 style=${{ fontSize:16, fontWeight:700 }}><span class="wm" style=${{ fontSize:18 }}>revelio</span> <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span> <span style=${{ fontSize:10, fontWeight:500, color:TIPO_INFO.color, background:TIPO_INFO.color+'10', padding:'2px 6px', borderRadius:5, marginLeft:2 }}>${TIPO_INFO.icon} ${TIPO_INFO.label}</span></h2>
             <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
           </div>
-          <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🗑 Nueva</button>
-          <button onClick=${saveRetro} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #34C75940', background:'#FFF', color:'#34C759', fontSize:11, fontWeight:600 }}>💾 Guardar</button>
-          <button onClick=${()=>fileRef.current.click()} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #007AFF40', background:'#FFF', color:'#007AFF', fontSize:11, fontWeight:600 }}>📂 Cargar</button>
-          <input ref=${fileRef} type="file" accept=".json" onChange=${loadRetro} style=${{ display:'none' }} />
+          <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🆕 Nueva retro</button>
           <button onClick=${()=>setShowGuide(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #5856D640', background:'#FFF', color:'#5856D6', fontSize:11, fontWeight:600 }}>📖 Guía</button>
         </div>
-        ${showReset && html`
-          <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.3)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }} onClick=${()=>setShowReset(false)}>
-            <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 32px', maxWidth:380, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.15)', textAlign:'center' }}>
-              <div style=${{ fontSize:36, marginBottom:12 }}>🗑</div>
-              <h3 style=${{ fontSize:18, fontWeight:700, marginBottom:8 }}>¿Nueva retrospectiva?</h3>
-              <p style=${{ fontSize:13, color:'#86868B', marginBottom:20 }}>Se borran notas, tareas y objetivo. Los accionables abiertos y los riesgos se mantienen.</p>
-              <div style=${{ display:'flex', gap:8, justifyContent:'center' }}>
-                <button onClick=${()=>setShowReset(false)} style=${{ ...bS, padding:'10px 20px' }}>Cancelar</button>
-                <button onClick=${()=>{reset();setShowReset(false);setPhase(0);setTimer(900);setRunning(false)}} style=${{ ...bP, padding:'10px 20px', background:'#FF3B30' }}>Borrar y empezar</button>
-              </div>
-            </div>
-          </div>
-        `}
+        ${showReset && html`<${NewRetroModal}
+          user=${user} state=${state}
+          onClose=${()=>setShowReset(false)}
+          onConfirm=${()=>{ reset(); setShowReset(false); setPhase(0); setTimer(900); setRunning(false); }}
+        />`}
         ${showGuide && html`
           <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.4)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }} onClick=${()=>setShowGuide(false)}>
             <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:600, width:'100%', maxHeight:'85vh', overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', display:'flex', flexDirection:'column' }}>
@@ -1065,11 +1034,11 @@ function RetroBoard({ user, onLogout }) {
                   <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>📂 <strong>Crear salas</strong> — Nombre + metodología (Agile/Waterfall/ITIL/Kanban)</p><p>📋 <strong>Copiar enlace</strong> — Botón 📋 en cada sala para Slack/Teams</p><p>📊 <strong>Dashboard</strong> — KPIs, gráficos, tabla portfolio. Filtra por proyecto</p><p>👥 <strong>Usuarios</strong> — Quién ha entrado y cuándo en cada sala</p></div>
                 </div>
                 <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Datos y persistencia</h4>
-                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>💾 <strong>Guardar</strong> — JSON + métricas para el dashboard</p><p>📂 <strong>Cargar</strong> — Restaura una retro desde JSON</p><p>📄 <strong>PDF</strong> — Informe completo desde el Dashboard</p><p>🗑 <strong>Nueva retro</strong> — Borra notas y tareas. Accionables abiertos y riesgos se mantienen</p></div>
+                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>☁️ <strong>Auto-guardado</strong> — Las retros se guardan automáticamente en Supabase al pulsar 💾 o al crear una nueva</p><p>📄 <strong>PDF</strong> — Informe completo desde el Dashboard</p><p>🆕 <strong>Nueva retro</strong> — Guarda la actual y empieza limpio. Las anteriores quedan en el historial del admin</p></div>
                 </div>
                 <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:14 }}>
                   <div style=${{ padding:'10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}><p style=${{ fontSize:11, fontWeight:700, color:'#34C759', marginBottom:4 }}>Se mantiene entre retros</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>⚠️ Riesgos abiertos<br/>🎯 Accionables pendientes<br/>👤 Identidad del usuario<br/>📊 Métricas del admin</p></div>
-                  <div style=${{ padding:'10px', borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}><p style=${{ fontSize:11, fontWeight:700, color:'#FF3B30', marginBottom:4 }}>Se resetea</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>📝 Notas del tablero<br/>📋 Tareas de la iteración<br/>🎯 Objetivo<br/>✅ Accionables completados</p></div>
+                  <div style=${{ padding:'10px', borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}><p style=${{ fontSize:11, fontWeight:700, color:'#FF3B30', marginBottom:4 }}>Se resetea</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>📝 Notas del tablero<br/>📋 Tareas de la iteración<br/>🎯 Objetivo del sprint</p></div>
                 </div>
                 <div style=${{ textAlign:'center', padding:'8px 0 0', color:'#C7C7CC', fontSize:11 }}><p>Hecho con ✨ y sin Horcruxes</p></div>
               </div>
@@ -1102,6 +1071,179 @@ function RetroBoard({ user, onLogout }) {
     </div>
   `;
 }
+
+/* ═══ NEW RETRO MODAL ═══ */
+function NewRetroModal({ user, state, onClose, onConfirm }) {
+  const [prevRetros, setPrevRetros] = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [saving,  setSaving]        = useState(false);
+  const [viewRetro, setViewRetro]   = useState(null);   // retro snapshot to preview
+
+  useEffect(() => {
+    sbLoadRetros().then(all => {
+      setPrevRetros(all.filter(r => r.sala === SALA));
+      setLoading(false);
+    });
+  }, []);
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    // Save current retro to Supabase before resetting
+    await sbSaveRetroSnapshot(SALA, TIPO, state, user.id).catch(() => {});
+    setSaving(false);
+    onConfirm();
+  };
+
+  // PDF export of a historic retro
+  const exportHistoricPDF = (snap) => {
+    const data = snap.data || {};
+    const notes   = data.notes   || [];
+    const actions = data.actions || [];
+    const risks   = (data.risks  || []).filter(r => r.status !== 'mitigated');
+    const obj     = data.obj     || {};
+    const tN = notes.length;
+    const aD = actions.filter(a => a.status === 'done').length;
+    const priO = {high:3,medium:2,low:1};
+    const nc = CATS.map(c => ({ ...c, notes: notes.filter(n => n.category === c.id).sort((a,b) => (b.voters?.length||0) - (a.voters?.length||0)) }));
+    const sa = [...actions].sort((a,b) => (priO[b.priority]||0) - (priO[a.priority]||0));
+    const objL = obj.met===true?'Cumplido ✅':obj.met===false?'No cumplido ❌':obj.met==='partial'?'Parcial ⚠️':'Sin evaluar';
+    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>revelio — ${SALA_DISPLAY} — ${fd(snap.created_at)}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;color:#1D1D1F;padding:40px;max-width:860px;margin:0 auto;font-size:13px;line-height:1.5}h2{font-size:16px;font-weight:700;margin:22px 0 10px;padding-bottom:5px;border-bottom:2px solid #E5E5EA}.cd{display:inline-block;text-align:center;min-width:90px;background:#F9F9FB;border-radius:10px;padding:12px;margin:4px;border:1px solid #E5E5EA}.cd .v{font-size:20px;font-weight:800}.cd .l{font-size:10px;color:#86868B}.ct{margin-bottom:16px;padding:12px;border-radius:10px;border-left:4px solid}.nt{padding:6px 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between}.ac{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #E5E5EA}@media print{body{padding:20px}}</style></head><body>
+<div style="text-align:center;margin-bottom:20px"><span style="font-size:24px;font-weight:700;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio</span>
+<p style="font-size:18px;font-weight:700;margin:4px 0">${SALA_DISPLAY}</p>
+<p style="color:#86868B;font-size:12px">${fd(snap.created_at)}</p>
+${obj.text ? '<p style="margin-top:8px;font-size:13px">🎯 <b>'+obj.text+'</b> — '+objL+'</p>' : ''}</div>
+<div style="display:flex;flex-wrap:wrap;margin-bottom:20px">
+  <div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div>
+  <div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div>
+  <div class="cd"><div class="v" style="color:#FF3B30">${risks.length}</div><div class="l">Riesgos</div></div>
+</div>
+<h2>📝 Notas</h2>
+${nc.map(c=>c.notes.length===0?'':'<div class="ct" style="border-color:'+c.color+';background:'+c.bg+'"><p style="font-weight:700;font-size:12px;color:'+c.color+';margin-bottom:6px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</p>'+c.notes.map(n=>'<div class="nt"><span>'+n.text+'</span><span style="color:#86868B;font-size:10px;white-space:nowrap;margin-left:8px">'+n.userAvatar+' '+n.userName+' · 👍'+(n.voters?.length||0)+'</span></div>').join('')+'</div>').join('')}
+<h2>🎯 Accionables</h2>
+${sa.length===0?'<p style="color:#86868B">Sin accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status);return'<div class="ac"><span style="font-size:14px">'+pr.icon+'</span><div style="flex:1"><b>'+a.text+'</b><div style="font-size:10px;color:#86868B">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span style="background:'+st.bg+';color:'+st.color+';padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700">'+st.label+'</span></div>';}).join('')}
+${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div class="ac" style="border-left:3px solid #FF9500"><div style="flex:1"><b>'+r.text+'</b>'+(r.mitigation?'<div style="font-size:10px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:10px;color:#86868B">Owner: '+r.owner+'</div></div></div>').join(''):''}
+<p style="text-align:center;color:#C7C7CC;font-size:10px;margin-top:24px">revelio · ${new Date().toLocaleString('es-ES')}</p>
+<script>window.onload=function(){window.print()}<\/script></body></html>`;
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(doc); w.document.close(); }
+  };
+
+  if (viewRetro) return html`
+    <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${()=>setViewRetro(null)}>
+      <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:640, width:'100%', maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.2)' }}>
+        <div style=${{ padding:'18px 24px 14px', borderBottom:'1px solid #E5E5EA', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <h3 style=${{ fontSize:16, fontWeight:700 }}>📋 Retro del ${fd(viewRetro.created_at)}</h3>
+            <p style=${{ fontSize:11, color:'#86868B' }}>${SALA_DISPLAY} · ${(viewRetro.data?.notes||[]).length} notas · ${(viewRetro.data?.actions||[]).length} accionables</p>
+          </div>
+          <div style=${{ display:'flex', gap:8 }}>
+            <button onClick=${()=>exportHistoricPDF(viewRetro)} style=${{ ...bP, padding:'7px 16px', fontSize:12 }}>📄 PDF</button>
+            <button onClick=${()=>setViewRetro(null)} style=${{ width:30, height:30, borderRadius:15, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+          </div>
+        </div>
+        <div style=${{ flex:1, overflowY:'auto', padding:'18px 24px' }}>
+          ${CATS.map(c => {
+            const cn = (viewRetro.data?.notes||[]).filter(n=>n.category===c.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
+            if (!cn.length) return null;
+            return html`
+              <div key=${c.id} style=${{ marginBottom:14, padding:12, borderRadius:12, background:c.bg, borderLeft:'4px solid '+c.color }}>
+                <p style=${{ fontWeight:700, fontSize:12, color:c.color, marginBottom:6 }}>${c.emoji} ${c.label} (${cn.length})</p>
+                ${cn.map(n=>html`<div key=${n.id} style=${{ padding:'5px 0', borderBottom:'1px solid rgba(0,0,0,.06)', display:'flex', justifyContent:'space-between', fontSize:12 }}><span>${n.text}</span><span style=${{ color:'#86868B', whiteSpace:'nowrap', marginLeft:8 }}>${n.userAvatar} · 👍${n.voters?.length||0}</span></div>`)}
+              </div>`;
+          })}
+          ${(viewRetro.data?.actions||[]).length > 0 && html`
+            <p style=${{ fontWeight:700, fontSize:13, marginBottom:8 }}>🎯 Accionables</p>
+            ${[...viewRetro.data.actions].sort((a,b)=>({high:3,medium:2,low:1}[b.priority]||0)-({high:3,medium:2,low:1}[a.priority]||0)).map(a=>{
+              const st=STS.find(s=>s.id===a.status)||STS[0];
+              const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];
+              return html`<div key=${a.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid #F2F2F7', fontSize:12 }}>
+                <span>${pr.icon}</span><span style=${{ flex:1 }}>${a.text}</span><span style=${{ color:'#86868B' }}>${a.owner}</span>
+                <span style=${{ background:st.bg, color:st.color, padding:'1px 7px', borderRadius:5, fontSize:10, fontWeight:700 }}>${st.label}</span>
+              </div>`;
+            })}
+          `}
+        </div>
+      </div>
+    </div>`;
+
+  return html`
+    <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${onClose}>
+      <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:560, width:'100%', maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.2)' }}>
+
+        <!-- Header -->
+        <div style=${{ padding:'22px 26px 16px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
+          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:2 }}>
+            <h2 style=${{ fontSize:18, fontWeight:700 }}>🆕 Nueva retrospectiva</h2>
+            <button onClick=${onClose} style=${{ width:30, height:30, borderRadius:15, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+          </div>
+          <p style=${{ fontSize:13, color:'#86868B' }}>La retro actual se guarda en Supabase y el tablero se limpia.</p>
+        </div>
+
+        <!-- Body: current retro summary + action -->
+        <div style=${{ padding:'18px 26px', borderBottom:'1px solid #F2F2F7', flexShrink:0 }}>
+          <div style=${{ display:'flex', gap:10, marginBottom:16 }}>
+            ${[['📝', state.notes?.length||0, 'Notas'], ['🎯', state.actions?.length||0, 'Accionables'], ['⚠️', (state.risks||[]).filter(r=>r.status!=='mitigated').length, 'Riesgos']].map(([ic,v,l]) => html`
+              <div style=${{ flex:1, textAlign:'center', background:'#F9F9FB', borderRadius:12, padding:'10px 6px', border:'1px solid #E5E5EA' }}>
+                <div style=${{ fontSize:16, marginBottom:2 }}>${ic}</div>
+                <div style=${{ fontSize:18, fontWeight:800, color:'#1D1D1F' }}>${v}</div>
+                <div style=${{ fontSize:10, color:'#86868B' }}>${l}</div>
+              </div>
+            `)}
+          </div>
+          <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, fontSize:11, marginBottom:14 }}>
+            <div style=${{ padding:10, borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}>
+              <p style=${{ fontWeight:700, color:'#34C759', marginBottom:4 }}>✅ Se guarda en historial</p>
+              <p style=${{ color:'#6E6E73', lineHeight:1.5 }}>📝 Notas · 🎯 Accionables · ⚠️ Riesgos · 🎯 Objetivo</p>
+            </div>
+            <div style=${{ padding:10, borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}>
+              <p style=${{ fontWeight:700, color:'#FF3B30', marginBottom:4 }}>🔄 Se resetea en el tablero</p>
+              <p style=${{ color:'#6E6E73', lineHeight:1.5 }}>📝 Notas · 📋 Tareas · 🎯 Objetivo</p>
+            </div>
+          </div>
+          <button onClick=${handleConfirm} disabled=${saving} style=${{ ...bP, width:'100%', padding:13, fontSize:14, background:saving?'#86868B':'#1D1D1F', cursor:saving?'default':'pointer' }}>
+            ${saving ? '⏳ Guardando en Supabase…' : '🚀 Guardar y empezar nueva retro'}
+          </button>
+        </div>
+
+        <!-- Historial de retros anteriores -->
+        <div style=${{ flex:1, overflowY:'auto', padding:'14px 26px 22px' }}>
+          <p style=${{ fontSize:12, fontWeight:700, color:'#86868B', marginBottom:10, textTransform:'uppercase', letterSpacing:'.5px' }}>📚 Historial — ${SALA_DISPLAY}</p>
+          ${loading ? html`<p style=${{ color:'#C7C7CC', fontSize:12, textAlign:'center', padding:16 }}>⏳ Cargando…</p>`
+            : prevRetros.length === 0 ? html`<p style=${{ color:'#C7C7CC', fontSize:12, textAlign:'center', padding:16 }}>Sin retros anteriores guardadas en Supabase</p>`
+            : prevRetros.map(r => {
+              const nC  = r.data?.notes?.length || 0;
+              const aC  = r.data?.actions?.length || 0;
+              const dC  = (r.data?.actions||[]).filter(a=>a.status==='done').length;
+              const pct = aC > 0 ? Math.round(dC/aC*100) : 0;
+              const pctColor = pct>=75?'#34C759':pct>=40?'#FF9500':'#FF3B30';
+              const parts = [...new Set((r.data?.notes||[]).map(n=>n.userName))];
+              return html`
+                <div key=${r.id} class="hl" style=${{ padding:'11px 14px', borderRadius:13, border:'1.5px solid #E5E5EA', marginBottom:8, display:'flex', alignItems:'center', gap:10, background:'#FAFAFA' }}>
+                  <div style=${{ flex:1 }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                      <span style=${{ fontSize:13, fontWeight:700 }}>${fd(r.created_at)}</span>
+                      <span style=${{ fontSize:10, color:'#86868B' }}>${parts.slice(0,4).join(', ')}${parts.length>4?' +'+( parts.length-4):''}</span>
+                    </div>
+                    <div style=${{ display:'flex', gap:10, fontSize:11, color:'#86868B' }}>
+                      <span>📝 ${nC}</span><span>🎯 ${dC}/${aC}</span>
+                      <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                        <div style=${{ width:40, height:4, background:'#E5E5EA', borderRadius:2, overflow:'hidden' }}>
+                          <div style=${{ width:pct+'%', height:'100%', background:pctColor }} />
+                        </div>
+                        <span style=${{ color:pctColor, fontWeight:700 }}>${pct}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick=${()=>setViewRetro(r)} style=${{ ...bS, padding:'6px 12px', fontSize:11 }}>Ver →</button>
+                </div>`;
+            })
+          }
+        </div>
+      </div>
+    </div>`;
+}
+
 
 /* ═══ PHASE 1: REVIEW ═══ */
 function P1({ tasks, sT, obj, sO, user }) {
