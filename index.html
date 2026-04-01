@@ -995,56 +995,6 @@ function RetroBoard({ user, onLogout }) {
           <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🆕 Nueva retro</button>
           <button onClick=${()=>setShowGuide(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #5856D640', background:'#FFF', color:'#5856D6', fontSize:11, fontWeight:600 }}>📖 Guía</button>
         </div>
-        ${showReset && html`<${NewRetroModal}
-          user=${user} state=${state}
-          onClose=${()=>setShowReset(false)}
-          onConfirm=${()=>{ reset(); setShowReset(false); setPhase(0); setTimer(900); setRunning(false); }}
-        />`}
-        ${showGuide && html`
-          <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.4)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }} onClick=${()=>setShowGuide(false)}>
-            <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:600, width:'100%', maxHeight:'85vh', overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', display:'flex', flexDirection:'column' }}>
-              <div style=${{ padding:'24px 28px 16px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
-                <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <div><h2 style=${{ fontSize:20, fontWeight:700 }}>📖 Libro de Hechizos</h2><p style=${{ fontSize:12, color:'#86868B' }}>Todo lo que necesitas para dominar revelio</p></div>
-                  <button onClick=${()=>setShowGuide(false)} style=${{ width:30, height:30, borderRadius:15, border:'none', background:'#F2F2F7', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
-                </div>
-              </div>
-              <div style=${{ padding:'20px 28px 28px', overflowY:'auto', flex:1 }}>
-                <h3 style=${{ fontSize:14, fontWeight:700, color:'#007AFF', marginBottom:12 }}>🧙 Para el equipo</h3>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>1. Entra con el enlace</h4><p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5 }}>Tu SM te dará una URL tipo <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?sala=mi-proyecto</code>. Pon tu nombre, elige patronus y casa. Clic en 🪄 Revelio!</p></div>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>2. Las 6 fases</h4>
-                  <div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
-                    ${[
-                      {i:'📋',t:'Repaso Inicial',d:'Revisa objetivo y tareas. Marca las completadas.'},
-                      {i:'✍️',t:'Análisis Individual',d:'Escribe notas en Good/Bad/Start/Stop. Arrastra entre columnas. Las tuyas tienen borde grueso.'},
-                      {i:'💬',t:'Puesta en Común',d:'Filtra por categoría o "Mis notas". Vota con 👍. Reacciona con emojis rápidos (🔥💡❤️😂🎯🤯).'},
-                      {i:'⚠️',t:'Riesgos',d:'Crea riesgos o convierte notas Bad/Stop. Vota impacto y probabilidad. El mapa de calor se actualiza en tiempo real.'},
-                      {i:'🎯',t:'Accionables',d:'Crea acciones o convierte notas/riesgos en accionables. Asigna responsable, fecha y prioridad.'},
-                      {i:'📊',t:'Dashboard',d:'Ranking, métricas y descarga del informe PDF con todo.'},
-                    ].map((p,i)=>html`<div key=${i} style=${{ padding:'7px 10px', borderRadius:8, background:'#F9F9FB', border:'1px solid #E5E5EA' }}><span style=${{ fontSize:12, fontWeight:700 }}>${p.i} ${p.t}</span><p style=${{ fontSize:11, color:'#6E6E73', margin:'2px 0 0', lineHeight:1.4 }}>${p.d}</p></div>`)}
-                  </div>
-                </div>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>3. Tips rápidos</h4>
-                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>✏️ Edita tus notas con el lápiz, elimina con ✕</p><p>🔄 Si cierras y vuelves al enlace, entras automáticamente</p><p>👤 Cambia de usuario con el botón de tu nombre arriba a la derecha</p><p>⏱️ Timer con presets de 5, 10, 15 y 20 minutos</p></div>
-                </div>
-                <div style=${{ height:1, background:'#E5E5EA', margin:'16px 0' }} />
-                <h3 style=${{ fontSize:14, fontWeight:700, color:'#5856D6', marginBottom:12 }}>🏰 Para el Scrum Master</h3>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Panel admin</h4>
-                  <p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5, marginBottom:6 }}>Accede con <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?admin</code> al final de la URL.</p>
-                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>📂 <strong>Crear salas</strong> — Nombre + metodología (Agile/Waterfall/ITIL/Kanban)</p><p>📋 <strong>Copiar enlace</strong> — Botón 📋 en cada sala para Slack/Teams</p><p>📊 <strong>Dashboard</strong> — KPIs, gráficos, tabla portfolio. Filtra por proyecto</p><p>👥 <strong>Usuarios</strong> — Quién ha entrado y cuándo en cada sala</p></div>
-                </div>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Datos y persistencia</h4>
-                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>☁️ <strong>Auto-guardado</strong> — Las retros se guardan automáticamente en Supabase al pulsar 💾 o al crear una nueva</p><p>📄 <strong>PDF</strong> — Informe completo desde el Dashboard</p><p>🆕 <strong>Nueva retro</strong> — Guarda la actual y empieza limpio. Las anteriores quedan en el historial del admin</p></div>
-                </div>
-                <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:14 }}>
-                  <div style=${{ padding:'10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}><p style=${{ fontSize:11, fontWeight:700, color:'#34C759', marginBottom:4 }}>Se mantiene entre retros</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>⚠️ Riesgos abiertos<br/>🎯 Accionables pendientes<br/>👤 Identidad del usuario<br/>📊 Métricas del admin</p></div>
-                  <div style=${{ padding:'10px', borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}><p style=${{ fontSize:11, fontWeight:700, color:'#FF3B30', marginBottom:4 }}>Se resetea</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>📝 Notas del tablero<br/>📋 Tareas de la iteración<br/>🎯 Objetivo del sprint</p></div>
-                </div>
-                <div style=${{ textAlign:'center', padding:'8px 0 0', color:'#C7C7CC', fontSize:11 }}><p>Hecho con ✨ y sin Horcruxes</p></div>
-              </div>
-            </div>
-          </div>
-        `}
         <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
           <div style=${{ background:running?'#1D1D1F':'#F2F2F7', color:running?'#FFF':'#1D1D1F', borderRadius:10, padding:'6px 10px', display:'flex', alignItems:'center', gap:5 }}>
             ${!running && html`<div style=${{ display:'flex', gap:2 }}>
@@ -1067,6 +1017,88 @@ function RetroBoard({ user, onLogout }) {
       <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>${content()}</div>
       ${toast && html`
         <div style=${{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', padding:'12px 24px', borderRadius:14, fontSize:14, fontWeight:600, boxShadow:'0 8px 30px rgba(0,0,0,0.15)', zIndex:300, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8 }}>${toast}</div>
+      `}
+
+      ${showReset && html`<${NewRetroModal}
+        user=${user} state=${state}
+        onClose=${()=>setShowReset(false)}
+        onConfirm=${()=>{ reset(); setShowReset(false); setPhase(0); setTimer(900); setRunning(false); }}
+      />`}
+
+      ${showGuide && html`
+        <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:'5vh 16px' }} onClick=${()=>setShowGuide(false)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:600, width:'100%', height:'90vh', boxShadow:'0 24px 80px rgba(0,0,0,0.25)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            <div style=${{ padding:'22px 26px 14px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
+              <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div>
+                  <h2 style=${{ fontSize:20, fontWeight:700 }}>📖 Libro de Hechizos</h2>
+                  <p style=${{ fontSize:12, color:'#86868B' }}>Todo lo que necesitas para dominar revelio</p>
+                </div>
+                <button onClick=${()=>setShowGuide(false)} style=${{ width:34, height:34, borderRadius:17, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>✕</button>
+              </div>
+            </div>
+            <div style=${{ flex:1, overflowY:'auto', padding:'20px 26px 28px' }}>
+              <h3 style=${{ fontSize:14, fontWeight:700, color:'#007AFF', marginBottom:12 }}>🧙 Para el equipo</h3>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>1. Entra con el enlace</h4>
+                <p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5 }}>Tu SM te dará una URL tipo <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?sala=mi-proyecto</code>. Pon tu nombre, elige patronus y casa. Clic en 🪄 Revelio!</p>
+              </div>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>2. Las 6 fases</h4>
+                <div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
+                  ${[
+                    {i:'📋',t:'Repaso Inicial',d:'Revisa objetivo y tareas. Marca las completadas.'},
+                    {i:'✍️',t:'Análisis Individual',d:'Escribe notas en Good/Bad/Start/Stop. Arrastra entre columnas. Las tuyas tienen borde grueso.'},
+                    {i:'💬',t:'Puesta en Común',d:'Filtra por categoría o "Mis notas". Vota con 👍. Reacciona con emojis (🔥💡❤️😂🎯🤯).'},
+                    {i:'⚠️',t:'Riesgos',d:'Crea riesgos o convierte notas Bad/Stop. Vota impacto y probabilidad. Mapa de calor en tiempo real.'},
+                    {i:'🎯',t:'Accionables',d:'Crea acciones o convierte notas/riesgos. Responsable, fecha y prioridad.'},
+                    {i:'📊',t:'Dashboard',d:'Ranking, métricas y descarga del informe PDF.'},
+                  ].map((p,i)=>html`<div key=${i} style=${{ padding:'7px 10px', borderRadius:8, background:'#F9F9FB', border:'1px solid #E5E5EA' }}><span style=${{ fontSize:12, fontWeight:700 }}>${p.i} ${p.t}</span><p style=${{ fontSize:11, color:'#6E6E73', margin:'2px 0 0', lineHeight:1.4 }}>${p.d}</p></div>`)}
+                </div>
+              </div>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>3. Tips rápidos</h4>
+                <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}>
+                  <p>✏️ Edita tus notas con el lápiz, elimina con ✕</p>
+                  <p>🔄 Si cierras y vuelves al enlace, entras automáticamente</p>
+                  <p>👤 Cambia de usuario con el botón de tu nombre (arriba derecha)</p>
+                  <p>⏱️ Timer con presets de 5, 10, 15 y 20 minutos</p>
+                </div>
+              </div>
+              <div style=${{ height:1, background:'#E5E5EA', margin:'16px 0' }} />
+              <h3 style=${{ fontSize:14, fontWeight:700, color:'#5856D6', marginBottom:12 }}>🏰 Para el Scrum Master</h3>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Panel admin</h4>
+                <p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5, marginBottom:6 }}>Accede con <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?admin</code> + PIN al final de la URL.</p>
+                <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}>
+                  <p>📂 <strong>Crear salas</strong> — Nombre + metodología (Agile/Waterfall/ITIL/Kanban)</p>
+                  <p>📋 <strong>Copiar enlace</strong> — Botón 📋 en cada sala para Slack/Teams</p>
+                  <p>📊 <strong>Dashboard</strong> — KPIs, gráficos, tabla portfolio por proyecto</p>
+                  <p>👥 <strong>Usuarios</strong> — Quién ha entrado y cuándo en cada sala</p>
+                </div>
+              </div>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Datos y persistencia</h4>
+                <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}>
+                  <p>☁️ <strong>Auto-guardado</strong> — Las retros se guardan en Supabase al crear una nueva</p>
+                  <p>📄 <strong>PDF</strong> — Informe completo desde el Dashboard o el historial</p>
+                  <p>🆕 <strong>Nueva retro</strong> — Guarda la actual y empieza limpio. Historial accesible desde el modal</p>
+                </div>
+              </div>
+              <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:16 }}>
+                <div style=${{ padding:'10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}>
+                  <p style=${{ fontSize:11, fontWeight:700, color:'#34C759', marginBottom:4 }}>✅ Se guarda en historial</p>
+                  <p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>⚠️ Riesgos abiertos<br/>🎯 Accionables pendientes<br/>👤 Identidad del usuario<br/>📊 Snapshot completo</p>
+                </div>
+                <div style=${{ padding:'10px', borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}>
+                  <p style=${{ fontSize:11, fontWeight:700, color:'#FF3B30', marginBottom:4 }}>🔄 Se resetea en el tablero</p>
+                  <p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>📝 Notas del tablero<br/>📋 Tareas de la iteración<br/>🎯 Objetivo del sprint</p>
+                </div>
+              </div>
+              <div style=${{ textAlign:'center', padding:'4px 0', color:'#C7C7CC', fontSize:11 }}>Hecho con ✨ y sin Horcruxes</div>
+            </div>
+          </div>
+        </div>
       `}
     </div>
   `;
