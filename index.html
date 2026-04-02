@@ -13,10 +13,87 @@
   ::-webkit-scrollbar-thumb { background: #D1D1D6; border-radius: 3px; }
   input:focus, textarea:focus, select:focus { border-color: #007AFF !important; outline: none; }
   button { font-family: inherit; cursor: pointer; }
-  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeIn  { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes spin    { to { transform: rotate(360deg); } }
   .hl { transition: transform .15s, box-shadow .15s; }
   .hl:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.07); }
   .wm { font-family: 'Comfortaa', sans-serif; font-weight: 400; letter-spacing: 2px; background: linear-gradient(90deg,#007AFF,#5856D6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: inline-block; }
+
+  /* ─── MOBILE ─────────────────────────────────────── */
+  @media (max-width: 640px) {
+
+    /* Header: stack logo+sala on one line, shrink controls */
+    header { flex-wrap: wrap; gap: 6px !important; padding: 8px 12px !important; }
+    header > div:first-child { flex: 1; min-width: 0; }
+    header h2 { font-size: 14px !important; }
+    header h2 span.wm { font-size: 15px !important; }
+
+    /* Phase nav: scrollable single row, smaller pills */
+    div[style*="overflowX:'auto'"] button {
+      padding: 7px 10px !important;
+      font-size: 11px !important;
+    }
+
+    /* Timer: smaller */
+    header span[style*="fontVariantNumeric"] { font-size: 15px !important; min-width: 42px !important; }
+
+    /* Main content: less padding */
+    div[style*="flex:1"][style*="overflowY:'auto'"] { padding: 10px 10px !important; }
+
+    /* Cards: full width, less padding */
+    div[style*="borderRadius:20"],
+    div[style*="borderRadius:16"],
+    div[style*="borderRadius:14"] { border-radius: 12px !important; }
+
+    /* Notes board: 1 col instead of 2 */
+    div[style*="gridTemplateColumns:'repeat(2,1fr)'"] { grid-template-columns: 1fr !important; }
+    div[style*="gridTemplateColumns:'1fr 1fr'"]       { grid-template-columns: 1fr !important; }
+    div[style*="gridTemplateColumns:'1fr 320px'"]     { grid-template-columns: 1fr !important; }
+    div[style*="gridTemplateColumns:'1fr 1fr 1fr'"]   { grid-template-columns: 1fr 1fr !important; }
+    div[style*="gridTemplateColumns:'repeat(5,1fr)'"] { grid-template-columns: repeat(3,1fr) !important; }
+    div[style*="gridTemplateColumns:'repeat(3,1fr)'"] { grid-template-columns: repeat(2,1fr) !important; }
+    div[style*="gridTemplateColumns:'200px 1fr'"]     { grid-template-columns: 1fr !important; }
+
+    /* Actions form: stack vertically */
+    div[style*="minWidth:150"] { min-width: 0 !important; }
+
+    /* Dashboard P6 tabs: wrap */
+    div[style*="background:'#FFF'"][style*="borderRadius:14"] button { font-size: 10px !important; padding: 6px 4px !important; }
+
+    /* Login card: tighter */
+    div[style*="borderRadius:28"] { padding: 28px 20px !important; border-radius: 20px !important; }
+
+    /* Risk heatmap: scale down */
+    div[style*="gridTemplateColumns:'repeat(3,1fr)'"] div[style*="minHeight:90"] { min-height: 60px !important; padding: 6px !important; }
+
+    /* Admin dashboard: 2-col KPIs */
+    /* Inputs full width on mobile */
+    input, select, textarea { font-size: 16px !important; } /* prevents iOS zoom */
+
+    /* Modals: full screen on mobile */
+    div[style*="position:'fixed'"][style*="zIndex:9000"] > div,
+    div[style*="position:'fixed'"][style*="zIndex:9100"] > div {
+      max-width: 100% !important;
+      margin: 0 !important;
+      border-radius: 20px 20px 0 0 !important;
+      position: fixed !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      max-height: 90vh !important;
+    }
+
+    /* Retro board header buttons: icons only on very small */
+    header button[style*="5px 10px"] { padding: 5px 7px !important; font-size: 11px !important; }
+
+    /* Hide long labels on header buttons, keep emoji */
+    .mob-label { display: none; }
+  }
+
+  @media (max-width: 380px) {
+    header h2 span:not(.wm) { display: none; }
+    div[style*="gridTemplateColumns:'repeat(3,1fr)'"] { grid-template-columns: repeat(2,1fr) !important; }
+  }
 </style>
 <script type="importmap">
 {
@@ -45,9 +122,61 @@ const SUPABASE_KEY = 'sb_publishable_ZYRlCDmIE80AYrZWEeeWnw_hXWcg2rA';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ═══ SUPABASE AUTH ═══ */
-const sbGetSession = async () => { try { const {data} = await supabase.auth.getSession(); return data?.session||null; } catch { return null; } };
-const sbSignIn     = async (email,pass) => { try { const {data,error} = await supabase.auth.signInWithPassword({email,password:pass}); return {session:data?.session,error}; } catch(e) { return {session:null,error:e}; } };
-const sbSignOut    = async () => { try { await supabase.auth.signOut(); } catch {} };
+const sbGetSession  = async () => { try { const {data} = await supabase.auth.getSession(); return data?.session || null; } catch { return null; } };
+const sbSignIn      = async (email, password) => { try { const {data,error} = await supabase.auth.signInWithPassword({email,password}); return {session:data?.session, error}; } catch(e) { return {session:null, error:e}; } };
+const sbSignOut     = async () => { try { await supabase.auth.signOut(); } catch {} };
+
+/* ─── Global error toast ─── */
+let _errorToast = null;
+function setGlobalError(msg) {
+  if (_errorToast) { _errorToast(msg); }
+}
+function useErrorToast() {
+  const [err, setErr] = useState(null);
+  useEffect(() => { _errorToast = setErr; return () => { _errorToast = null; }; }, []);
+  return err;
+}
+
+/* ═══ SUPABASE DB LAYER (admin panel) ═══ */
+async function sbLoadRooms() {
+  try {
+    const { data } = await supabase.from('rooms').select('*').order('created_at');
+    if (data && data.length > 0) return data.map(r => ({ name: r.name, slug: r.slug, tipo: r.tipo || 'agile' }));
+  } catch {}
+  return null;
+}
+async function sbSaveRoom(slug, name, tipo) {
+  try {
+    const {error} = await supabase.from('rooms').upsert({ slug, name, tipo });
+    if (error) setGlobalError('⚠️ Error guardando sala en Supabase');
+  } catch { setGlobalError('⚠️ Sin conexión con Supabase'); }
+}
+async function sbDeleteRoom(slug) {
+  try { await supabase.from('rooms').delete().eq('slug', slug); } catch {}
+}
+async function sbDeleteRoomData(slug) {
+  try { await supabase.from('retros').delete().eq('sala', slug); } catch {}
+  try { localStorage.removeItem('rf-risks-'   + slug); } catch {}
+  try { localStorage.removeItem('rf-reg-'     + slug); } catch {}
+  try { localStorage.removeItem('rf-user-'    + slug); } catch {}
+  try { localStorage.removeItem('rf-metrics');          } catch {}
+}
+async function sbLoadRetros() {
+  try {
+    const { data } = await supabase.from('retros').select('id,sala,tipo,status,created_at,updated_at,data').order('created_at', { ascending: false });
+    return data || [];
+  } catch { return []; }
+}
+async function sbSaveRetroSnapshot(sala, tipo, stateData, userId) {
+  try {
+    const {error} = await supabase.from('retros').insert({
+      sala, tipo, status: 'closed',
+      data: stateData,
+      created_by: userId,
+    });
+    if (error) setGlobalError('⚠️ Error guardando retro en Supabase');
+  } catch { setGlobalError('⚠️ Sin conexión con Supabase'); }
+}
 
 /* ═══ CONSTANTS ═══ */
 const CATS = [
@@ -101,7 +230,7 @@ const cS = { background:'#FFF', borderRadius:20, border:'1.5px solid #E5E5EA', o
 const params = new URLSearchParams(window.location.search);
 const SALA = params.get('sala') || 'general';
 const SALA_DISPLAY = SALA.charAt(0).toUpperCase() + SALA.slice(1);
-const TIPO = params.get('tipo') || 'agile';
+const TIPO_URL = params.get('tipo') || 'agile'; // hint only, Supabase overrides
 const IS_ADMIN = params.has('admin');
 
 const TASK_TEMPLATES = {
@@ -155,12 +284,15 @@ const TASK_TEMPLATES = {
   },
 };
 
-const TIPO_INFO = TASK_TEMPLATES[TIPO] || TASK_TEMPLATES.agile;
-const DEFAULT_TASKS = TIPO_INFO.tasks.map(t => ({ id: uid(), text: t, done: false }));
+// TIPO is resolved in App from Supabase; these are defaults
+const TIPO_INFO_DEFAULT_UNUSED = TASK_TEMPLATES[TIPO_URL] || TASK_TEMPLATES.agile;
 
 /* ═══ REALTIME STATE ═══ */
-function useRealtime(user) {
-  const [state, setState] = useState({ notes:[], tasks:DEFAULT_TASKS.map(t=>({...t,id:uid()})), actions:[], obj:{text:'',met:null}, risks:loadRisks() });
+function useRealtime(user, tipoParam) {
+  const resolvedTipo = tipoParam || TIPO_URL;
+  const tipoInfo = TASK_TEMPLATES[resolvedTipo] || TASK_TEMPLATES.agile;
+  const defaultTasks = tipoInfo.tasks.map(t => ({ id: uid(), text: t, done: false }));
+  const [state, setState] = useState({ notes:[], tasks:defaultTasks, actions:[], obj:{text:'',met:null}, risks:loadRisks() });
   const [online, setOnline] = useState({});
   const [cursors, setCursors] = useState({});
   const chRef = useRef(null);
@@ -195,6 +327,12 @@ function useRealtime(user) {
     ch.on('broadcast', { event:'sync' }, ({ payload }) => {
       if (payload.from === user.id) return;
       setState(prev => ({ ...prev, [payload.key]: payload.data }));
+    });
+
+    // Broadcast: timer sync
+    ch.on('broadcast', { event:'timer' }, ({ payload }) => {
+      if (payload.from === user.id) return;
+      if (typeof payload.seconds === 'number') _timerSync && _timerSync(payload.seconds, payload.running);
     });
 
     ch.on('broadcast', { event:'req' }, ({ payload }) => {
@@ -239,7 +377,7 @@ function useRealtime(user) {
   const reset = useCallback(() => {
     const currentRisks = stRef.current.risks || [];
     const openActions = (stRef.current.actions || []).filter(a => a.status !== 'done' && a.status !== 'discarded');
-    const fresh = { notes:[], tasks:DEFAULT_TASKS.map(t=>({...t,id:uid()})), actions:openActions, obj:{text:'',met:null}, risks:currentRisks };
+    const fresh = { notes:[], tasks:defaultTasks.map(t=>({...t,id:uid()})), actions:openActions, obj:{text:'',met:null}, risks:currentRisks };
     setState(fresh);
     if (chRef.current && user) {
       Object.keys(fresh).forEach(k => {
@@ -248,90 +386,128 @@ function useRealtime(user) {
     }
   }, [user]);
 
-  return { state, upd, online, cursors, moveCursor, reset };
+  const broadcastTimer = useCallback((seconds, running) => {
+    if (chRef.current && user) {
+      chRef.current.send({ type:'broadcast', event:'timer', payload:{ seconds, running, from:user.id } });
+    }
+  }, [user]);
+
+  return { state, upd, online, cursors, moveCursor, reset, broadcastTimer };
 }
 
 /* ═══ APP ═══ */
 function App() {
-  const [user, setUser] = useState(() => params.has('sala') ? loadUser() : null);
+  const [user,       setUser]       = useState(() => params.has('sala') ? loadUser() : null);
+  const [salaValid,  setSalaValid]  = useState(null); // null=checking, true=ok, false=blocked
+  const [roomTipo,   setRoomTipo]   = useState(TIPO_URL); // resolved from Supabase
 
-  const handleJoin = (u) => { saveUser(u); registerUser(u); setUser(u); };
+  const handleJoin   = (u) => { saveUser(u); registerUser(u); setUser(u); };
   const handleLogout = () => { clearUser(); setUser(null); };
 
-  // No sala → admin sees picker, others see "pide el enlace"
+  // No sala → admin sees picker, others see landing
   if (!params.has('sala')) {
     if (IS_ADMIN) return html`<${RoomPicker} />`;
     return html`<${NeedLink} />`;
   }
+
+  // Check sala exists in Supabase AND get its tipo (runs once on mount)
+  useEffect(() => {
+    sbLoadRooms().then(rooms => {
+      if (!rooms) { setSalaValid(true); return; }
+      const room = rooms.find(r => r.slug === SALA);
+      if (!room) { setSalaValid(false); return; }
+      setSalaValid(true);
+      // Override tipo with Supabase value
+      if (room.tipo && TASK_TEMPLATES[room.tipo]) setRoomTipo(room.tipo);
+    });
+  }, []);
+
+  if (salaValid === null) return html`
+    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7' }}>
+      <div style=${{ textAlign:'center', color:'#86868B' }}>
+        <div style=${{ fontSize:32, marginBottom:8, animation:'spin 1s linear infinite', display:'inline-block' }}>⏳</div>
+        <p style=${{ fontSize:14 }}>Verificando sala…</p>
+      </div>
+    </div>`;
+
+  if (salaValid === false) return html`
+    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7' }}>
+      <div style=${{ background:'#FFF', borderRadius:24, padding:'44px 40px', maxWidth:420, width:'90%', textAlign:'center', boxShadow:'0 8px 40px rgba(0,0,0,0.08)' }}>
+        <div style=${{ fontSize:52, marginBottom:12 }}>🚫</div>
+        <h2 style=${{ fontSize:20, fontWeight:700, marginBottom:8 }}>Sala no encontrada</h2>
+        <p style=${{ fontSize:14, color:'#86868B', marginBottom:6, lineHeight:1.5 }}>
+          La sala <code style=${{ background:'#F2F2F7', padding:'2px 8px', borderRadius:5, fontSize:13 }}>${SALA}</code> no existe o no está registrada.
+        </p>
+        <p style=${{ fontSize:13, color:'#C7C7CC', marginBottom:24 }}>Pide a tu Scrum Master el enlace correcto.</p>
+        <a href="/" style=${{ display:'inline-block', padding:'11px 24px', background:'linear-gradient(135deg,#007AFF,#5856D6)', color:'#FFF', borderRadius:12, fontSize:14, fontWeight:600, textDecoration:'none' }}>← Volver al inicio</a>
+      </div>
+    </div>`;
+
   if (!user) return html`<${Login} onJoin=${handleJoin} />`;
-  return html`<${RetroBoard} user=${user} onLogout=${handleLogout} />`;
+  return html`<${RetroBoard} user=${user} onLogout=${handleLogout} roomTipo=${roomTipo} />`;
 }
 
 /* ═══ NEED LINK SCREEN ═══ */
 function NeedLink() {
   const phases = [
-    { icon:'📋', name:'Pensadero', desc:'Revisa el objetivo y las tareas. Como el Pensieve de Dumbledore: mira atrás antes de avanzar.', spell:'Memoria revelio!' },
-    { icon:'✍️', name:'Revelio', desc:'Cada mago escribe sus notas en Good, Bad, Start y Stop. Anónimo hasta la puesta en común.', spell:'Revelio notae!' },
-    { icon:'💬', name:'Priori Incantatem', desc:'Las varitas se conectan. Debatid, votad y descubrid qué piensa el equipo de verdad.', spell:'Connectum ideas!' },
-    { icon:'⚠️', name:'Mapa del Merodeador', desc:'Detecta riesgos ocultos antes de que se conviertan en Voldemorts. Vota impacto y probabilidad.', spell:'Juro que mis intenciones no son buenas!' },
-    { icon:'🎯', name:'Expecto Patronum', desc:'Convoca acciones protectoras. Asigna responsable, fecha y prioridad a cada accionable.', spell:'Patronum actionem!' },
-    { icon:'📊', name:'El Sombrero Seleccionador', desc:'Ranking, métricas y el informe PDF. ¿Quién ha sido el MVP de esta retro?', spell:'Sorteo finalem!' },
+    { n:1, label:'Repaso',      sub:'Objetivo y tareas'          },
+    { n:2, label:'Análisis',    sub:'Notas Good / Bad'           },
+    { n:3, label:'En Común',    sub:'Debate y votación'          },
+    { n:4, label:'Riesgos',     sub:'Impacto y probabilidad'     },
+    { n:5, label:'Accionables', sub:'Responsable y fecha'        },
+    { n:6, label:'Dashboard',   sub:'Ranking e informe PDF'      },
   ];
 
   return html`
-    <div style=${{ minHeight:'100vh', background:'#F5F5F7' }}>
-      <!-- Hero -->
-      <div style=${{ textAlign:'center', padding:'60px 20px 40px' }}>
-        <h1 class="wm" style=${{ fontSize:48, marginBottom:8, lineHeight:1.1 }}>revelio</h1>
-        <p style=${{ fontSize:18, color:'#86868B', maxWidth:440, margin:'0 auto 8px', lineHeight:1.5 }}>El hechizo que revela lo que tu equipo necesita decir (pero no sabe cómo)</p>
-        <p style=${{ fontSize:13, color:'#C7C7CC' }}>Retrospectivas colaborativas en tiempo real. Sin cuentas, sin setup, sin excusas.</p>
+    <div style=${{ minHeight:'100vh', background:'linear-gradient(135deg,#0057FF 0%,#00C6FF 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'52px 24px', textAlign:'center', position:'relative', overflow:'hidden' }}>
+
+      <!-- Glow orbs -->
+      <div style=${{ position:'absolute', top:-180, right:-160, width:480, height:480, borderRadius:'50%', background:'radial-gradient(circle,rgba(255,255,255,.18),transparent 65%)', pointerEvents:'none' }} />
+      <div style=${{ position:'absolute', bottom:-140, left:-140, width:400, height:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(0,30,120,.35),transparent 65%)', pointerEvents:'none' }} />
+
+      <!-- Logo -->
+      <div style=${{ marginBottom:44, zIndex:1 }}>
+        <h1 style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:58, fontWeight:400, letterSpacing:4, color:'#FFF', margin:0, lineHeight:1, textShadow:'0 2px 24px rgba(0,0,0,.12)' }}>revelio</h1>
+        <p style=${{ fontSize:13, color:'rgba(255,255,255,.7)', letterSpacing:1.5, marginTop:8, textTransform:'uppercase', fontWeight:500 }}>Retrospectivas ágiles · Tiempo real</p>
       </div>
 
-      <!-- How it works -->
-      <div style=${{ maxWidth:700, margin:'0 auto', padding:'0 20px 40px' }}>
-        <h2 style=${{ textAlign:'center', fontSize:16, fontWeight:700, marginBottom:24, color:'#1D1D1F' }}>¿Cómo funciona? 6 hechizos en 45 minutos</h2>
-        <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
-          ${phases.map((p, i) => html`
-            <div key=${i} style=${{ ...gl, borderRadius:16, padding:'18px 22px', display:'flex', gap:16, alignItems:'flex-start', boxShadow:'0 2px 12px rgba(0,0,0,0.03)', border:'1px solid rgba(0,0,0,0.04)' }}>
-              <div style=${{ width:44, height:44, borderRadius:14, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>${p.icon}</div>
-              <div style=${{ flex:1 }}>
-                <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                  <span style=${{ fontSize:11, fontWeight:700, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6 }}>${i+1}/6</span>
-                  <span style=${{ fontSize:15, fontWeight:700 }}>${p.name}</span>
-                </div>
-                <p style=${{ fontSize:13, color:'#6E6E73', lineHeight:1.5, margin:0 }}>${p.desc}</p>
-                <p style=${{ fontSize:10, color:'#C7C7CC', fontStyle:'italic', marginTop:4 }}>✨ "${p.spell}"</p>
-              </div>
+      <!-- Steps -->
+      <div style=${{ maxWidth:620, width:'100%', marginBottom:48, zIndex:1 }}>
+        <div style=${{ display:'flex', alignItems:'flex-start', position:'relative' }}>
+          <div style=${{ position:'absolute', top:17, left:'8%', right:'8%', height:1, background:'rgba(255,255,255,.25)' }} />
+          ${phases.map((p,i) => html`
+            <div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:7, zIndex:1 }}>
+              <div style=${{
+                width:34, height:34, borderRadius:'50%', flexShrink:0,
+                background: i===0 ? '#FFF' : 'rgba(255,255,255,.18)',
+                backdropFilter:'blur(8px)',
+                border:'1.5px solid rgba(255,255,255,.4)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:13, fontWeight:700,
+                color: i===0 ? '#0057FF' : '#FFF',
+                boxShadow: i===0 ? '0 4px 16px rgba(0,0,0,.15)' : 'none',
+              }}>${p.n}</div>
+              <div style=${{ fontSize:11, fontWeight:700, color:'#FFF', lineHeight:1.2 }}>${p.label}</div>
+              <div style=${{ fontSize:9, color:'rgba(255,255,255,.6)', lineHeight:1.3, maxWidth:76 }}>${p.sub}</div>
             </div>
           `)}
         </div>
       </div>
 
-      <!-- Features -->
-      <div style=${{ background:'#FFF', padding:'40px 20px', borderTop:'1px solid #E5E5EA' }}>
-        <div style=${{ maxWidth:600, margin:'0 auto', display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, textAlign:'center' }}>
-          ${[
-            { icon:'🧙', title:'Tiempo real', desc:'Ves las notas y cursores de todos al instante. Magia.' },
-            { icon:'🗳️', title:'Voto secreto', desc:'Vota impacto, prioridad y riesgos. Democracia mágica.' },
-            { icon:'📄', title:'PDF y backup', desc:'Descarga el informe. Los datos nunca se quedan en la nube.' },
-          ].map((f,i) => html`
-            <div key=${i} style=${{ padding:'16px 12px' }}>
-              <div style=${{ fontSize:28, marginBottom:8 }}>${f.icon}</div>
-              <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>${f.title}</h3>
-              <p style=${{ fontSize:11, color:'#86868B', lineHeight:1.4 }}>${f.desc}</p>
-            </div>
-          `)}
-        </div>
+      <!-- Pills -->
+      <div style=${{ display:'flex', gap:8, marginBottom:48, flexWrap:'wrap', justifyContent:'center', zIndex:1 }}>
+        ${['⚡ Tiempo real','🗳️ Voto anónimo','📊 Gestión de riesgos','📄 PDF automático'].map(l => html`
+          <div style=${{ background:'rgba(255,255,255,.15)', backdropFilter:'blur(10px)', border:'1px solid rgba(255,255,255,.3)', borderRadius:50, padding:'7px 16px', fontSize:12, fontWeight:600, color:'#FFF' }}>${l}</div>
+        `)}
       </div>
 
       <!-- CTA -->
-      <div style=${{ textAlign:'center', padding:'40px 20px 60px' }}>
-        <div style=${{ fontSize:40, marginBottom:12 }}>🪄</div>
-        <h2 style=${{ fontSize:18, fontWeight:700, marginBottom:8 }}>¿Listo para la retro?</h2>
-        <p style=${{ fontSize:14, color:'#86868B', marginBottom:4 }}>Pide a tu Scrum Master el enlace de tu sala.</p>
-        <p style=${{ fontSize:12, color:'#C7C7CC' }}>El enlace es algo como: <code style=${{ background:'#F2F2F7', padding:'2px 8px', borderRadius:4 }}>${window.location.host}?sala=tu-proyecto</code></p>
-        <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:20 }}>Hecho con ✨ y sin Horcruxes</p>
+      <div style=${{ background:'rgba(255,255,255,.12)', backdropFilter:'blur(16px)', borderRadius:20, padding:'22px 32px', border:'1px solid rgba(255,255,255,.25)', maxWidth:380, width:'100%', zIndex:1, boxShadow:'0 8px 32px rgba(0,0,0,.1)' }}>
+        <p style=${{ fontSize:15, fontWeight:700, color:'#FFF', marginBottom:6 }}>¿Listo para la retro?</p>
+        <p style=${{ fontSize:13, color:'rgba(255,255,255,.7)', lineHeight:1.5 }}>Pide a tu Scrum Master el enlace de acceso a tu sala.</p>
       </div>
+
+      <p style=${{ fontSize:10, color:'rgba(255,255,255,.3)', marginTop:36, zIndex:1 }}>Hecho con ✨ y sin Horcruxes</p>
     </div>
   `;
 }
@@ -430,21 +606,23 @@ function getHeatColor(impLvl, probLvl) {
 
 function RoomPicker() {
   // ─── SUPABASE AUTH GATE ───
-  const [authState,   setAuthState]   = useState('checking');
-  const [authUser,    setAuthUser]    = useState(null);
-  const [email,       setEmail]       = useState('');
-  const [password,    setPassword]    = useState('');
-  const [authError,   setAuthError]   = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authState,  setAuthState]  = useState('checking'); // checking | signed-in | signed-out
+  const [authUser,   setAuthUser]   = useState(null);
+  const [email,      setEmail]      = useState('');
+  const [password,   setPassword]   = useState('');
+  const [authError,  setAuthError]  = useState('');
+  const [authLoading,setAuthLoading]= useState(false);
 
+  // Check existing session on mount
   useEffect(() => {
     sbGetSession().then(session => {
       if (session) { setAuthUser(session.user); setAuthState('signed-in'); }
-      else { setAuthState('signed-out'); }
+      else          { setAuthState('signed-out'); }
     });
-    const { data:{ subscription } } = supabase.auth.onAuthStateChange((_ev, session) => {
+    // Listen for auth changes (e.g. token refresh, sign out from another tab)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) { setAuthUser(session.user); setAuthState('signed-in'); }
-      else { setAuthUser(null); setAuthState('signed-out'); }
+      else          { setAuthUser(null); setAuthState('signed-out'); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -454,7 +632,7 @@ function RoomPicker() {
     setAuthLoading(true); setAuthError('');
     const { session, error } = await sbSignIn(email.trim(), password.trim());
     setAuthLoading(false);
-    if (!session) {
+    if (error || !session) {
       setAuthError(error?.message === 'Invalid login credentials'
         ? '❌ Email o contraseña incorrectos'
         : '❌ ' + (error?.message || 'Error de conexión'));
@@ -463,8 +641,12 @@ function RoomPicker() {
     }
   };
 
-  const handleSignOut = async () => { await sbSignOut(); setAuthState('signed-out'); setAuthUser(null); };
+  const handleSignOut = async () => {
+    await sbSignOut();
+    setAuthState('signed-out'); setAuthUser(null);
+  };
 
+  // ── Checking session ──
   if (authState === 'checking') return html`
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7' }}>
       <div style=${{ textAlign:'center', color:'#86868B' }}>
@@ -473,105 +655,149 @@ function RoomPicker() {
       </div>
     </div>`;
 
+  // ── Sign in form ──
   if (authState === 'signed-out') return html`
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0057FF,#00C6FF)', padding:16 }}>
       <div style=${{ background:'#FFF', borderRadius:24, padding:'44px 38px', maxWidth:400, width:'100%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,.15)' }}>
         <h1 class="wm" style=${{ fontSize:30, marginBottom:4 }}>revelio</h1>
         <p style=${{ color:'#86868B', fontSize:14, marginBottom:32 }}>Panel de administración</p>
         <div style=${{ fontSize:40, marginBottom:24 }}>🏰</div>
+
         <div style=${{ textAlign:'left', marginBottom:12 }}>
-          <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', display:'block', marginBottom:5 }}>Email</label>
-          <input type="email" value=${email} onInput=${e=>{setEmail(e.target.value);setAuthError('');}}
-            onKeyDown=${e=>e.key==='Enter'&&handleSignIn()} placeholder="tu@email.com" style=${{ ...iS }} />
+          <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:5 }}>Email</label>
+          <input type="email" value=${email} onInput=${e=>{ setEmail(e.target.value); setAuthError(''); }}
+            onKeyDown=${e=>e.key==='Enter'&&handleSignIn()}
+            placeholder="tu@email.com"
+            style=${{ ...iS, fontSize:14, marginBottom:0 }} />
         </div>
+
         <div style=${{ textAlign:'left', marginBottom:20 }}>
-          <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', display:'block', marginBottom:5 }}>Contraseña</label>
-          <input type="password" value=${password} onInput=${e=>{setPassword(e.target.value);setAuthError('');}}
-            onKeyDown=${e=>e.key==='Enter'&&handleSignIn()} placeholder="••••••••" style=${{ ...iS }} />
+          <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:5 }}>Contraseña</label>
+          <input type="password" value=${password} onInput=${e=>{ setPassword(e.target.value); setAuthError(''); }}
+            onKeyDown=${e=>e.key==='Enter'&&handleSignIn()}
+            placeholder="••••••••"
+            style=${{ ...iS, fontSize:14, marginBottom:0 }} />
         </div>
+
         ${authError && html`
           <div style=${{ background:'#FFF5F5', border:'1px solid #FF3B3025', borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:12, color:'#FF3B30', fontWeight:600 }}>
             ${authError}
           </div>
         `}
-        <button onClick=${handleSignIn} disabled=${authLoading}
-          style=${{ ...bP, width:'100%', padding:14, fontSize:15, opacity:authLoading ? .6 : 1 }}>
+
+        <button onClick=${handleSignIn} disabled=${authLoading} style=${{ ...bP, width:'100%', padding:14, fontSize:15, opacity:authLoading?.6:1 }}>
           ${authLoading ? '⏳ Accediendo…' : '🪄 Acceder'}
         </button>
-        <p style=${{ marginTop:16, fontSize:11, color:'#C7C7CC' }}>Acceso restringido · Credenciales en Supabase Auth</p>
+
+        <p style=${{ marginTop:16, fontSize:11, color:'#C7C7CC', lineHeight:1.5 }}>
+          Acceso restringido al Scrum Master.<br/>
+          Credenciales gestionadas en Supabase Auth.
+        </p>
       </div>
     </div>`;
 
   // ─── ADMIN PANEL (autenticado) ───
   const [room, setRoom] = useState('');
+  const [slug, setSlug] = useState('');
   const [tipo, setTipo] = useState('agile');
+  const [slugTouched, setSlugTouched] = useState(false);
   const [rooms, setRooms] = useState(loadRooms);
   const [tab, setTab] = useState('dashboard');
-  const [metrics] = useState(loadMetrics);
   const [filterProject, setFilterProject] = useState('all');
+  const [sbRetros, setSbRetros] = useState([]);
+  const [loadingSb, setLoadingSb] = useState(true);
+
+  // Load rooms from Supabase (override localStorage if available)
+  useEffect(() => {
+    sbLoadRooms().then(sbRooms => {
+      if (sbRooms) { setRooms(sbRooms); saveRooms(sbRooms); }
+    });
+    sbLoadRetros().then(data => { setSbRetros(data); setLoadingSb(false); });
+  }, []);
 
   const go = (slug, t) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(slug) + '&tipo=' + (t || 'agile'); };
   const create = () => {
-    if (!room.trim()) return;
-    const slug = room.trim().toLowerCase().replace(/\s+/g, '-');
-    if (!rooms.find(r => r.slug === slug)) {
-      const u = [...rooms, { name: room.trim(), slug, tipo }];
-      setRooms(u); saveRooms(u);
-    }
-    go(slug, tipo);
+    if (!room.trim() || !slug.trim()) return;
+    const cleanSlug = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+    if (rooms.find(r => r.slug === cleanSlug)) { alert('Ya existe una sala con ese slug.'); return; }
+    const u = [...rooms, { name: room.trim(), slug: cleanSlug, tipo }];
+    setRooms(u); saveRooms(u);
+    sbSaveRoom(cleanSlug, room.trim(), tipo);
+    setRoom(''); setSlug(''); setSlugTouched(false);
+    go(cleanSlug, tipo);
   };
-  const remove = (slug) => { const u = rooms.filter(r => r.slug !== slug); setRooms(u); saveRooms(u); };
+  const [confirmDelete, setConfirmDelete] = useState(null); // slug to delete
+  const [editRoom,      setEditRoom]      = useState(null); // {slug, name, tipo}
 
-  // Filtered metrics
-  const filteredMetrics = filterProject === 'all' ? metrics : { [filterProject]: metrics[filterProject] || [] };
-  const allEntries = Object.values(filteredMetrics).flat();
-  const totalRetros = allEntries.length;
-  const totalNotes = allEntries.reduce((s, e) => s + (e.notes || 0), 0);
-  const totalActions = allEntries.reduce((s, e) => s + (e.actions || 0), 0);
-  const totalActionsDone = allEntries.reduce((s, e) => s + (e.actionsDone || 0), 0);
-  const totalVotes = allEntries.reduce((s, e) => s + (e.votes || 0), 0);
-  const allParticipants = [...new Set(allEntries.flatMap(e => e.participantNames || []))];
-  const actionRate = totalActions > 0 ? Math.round((totalActionsDone / totalActions) * 100) : 0;
+  const remove = (slug) => setConfirmDelete(slug);
 
-  // Risk metrics across all salas
-  const filteredRooms = filterProject === 'all' ? rooms : rooms.filter(r => r.slug === filterProject);
-  const allRisks = filteredRooms.flatMap(r => {
-    try { const s = localStorage.getItem('rf-risks-' + r.slug); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
-  const totalRisksDetected = allRisks.length;
-  const totalRisksMitigated = allRisks.filter(r => r.status === 'mitigated').length;
-  const totalRisksOpen = allRisks.filter(r => r.status !== 'mitigated').length;
+  const saveEdit = async () => {
+    if (!editRoom || !editRoom.name.trim()) return;
+    const updated = rooms.map(r => r.slug === editRoom.slug ? {...r, name:editRoom.name.trim(), tipo:editRoom.tipo} : r);
+    setRooms(updated); saveRooms(updated);
+    await sbSaveRoom(editRoom.slug, editRoom.name.trim(), editRoom.tipo);
+    setEditRoom(null);
+  };
 
+  const doDelete = async () => {
+    const slug = confirmDelete;
+    setConfirmDelete(null);
+    const u = rooms.filter(r => r.slug !== slug);
+    setRooms(u); saveRooms(u);
+    await sbDeleteRoom(slug);
+    await sbDeleteRoomData(slug);
+    // Refresh retros list
+    sbLoadRetros().then(data => setSbRetros(data));
+  };
+
+  // Build stats — Supabase ONLY (no localStorage fallback)
   const salaStats = rooms.map(r => {
-    const rm = metrics[r.slug] || [];
-    let salaRisks = [];
-    try { const s = localStorage.getItem('rf-risks-' + r.slug); salaRisks = s ? JSON.parse(s) : []; } catch {}
-    return { ...r, retros: rm.length,
-      notes: rm.reduce((s, e) => s + (e.notes || 0), 0),
-      actions: rm.reduce((s, e) => s + (e.actions || 0), 0),
-      done: rm.reduce((s, e) => s + (e.actionsDone || 0), 0),
-      votes: rm.reduce((s, e) => s + (e.votes || 0), 0),
-      risksOpen: salaRisks.filter(x => x.status !== 'mitigated').length,
-      risksMitigated: salaRisks.filter(x => x.status === 'mitigated').length,
-      risksTotal: salaRisks.length,
-      parts: [...new Set(rm.flatMap(e => e.participantNames || []))],
-      avgP: rm.length > 0 ? (rm.reduce((s, e) => s + (e.participants || 0), 0) / rm.length).toFixed(1) : 0,
-      last: rm.length > 0 ? rm[rm.length - 1] : null, entries: rm };
+    const sbSala  = sbRetros.filter(rt => rt.sala === r.slug);
+    const notes   = sbSala.reduce((s, rt) => s + (rt.data?.notes?.length || 0), 0);
+    const votes   = sbSala.reduce((s, rt) => s + ((rt.data?.notes || []).reduce((a, n) => a + (n.voters?.length || 0), 0)), 0);
+    const actions = sbSala.reduce((s, rt) => s + (rt.data?.actions?.length || 0), 0);
+    const done    = sbSala.reduce((s, rt) => s + ((rt.data?.actions || []).filter(a => a.status === 'done').length), 0);
+    const parts   = [...new Set(sbSala.flatMap(rt => (rt.data?.notes || []).map(n => n.userName)))];
+    const risks   = sbSala.flatMap(rt => rt.data?.risks || []);
+    const risksOpen      = risks.filter(x => x.status !== 'mitigated').length;
+    const risksMitigated = risks.filter(x => x.status === 'mitigated').length;
+    const rTipo   = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
+    const last    = sbSala[0] || null;
+    return {
+      ...r, rTipo,
+      retros: sbSala.length,
+      notes, votes, actions, done, parts,
+      risksOpen, risksMitigated, risksTotal: risks.length,
+      avgP: sbSala.length > 0 ? (parts.length / sbSala.length).toFixed(1) : 0,
+      last, entries: sbSala,
+    };
   });
 
-  const trend = allEntries.sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-12);
-  const trendMax = Math.max(...trend.map(t => t.notes), 1);
-  const partTrend = [...trend];
-  const partMax = Math.max(...partTrend.map(t => t.participants), 1);
+  const filteredStats    = filterProject === 'all' ? salaStats : salaStats.filter(s => s.slug === filterProject);
+  const totalRetros      = filteredStats.reduce((s, x) => s + x.retros, 0);
+  const totalNotes       = filteredStats.reduce((s, x) => s + x.notes, 0);
+  const totalActions     = filteredStats.reduce((s, x) => s + x.actions, 0);
+  const totalActionsDone = filteredStats.reduce((s, x) => s + x.done, 0);
+  const totalVotes       = filteredStats.reduce((s, x) => s + x.votes, 0);
+  const allParticipants  = [...new Set(filteredStats.flatMap(s => s.parts))];
+  const actionRate       = totalActions > 0 ? Math.round((totalActionsDone / totalActions) * 100) : 0;
+  const totalRisksOpen   = filteredStats.reduce((s, x) => s + x.risksOpen, 0);
+  const allRisks         = filteredStats.flatMap(s => s.entries.flatMap(rt => rt.data?.risks || []));
+
+  // Trend: chronological retros from Supabase
+  const trend = [...sbRetros].sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).slice(-12);
+  const trendMax = Math.max(...trend.map(t => t.data?.notes?.length || 0), 1);
+  const partMax  = Math.max(...trend.map(t => [...new Set((t.data?.notes||[]).map(n=>n.userName))].length), 1);
   const bc = (i) => ['#007AFF','#34C759','#FF9500','#AF52DE','#FF2D55','#5856D6','#00C7BE','#FF3B30'][i % 8];
 
   return html`
     <div style=${{ minHeight:'100vh', background:'#F5F5F7', padding:'24px 16px' }}>
-      <div style=${{ maxWidth:960, margin:'0 auto' }}>
-        <div style=${{ textAlign:'center', marginBottom:20 }}>
-          
-          <h1 class="wm" style=${{ fontSize:28, marginBottom:2 }}>revelio</h1>
-          <p style=${{ color:'#86868B', fontSize:13 }}>Panel de administración</p>
+      <div style=${{ maxWidth:980, margin:'0 auto' }}>
+        <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+          <div style=${{ textAlign:'center', flex:1 }}>
+            <h1 class="wm" style=${{ fontSize:28, marginBottom:2 }}>revelio</h1>
+            <p style=${{ color:'#86868B', fontSize:13 }}>Panel de administración</p>
+          </div>
           <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
             ${authUser && html`<span style=${{ fontSize:11, color:'#86868B' }}>${authUser.email}</span>`}
             <button onClick=${handleSignOut} style=${{ ...bS, padding:'5px 12px', fontSize:11, color:'#FF3B30', borderColor:'#FF3B3030' }}>🔒 Cerrar sesión</button>
@@ -594,13 +820,11 @@ function RoomPicker() {
             `)}
           </div>
 
-          ${totalRetros === 0 ? html`
-            <!-- Empty state KPIs -->
+          ${loadingSb ? html`<div style=${{ textAlign:'center', padding:40, color:'#86868B' }}>⏳ Cargando datos de Supabase…</div>` :
+          totalRetros === 0 ? html`
             <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
-              ${[
-                {l:'Proyectos',i:'📂'},{l:'Retros',i:'📊'},{l:'Notas',i:'📝'},{l:'Votos',i:'👍'},
-                {l:'Accionables',i:'🎯'},{l:'Completados',i:'✅'},{l:'Riesgos',i:'⚠️'},{l:'Personas',i:'👥'},
-              ].map((k,i) => html`
+              ${[{l:'Proyectos',i:'📂'},{l:'Retros',i:'📊'},{l:'Notas',i:'📝'},{l:'Votos',i:'👍'},
+                 {l:'Accionables',i:'🎯'},{l:'Completados',i:'✅'},{l:'Riesgos',i:'⚠️'},{l:'Personas',i:'👥'}].map((k,i) => html`
                 <div key=${i} style=${{ ...cS, padding:'14px 8px', textAlign:'center', opacity:0.5 }}>
                   <div style=${{ fontSize:18, marginBottom:4 }}>${k.i}</div>
                   <div style=${{ fontSize:22, fontWeight:800, color:'#C7C7CC' }}>—</div>
@@ -608,196 +832,175 @@ function RoomPicker() {
                 </div>
               `)}
             </div>
-            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-              <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:8, color:'#86868B' }}>📈 Notas por retro</h3>
-                <div style=${{ display:'flex', alignItems:'flex-end', gap:6, height:80, justifyContent:'center' }}>
-                  ${[30,50,20,70,40,60].map((h,i) => html`<div key=${i} style=${{ width:20, height:h+'%', background:'#E5E5EA', borderRadius:'3px 3px 0 0' }} />`)}
-                </div>
-                <p style=${{ fontSize:10, color:'#C7C7CC', textAlign:'center', marginTop:10 }}>Sin datos aún</p>
-              </div>
-              <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:8, color:'#86868B' }}>👥 Participantes por retro</h3>
-                <div style=${{ display:'flex', alignItems:'flex-end', gap:6, height:80, justifyContent:'center' }}>
-                  ${[40,60,30,50,70,45].map((h,i) => html`<div key=${i} style=${{ width:20, height:h+'%', background:'#E5E5EA', borderRadius:'3px 3px 0 0' }} />`)}
-                </div>
-                <p style=${{ fontSize:10, color:'#C7C7CC', textAlign:'center', marginTop:10 }}>Sin datos aún</p>
-              </div>
-            </div>
-            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-              <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:12, color:'#86868B' }}>🎯 Accionables</h3>
-                <div style=${{ display:'flex', alignItems:'center', gap:20 }}>
-                  <div style=${{ position:'relative', width:85, height:85 }}>
-                    <svg viewBox="0 0 36 36" style=${{ width:85, height:85 }}>
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#F2F2F7" stroke-width="3" />
-                    </svg>
-                    <div style=${{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', fontSize:14, fontWeight:800, color:'#C7C7CC' }}>—</div>
-                  </div>
-                  <p style=${{ fontSize:11, color:'#C7C7CC' }}>Sin datos aún</p>
-                </div>
-              </div>
-              <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:12, color:'#86868B' }}>📂 Notas por proyecto</h3>
-                <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
-                  ${['Proyecto A','Proyecto B','Proyecto C'].map((p,i) => html`
-                    <div key=${i}><div style=${{ display:'flex', justifyContent:'space-between', marginBottom:2 }}><span style=${{ fontSize:11, color:'#C7C7CC' }}>${p}</span></div>
-                    <div style=${{ height:7, background:'#F2F2F7', borderRadius:4 }} /></div>
-                  `)}
-                </div>
-                <p style=${{ fontSize:10, color:'#C7C7CC', textAlign:'center', marginTop:10 }}>Sin datos aún</p>
-              </div>
-            </div>
-            <div style=${{ ...cS, padding:'16px 18px', opacity:0.5 }}>
-              <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:8, color:'#86868B' }}>📋 Portfolio de proyectos</h3>
-              <p style=${{ fontSize:12, color:'#C7C7CC', textAlign:'center', padding:'20px 0' }}>Los datos del portfolio aparecen cuando guardes retros con 💾</p>
+            <div style=${{ ...cS, padding:22, textAlign:'center', color:'#C7C7CC' }}>
+              <p style=${{ fontSize:14, marginBottom:8 }}>📊 Sin datos aún</p>
+              <p style=${{ fontSize:12 }}>Guarda retros con "🆕 Nueva retro" para ver métricas</p>
             </div>
           ` : html`
-            <!-- KPIs -->
-            <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
+
+            <!-- KPI cards (2 rows × 4) -->
+            <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:14 }}>
               ${[
-                {v:rooms.length,l:'Proyectos',c:'#5856D6',i:'📂'},
-                {v:totalRetros,l:'Retros',c:'#007AFF',i:'📊'},
-                {v:totalNotes,l:'Notas',c:'#34C759',i:'📝'},
-                {v:totalVotes,l:'Votos',c:'#FF9500',i:'👍'},
-                {v:totalActions,l:'Accionables',c:'#5856D6',i:'🎯'},
-                {v:actionRate+'%',l:'Completados',c:actionRate>50?'#34C759':'#FF9500',i:'✅'},
-                {v:totalRisksDetected,l:'Riesgos ('+totalRisksMitigated+' mitigados)',c:totalRisksOpen>0?'#FF3B30':'#34C759',i:'⚠️'},
-                {v:allParticipants.length,l:'Personas',c:'#FF2D55',i:'👥'},
+                {l:'Proyectos',      v:rooms.length,           i:'📂', c:'#5856D6'},
+                {l:'Retros',         v:totalRetros,            i:'📊', c:'#007AFF'},
+                {l:'Notas',          v:totalNotes,             i:'📝', c:'#FF9500'},
+                {l:'Votos',          v:totalVotes,             i:'👍', c:'#FF2D55'},
+                {l:'Accionables',    v:totalActions,           i:'🎯', c:'#34C759'},
+                {l:'Completados',    v:Math.round(actionRate)+'%', i:'✅', c:actionRate>=75?'#34C759':actionRate>=40?'#FF9500':'#FF3B30'},
+                {l:'Riesgos ('+(allRisks.filter(r=>r.status==='mitigated').length)+' mitigados)',
+                                     v:totalRisksOpen,         i:'⚠️', c:totalRisksOpen>0?'#FF3B30':'#34C759'},
+                {l:'Personas',       v:allParticipants.length, i:'👥', c:'#AF52DE'},
               ].map((k,i) => html`
-                <div key=${i} style=${{ ...cS, padding:'14px 8px', textAlign:'center' }}>
-                  <div style=${{ fontSize:18, marginBottom:4 }}>${k.i}</div>
-                  <div style=${{ fontSize:22, fontWeight:800, color:k.c }}>${k.v}</div>
-                  <div style=${{ fontSize:9, color:'#86868B', marginTop:2 }}>${k.l}</div>
-                </div>
-              `)}
+                <div key=${i} style=${{ ...cS, padding:'16px 10px', textAlign:'center' }}>
+                  <div style=${{ fontSize:20, marginBottom:4 }}>${k.i}</div>
+                  <div style=${{ fontSize:22, fontWeight:800, color:k.c, lineHeight:1.1 }}>${k.v}</div>
+                  <div style=${{ fontSize:9, color:'#86868B', marginTop:3 }}>${k.l}</div>
+                </div>`)}
             </div>
 
+            <!-- Sparklines row -->
             <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-              <!-- Notes trend -->
-              <div style=${{ ...cS, padding:'16px 18px' }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:2 }}>📈 Notas por retro</h3>
+
+              <!-- Notas por retro -->
+              <div style=${{ ...cS, padding:'18px' }}>
+                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>📈 Notas por retro</h3>
                 <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Últimas ${trend.length} sesiones</p>
-                <div style=${{ display:'flex', alignItems:'flex-end', gap:3, height:110 }}>
-                  ${trend.map((t, i) => {
-                    const h = (t.notes / trendMax) * 100;
-                    const d = new Date(t.date);
-                    return html`
-                      <div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
-                        <span style=${{ fontSize:8, fontWeight:700 }}>${t.notes}</span>
-                        <div style=${{ width:'100%', height:h+'%', minHeight:3, background:'linear-gradient(180deg,#007AFF,#5856D6)', borderRadius:'3px 3px 0 0', transition:'height .5s' }} />
-                        <span style=${{ fontSize:7, color:'#86868B' }}>${d.getDate()}/${d.getMonth()+1}</span>
-                      </div>`;
-                  })}
-                </div>
+                ${trend.length === 0
+                  ? html`<p style=${{ color:'#C7C7CC', fontSize:12, textAlign:'center', padding:20 }}>Sin datos</p>`
+                  : html`
+                    <div style=${{ display:'flex', alignItems:'flex-end', gap:4, height:90 }}>
+                      ${trend.map((t,i) => {
+                        const v = t.data?.notes?.length || 0;
+                        const h = Math.max((v/trendMax)*100, 4);
+                        const sala = rooms.find(r => r.slug === t.sala);
+                        return html`<div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }} title=${(sala?.name||t.sala)+': '+v+' notas'}>
+                          <span style=${{ fontSize:9, color:'#86868B', fontWeight:700 }}>${v||''}</span>
+                          <div style=${{ width:'100%', height:h+'%', minHeight:4, background:'linear-gradient(180deg,#007AFF,#5856D6)', borderRadius:'3px 3px 0 0' }} />
+                          <span style=${{ fontSize:8, color:'#C7C7CC', marginTop:2 }}>${fd(t.created_at).split(' ')[0]}</span>
+                        </div>`;
+                      })}
+                    </div>`}
               </div>
 
-              <!-- Participation trend -->
-              <div style=${{ ...cS, padding:'16px 18px' }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:2 }}>👥 Participantes por retro</h3>
-                <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Últimas ${partTrend.length} sesiones</p>
-                <div style=${{ display:'flex', alignItems:'flex-end', gap:3, height:110 }}>
-                  ${partTrend.map((t, i) => {
-                    const h = (t.participants / partMax) * 100;
-                    const d = new Date(t.date);
-                    return html`
-                      <div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
-                        <span style=${{ fontSize:8, fontWeight:700 }}>${t.participants}</span>
-                        <div style=${{ width:'100%', height:h+'%', minHeight:3, background:'linear-gradient(180deg,#34C759,#00C7BE)', borderRadius:'3px 3px 0 0', transition:'height .5s' }} />
-                        <span style=${{ fontSize:7, color:'#86868B' }}>${d.getDate()}/${d.getMonth()+1}</span>
-                      </div>`;
-                  })}
-                </div>
+              <!-- Participantes por retro -->
+              <div style=${{ ...cS, padding:'18px' }}>
+                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>👥 Participantes por retro</h3>
+                <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Últimas ${trend.length} sesiones</p>
+                ${trend.length === 0
+                  ? html`<p style=${{ color:'#C7C7CC', fontSize:12, textAlign:'center', padding:20 }}>Sin datos</p>`
+                  : html`
+                    <div style=${{ display:'flex', alignItems:'flex-end', gap:4, height:90 }}>
+                      ${trend.map((t,i) => {
+                        const p = [...new Set((t.data?.notes||[]).map(n=>n.userName))].length;
+                        const h = Math.max((p/partMax)*100, 4);
+                        const sala = rooms.find(r => r.slug === t.sala);
+                        return html`<div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }} title=${(sala?.name||t.sala)+': '+p+' personas'}>
+                          <span style=${{ fontSize:9, color:'#86868B', fontWeight:700 }}>${p||''}</span>
+                          <div style=${{ width:'100%', height:h+'%', minHeight:4, background:'linear-gradient(180deg,#34C759,#30d158)', borderRadius:'3px 3px 0 0' }} />
+                          <span style=${{ fontSize:8, color:'#C7C7CC', marginTop:2 }}>${fd(t.created_at).split(' ')[0]}</span>
+                        </div>`;
+                      })}
+                    </div>`}
               </div>
             </div>
 
-            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-              <!-- Donut: actions -->
-              <div style=${{ ...cS, padding:'16px 18px' }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>🎯 Accionables</h3>
-                <div style=${{ display:'flex', alignItems:'center', gap:20 }}>
-                  <div style=${{ position:'relative', width:85, height:85, flexShrink:0 }}>
-                    <svg viewBox="0 0 36 36" style=${{ width:85, height:85, transform:'rotate(-90deg)' }}>
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#F2F2F7" stroke-width="3" />
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#34C759" stroke-width="3"
-                        stroke-dasharray=${actionRate+' '+(100-actionRate)} stroke-linecap="round" />
+            <!-- Donut + Notas por proyecto -->
+            <div style=${{ display:'grid', gridTemplateColumns:'200px 1fr', gap:12, marginBottom:12 }}>
+
+              <!-- Donut % accionables -->
+              <div style=${{ ...cS, padding:'20px', textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                <h3 style=${{ fontSize:12, fontWeight:700, marginBottom:10 }}>🎯 Accionables</h3>
+                ${(() => {
+                  const r=50, circ=2*Math.PI*r;
+                  const dash = (actionRate/100)*circ;
+                  const col = actionRate>=75?'#34C759':actionRate>=40?'#FF9500':'#FF3B30';
+                  return html`
+                    <svg width="120" height="120" viewBox="0 0 120 120">
+                      <circle cx="60" cy="60" r=${r} fill="none" stroke="#F2F2F7" stroke-width="13"/>
+                      <circle cx="60" cy="60" r=${r} fill="none" stroke=${col} stroke-width="13"
+                        stroke-dasharray="${dash} ${circ}" stroke-dashoffset=${circ/4} stroke-linecap="round"/>
+                      <text x="60" y="55" text-anchor="middle" font-size="19" font-weight="800" fill="#1D1D1F">${Math.round(actionRate)}%</text>
+                      <text x="60" y="70" text-anchor="middle" font-size="9" fill="#86868B">completado</text>
                     </svg>
-                    <div style=${{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', textAlign:'center' }}>
-                      <div style=${{ fontSize:16, fontWeight:800, color:'#34C759' }}>${actionRate}%</div>
-                    </div>
-                  </div>
-                  <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-                    <div><span style=${{ fontSize:18, fontWeight:800, color:'#5856D6' }}>${totalActions}</span><span style=${{ fontSize:10, color:'#86868B', marginLeft:4 }}>creados</span></div>
-                    <div><span style=${{ fontSize:18, fontWeight:800, color:'#34C759' }}>${totalActionsDone}</span><span style=${{ fontSize:10, color:'#86868B', marginLeft:4 }}>completados</span></div>
-                    <div><span style=${{ fontSize:18, fontWeight:800, color:'#FF9500' }}>${totalActions-totalActionsDone}</span><span style=${{ fontSize:10, color:'#86868B', marginLeft:4 }}>pendientes</span></div>
-                  </div>
-                </div>
+                    <div style=${{ fontSize:12, color:'#86868B', marginTop:6 }}>
+                      <span style=${{ color:'#34C759', fontWeight:700 }}>${totalActionsDone}</span> creados
+                      <div><span style=${{ color:col, fontWeight:700 }}>${totalActions - totalActionsDone}</span> pendientes</div>
+                    </div>`;
+                })()}
               </div>
 
-              <!-- Horizontal bars: notes per sala -->
-              <div style=${{ ...cS, padding:'16px 18px' }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>📂 Notas por proyecto</h3>
-                <div style=${{ display:'flex', flexDirection:'column', gap:7 }}>
-                  ${salaStats.filter(s=>s.notes>0).sort((a,b)=>b.notes-a.notes).map((s,i) => {
-                    const mx = Math.max(...salaStats.map(x=>x.notes),1);
-                    const w = (s.notes/mx)*100;
-                    return html`
-                      <div key=${s.slug}>
-                        <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:2 }}>
-                          <span style=${{ fontSize:11, fontWeight:600 }}>${s.name}</span>
-                          <span style=${{ fontSize:11, fontWeight:700, color:bc(i) }}>${s.notes}</span>
+              <!-- Notas por proyecto -->
+              <div style=${{ ...cS, padding:'20px' }}>
+                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:16 }}>📝 Notas por proyecto</h3>
+                ${(() => {
+                  const mx = Math.max(...salaStats.map(s=>s.notes), 1);
+                  return salaStats.map((s,i) => html`
+                    <div key=${s.slug} style=${{ marginBottom:12 }}>
+                      <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4, alignItems:'center' }}>
+                        <div style=${{ display:'flex', alignItems:'center', gap:7 }}>
+                          <button onClick=${()=>go(s.slug,s.tipo)} style=${{ background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:'#007AFF',padding:0 }}>${s.name}</button>
+                          <span style=${{ fontSize:9, color:s.rTipo.color, background:s.rTipo.color+'15', padding:'1px 5px', borderRadius:4, fontWeight:700 }}>${s.rTipo.icon}</span>
                         </div>
-                        <div style=${{ height:7, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}>
-                          <div style=${{ height:'100%', width:w+'%', background:bc(i), borderRadius:4, transition:'width .5s' }} />
-                        </div>
-                      </div>`;
-                  })}
-                </div>
+                        <span style=${{ fontSize:11, fontWeight:700, color:bc(i) }}>${s.notes}</span>
+                      </div>
+                      <div style=${{ height:7, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}>
+                        <div style=${{ height:'100%', width:(s.notes/mx)*100+'%', background:bc(i), borderRadius:4, transition:'width .5s' }} />
+                      </div>
+                    </div>`);
+                })()}
               </div>
             </div>
 
             <!-- Portfolio table -->
-            <div style=${{ ...cS, padding:'16px 18px', marginBottom:12 }}>
-              <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>📋 Portfolio de proyectos</h3>
+            <div style=${{ ...cS }}>
+              <div style=${{ padding:'16px 18px', borderBottom:'1px solid #E5E5EA', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <h3 style=${{ fontSize:14, fontWeight:700 }}>📋 Portfolio de proyectos</h3>
+                <span style=${{ fontSize:11, color:'#86868B' }}>${salaStats.length} proyectos</span>
+              </div>
               <div style=${{ overflowX:'auto' }}>
                 <table style=${{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
                   <thead>
-                    <tr style=${{ borderBottom:'2px solid #E5E5EA' }}>
+                    <tr style=${{ borderBottom:'1.5px solid #E5E5EA', background:'#F9F9FB' }}>
                       ${['Proyecto','Tipo','Retros','Notas','Votos','Accionables','% Hecho','Riesgos','Participantes','Última'].map(h=>html`
-                        <th key=${h} style=${{ padding:'7px 8px', textAlign:'left', fontWeight:700, color:'#86868B', fontSize:9, textTransform:'uppercase' }}>${h}</th>
+                        <th key=${h} style=${{ padding:'8px 12px', textAlign:'left', fontWeight:700, color:'#86868B', fontSize:9, textTransform:'uppercase', whiteSpace:'nowrap' }}>${h}</th>
                       `)}
                     </tr>
                   </thead>
                   <tbody>
                     ${salaStats.map((s,i) => {
-                      const cr = s.actions>0 ? Math.round((s.done/s.actions)*100) : 0;
-                      const rTipo = TASK_TEMPLATES[s.tipo] || TASK_TEMPLATES.agile;
+                      const cr  = s.actions>0 ? Math.round((s.done/s.actions)*100) : 0;
+                      const cc  = cr>=75?'#34C759':cr>=40?'#FF9500':'#FF3B30';
+                      const avgP = s.retros>0 ? (s.parts.length/s.retros).toFixed(1) : 0;
+                      const lastDate = s.last ? (s.last.created_at || s.last.date) : null;
                       return html`
-                        <tr key=${s.slug} style=${{ borderBottom:'1px solid #F2F2F7' }}>
-                          <td style=${{ padding:'8px', fontWeight:600 }}>
-                            <button onClick=${()=>go(s.slug, s.tipo)} style=${{ border:'none', background:'none', cursor:'pointer', fontWeight:600, color:'#007AFF', fontSize:11, padding:0 }}>${s.name}</button>
+                        <tr key=${s.slug} style=${{ borderBottom:'1px solid #F2F2F7' }}
+                          onMouseOver=${e=>e.currentTarget.style.background='#F9F9FB'}
+                          onMouseOut=${e=>e.currentTarget.style.background='transparent'}>
+                          <td style=${{ padding:'10px 12px' }}>
+                            <button onClick=${()=>go(s.slug,s.tipo)} style=${{ background:'none',border:'none',cursor:'pointer',fontWeight:700,color:'#007AFF',fontSize:12,padding:0 }}>${s.name}</button>
                           </td>
-                          <td style=${{ padding:'8px' }}><span style=${{ fontSize:9, fontWeight:600, color:rTipo.color, background:rTipo.color+'10', padding:'2px 6px', borderRadius:4 }}>${rTipo.icon} ${rTipo.label}</span></td>
-                          <td style=${{ padding:'8px' }}><span style=${{ fontWeight:700, color:'#007AFF' }}>${s.retros}</span></td>
-                          <td style=${{ padding:'8px', fontWeight:600 }}>${s.notes}</td>
-                          <td style=${{ padding:'8px' }}>${s.votes}</td>
-                          <td style=${{ padding:'8px' }}>${s.done}/${s.actions}</td>
-                          <td style=${{ padding:'8px' }}>
-                            <div style=${{ display:'flex', alignItems:'center', gap:5 }}>
-                              <div style=${{ width:40, height:5, background:'#F2F2F7', borderRadius:3, overflow:'hidden' }}>
-                                <div style=${{ height:'100%', width:cr+'%', background:cr>=70?'#34C759':cr>=40?'#FF9500':'#FF3B30', borderRadius:3 }} />
+                          <td style=${{ padding:'10px 12px' }}>
+                            <span style=${{ fontSize:9, fontWeight:700, color:s.rTipo.color, background:s.rTipo.color+'12', padding:'2px 7px', borderRadius:5, whiteSpace:'nowrap' }}>${s.rTipo.icon} ${s.rTipo.label}</span>
+                          </td>
+                          <td style=${{ padding:'10px 12px', fontWeight:700, color:'#007AFF' }}>${s.retros}</td>
+                          <td style=${{ padding:'10px 12px', fontWeight:600 }}>${s.notes}</td>
+                          <td style=${{ padding:'10px 12px', color:'#FF9500', fontWeight:600 }}>${s.votes}</td>
+                          <td style=${{ padding:'10px 12px' }}>${s.done}/${s.actions}</td>
+                          <td style=${{ padding:'10px 12px', minWidth:100 }}>
+                            <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
+                              <div style=${{ flex:1, height:5, background:'#F2F2F7', borderRadius:3, overflow:'hidden' }}>
+                                <div style=${{ height:'100%', width:cr+'%', background:cc, borderRadius:3 }} />
                               </div>
-                              <span style=${{ fontSize:10, fontWeight:600, color:cr>=70?'#34C759':cr>=40?'#FF9500':'#FF3B30' }}>${cr}%</span>
+                              <span style=${{ color:cc, fontWeight:700, fontSize:10, minWidth:28 }}>${cr}%</span>
                             </div>
                           </td>
-                          <td style=${{ padding:'8px' }}>
-                            ${s.risksTotal > 0 ? html`
-                              <span style=${{ fontWeight:600, color:s.risksOpen>0?'#FF3B30':'#34C759' }}>${s.risksOpen}</span>
-                              <span style=${{ fontSize:9, color:'#86868B' }}>/${s.risksTotal}</span>
-                            ` : html`<span style=${{ fontSize:10, color:'#C7C7CC' }}>—</span>`}
+                          <td style=${{ padding:'10px 12px' }}>
+                            ${s.risksOpen > 0
+                              ? html`<span style=${{ color:'#FF3B30', fontWeight:700 }}>${s.risksOpen}/${s.risksTotal}</span>`
+                              : html`<span style=${{ color:'#86868B' }}>—</span>`}
                           </td>
-                          <td style=${{ padding:'8px' }}><span style=${{ fontWeight:600 }}>${s.parts.length}</span> <span style=${{ fontSize:9, color:'#86868B' }}>(${s.avgP}/retro)</span></td>
-                          <td style=${{ padding:'8px', color:'#86868B', fontSize:10 }}>${s.last?fd(s.last.date):'—'}</td>
+                          <td style=${{ padding:'10px 12px', color:'#86868B' }}>${s.parts.length} <span style=${{ fontSize:9 }}>(${avgP}/retro)</span></td>
+                          <td style=${{ padding:'10px 12px', color:'#86868B', fontSize:10 }}>${lastDate ? fd(lastDate) : '—'}</td>
                         </tr>`;
                     })}
                   </tbody>
@@ -805,74 +1008,79 @@ function RoomPicker() {
               </div>
             </div>
 
-            <!-- Participants -->
-            <div style=${{ ...cS, padding:'16px 18px' }}>
-              <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:8 }}>👥 Participantes (${allParticipants.length})</h3>
-              <div style=${{ display:'flex', flexWrap:'wrap', gap:5 }}>
-                ${allParticipants.map(p=>html`<span key=${p} style=${{ padding:'3px 9px', borderRadius:7, background:'#F2F2F7', fontSize:11, fontWeight:600 }}>${p}</span>`)}
-              </div>
-            </div>
           `}
 
         ` : html`
-          <!-- SALAS TAB -->
-          <p style=${{ fontSize:11, color:'#86868B', marginBottom:6, fontWeight:600, textTransform:'uppercase' }}>Crear nueva sala</p>
-          <div style=${{ display:'flex', gap:6, marginBottom:10, flexWrap:'wrap' }}>
-            <input value=${room} onInput=${e=>setRoom(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&create()}
-              placeholder="Nombre del proyecto..." style=${{ ...iS, flex:2, minWidth:160, fontSize:15, background:'#FFF' }} />
-            <button onClick=${create} style=${{ ...bP, padding:'12px 20px' }}>Crear →</button>
+          <!-- ── SALAS ── -->
+          <div style=${{ ...cS, padding:'20px', marginBottom:12 }}>
+            <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>➕ Nueva sala</h3>
+            <div style=${{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
+              <input value=${room} onInput=${e=>{
+                setRoom(e.target.value);
+                if (!slugTouched) setSlug(e.target.value.trim().toLowerCase().replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-'));
+              }} placeholder="Nombre del proyecto" style=${{ ...iS, flex:2, minWidth:160 }}
+              onKeyDown=${e=>e.key==='Enter'&&create()} />
+              <select value=${tipo} onChange=${e=>setTipo(e.target.value)} style=${{ ...iS, flex:'none', width:160 }}>
+                ${Object.entries(TASK_TEMPLATES).map(([k,v]) => html`<option key=${k} value=${k}>${v.icon} ${v.label}</option>`)}
+              </select>
+            </div>
+            <div style=${{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <div style=${{ flex:1, minWidth:160, position:'relative' }}>
+                <span style=${{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', fontSize:11, color:'#C7C7CC', pointerEvents:'none' }}>slug:</span>
+                <input value=${slug} onInput=${e=>{ setSlug(e.target.value); setSlugTouched(true); }}
+                  placeholder="mi-proyecto" style=${{ ...iS, paddingLeft:42 }}
+                  onKeyDown=${e=>e.key==='Enter'&&create()} />
+              </div>
+              <div style=${{ fontSize:11, color:'#86868B', flex:1, minWidth:140 }}>
+                🔗 ${window.location.host}?sala=<b>${slug||'…'}</b>
+              </div>
+              <button onClick=${create} disabled=${!room.trim()||!slug.trim()} style=${{ ...bP, opacity:(!room.trim()||!slug.trim())?.4:1 }}>+ Crear sala</button>
+            </div>
           </div>
-          <p style=${{ fontSize:10, color:'#86868B', marginBottom:6 }}>Metodología (define las tareas precargadas)</p>
-          <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6, marginBottom:20 }}>
-            ${Object.entries(TASK_TEMPLATES).map(([k, v]) => html`
-              <button key=${k} onClick=${()=>setTipo(k)}
-                style=${{ padding:'10px 8px', borderRadius:12, border:tipo===k?'2px solid '+v.color:'1.5px solid #E5E5EA', background:tipo===k?v.color+'10':'#FFF', textAlign:'center', transition:'all .15s' }}>
-                <div style=${{ fontSize:20, marginBottom:4 }}>${v.icon}</div>
-                <div style=${{ fontSize:11, fontWeight:700, color:tipo===k?v.color:'#6E6E73' }}>${v.label}</div>
-              </button>
-            `)}
-          </div>
-          ${rooms.length>0 && html`
-            <p style=${{ fontSize:11, color:'#86868B', marginBottom:10, fontWeight:600, textTransform:'uppercase' }}>Salas (${rooms.length})</p>
-            <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
-              ${rooms.map(r => {
-                const rm=metrics[r.slug]||[];
-                const rTipo = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
-                const link=window.location.origin+window.location.pathname+'?sala='+r.slug+'&tipo='+(r.tipo||'agile');
-                const users = loadUserRegistry(r.slug);
-                return html`
+
+          <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
+            ${rooms.map((r) => {
+              const rm = sbRetros.filter(rt => rt.sala === r.slug);
+              const lsRm = (loadMetrics()[r.slug] || []);
+              const users = loadUserRegistry(r.slug);
+              const link = window.location.origin + window.location.pathname + '?sala=' + r.slug + '&tipo=' + (r.tipo||'agile');
+              const rTipo = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
+              return html`
                 <div key=${r.slug} style=${{ ...cS }}>
-                  <div style=${{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px' }}>
-                    <button onClick=${()=>go(r.slug, r.tipo)} style=${{ display:'flex', alignItems:'center', gap:10, flex:1, textAlign:'left', border:'none', background:'none', cursor:'pointer', padding:0 }}>
-                      <div style=${{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg,'+rTipo.color+','+rTipo.color+'99)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>${rTipo.icon}</div>
+                  <div style=${{ display:'flex', alignItems:'center', gap:8, padding:'14px 16px' }}>
+                    <button onClick=${()=>go(r.slug,r.tipo)} style=${{ flex:1, background:'none', border:'none', textAlign:'left', cursor:'pointer', padding:0 }}>
                       <div>
-                        <span style=${{ fontSize:14, fontWeight:600, color:'#1D1D1F' }}>${r.name} <span style=${{ fontSize:9, fontWeight:500, color:rTipo.color, background:rTipo.color+'10', padding:'1px 6px', borderRadius:4 }}>${rTipo.label}</span></span>
-                        <div style=${{ fontSize:11, color:'#86868B' }}>${window.location.host}?sala=${r.slug}</div>
+                        <span style=${{ fontSize:14, fontWeight:600, color:'#1D1D1F' }}>${r.name} <span style=${{ fontSize:9, fontWeight:500, color:rTipo.color, background:rTipo.color+'10', padding:'1px 6px', borderRadius:4 }}>${rTipo.icon} ${rTipo.label}</span></span>
+                        <div style=${{ fontSize:11, color:'#86868B', marginTop:1 }}>${window.location.host}?sala=${r.slug}</div>
                       </div>
                     </button>
-                    <button onClick=${()=>{navigator.clipboard.writeText(link)}} style=${{ ...bS, padding:'6px 8px', fontSize:10, flexShrink:0 }}>📋</button>
-                    <button onClick=${()=>remove(r.slug)} style=${{ border:'none', background:'none', fontSize:14, color:'#C7C7CC', flexShrink:0, padding:'4px' }}>✕</button>
+                    <button onClick=${()=>{navigator.clipboard.writeText(link);}} title="Copiar enlace" style=${{ ...bS, padding:'5px 8px', fontSize:10, flexShrink:0 }}>📋</button>
+                    <button onClick=${()=>go(r.slug,r.tipo)} title="Entrar a la sala" style=${{ ...bS, padding:'5px 8px', fontSize:10, flexShrink:0 }}>→</button>
+                    <button onClick=${()=>setEditRoom({slug:r.slug, name:r.name, tipo:r.tipo||'agile'})} title="Editar" style=${{ border:'none', background:'none', fontSize:14, color:'#86868B', flexShrink:0, padding:'4px', cursor:'pointer' }}>✏️</button>
+                    <button onClick=${()=>remove(r.slug)} title="Eliminar sala" style=${{ border:'none', background:'none', fontSize:14, color:'#FF3B30', flexShrink:0, padding:'4px', cursor:'pointer', opacity:.6 }}>🗑</button>
                   </div>
-                  ${rm.length>0 && html`
-                    <div style=${{ padding:'0 16px 8px', display:'flex', gap:12, flexWrap:'wrap' }}>
+                  <div style=${{ padding:'0 16px 10px', display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+                    ${rm.length>0 ? html`
                       <span style=${{ fontSize:11, color:'#86868B' }}>📊 ${rm.length} retros</span>
-                      <span style=${{ fontSize:11, color:'#86868B' }}>📝 ${rm.reduce((s,e)=>s+(e.notes||0),0)} notas</span>
-                      <span style=${{ fontSize:11, color:'#86868B' }}>👥 ${[...new Set(rm.flatMap(e=>e.participantNames||[]))].length} personas</span>
-                      <span style=${{ fontSize:11, color:'#86868B' }}>📅 ${fd(rm[rm.length-1].date)}</span>
-                    </div>
-                  `}
-                  ${rm.length===0 && html`<div style=${{ padding:'0 16px 8px' }}><span style=${{ fontSize:11, color:'#C7C7CC' }}>Sin retros guardadas</span></div>`}
+                      <span style=${{ fontSize:11, color:'#86868B' }}>📝 ${rm.reduce((s,rt)=>s+(rt.data?.notes?.length||0),0)} notas</span>
+                    ` : html`<span style=${{ fontSize:11, color:'#C7C7CC' }}>Sin retros guardadas</span>`}
+                    ${users.length > 0 && html`
+                      <button onClick=${()=>{ ['rf-reg-','rf-user-'].forEach(k=>localStorage.removeItem(k+r.slug)); location.reload(); }}
+                        style=${{ marginLeft:'auto', fontSize:9, color:'#86868B', background:'none', border:'1px solid #E5E5EA', borderRadius:5, padding:'2px 7px', cursor:'pointer' }}
+                        title="Limpiar usuarios del localStorage">
+                        👥 ${users.length} usuarios · limpiar
+                      </button>
+                    `}
+                  </div>
                   ${users.length > 0 && html`
-                    <div style=${{ padding:'0 16px 12px' }}>
+                    <div style=${{ padding:'0 16px 10px' }}>
                       <details>
-                        <summary style=${{ fontSize:11, color:'#86868B', cursor:'pointer', fontWeight:600 }}>👥 Usuarios registrados (${users.length})</summary>
+                        <summary style=${{ fontSize:11, color:'#86868B', cursor:'pointer', fontWeight:600 }}>👥 Ver usuarios (${users.length})</summary>
                         <div style=${{ display:'flex', flexDirection:'column', gap:4, marginTop:6 }}>
                           ${users.map(u => html`
                             <div key=${u.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'5px 8px', borderRadius:8, background:'#F9F9FB' }}>
-                              <div style=${{ width:24, height:24, borderRadius:12, background:u.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, flexShrink:0 }}>${u.avatar||'👤'}</div>
-                              <div style=${{ flex:1 }}>
-                                <span style=${{ fontSize:12, fontWeight:600 }}>${u.name}</span>
-                              </div>
+                              <div style=${{ width:22, height:22, borderRadius:11, background:u.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, flexShrink:0 }}>${u.avatar||'👤'}</div>
+                              <span style=${{ fontSize:12, fontWeight:600, flex:1 }}>${u.name}</span>
                               <span style=${{ fontSize:9, color:'#C7C7CC' }}>${u.lastSeen ? fd(u.lastSeen) : ''}</span>
                             </div>
                           `)}
@@ -881,15 +1089,65 @@ function RoomPicker() {
                     </div>
                   `}
                 </div>`;
-              })}
-            </div>
-          `}
-          <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:16, textAlign:'center' }}>Las métricas se actualizan al guardar retros (💾)</p>
+            })}
+          </div>
+          <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:16, textAlign:'center' }}>Datos sincronizados con Supabase</p>
         `}
       </div>
+
+      <!-- ── MODAL: Confirmar eliminar sala ── -->
+      ${confirmDelete && html`
+        <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${()=>setConfirmDelete(null)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 30px', maxWidth:400, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', textAlign:'center' }}>
+            <div style=${{ fontSize:40, marginBottom:10 }}>🗑</div>
+            <h3 style=${{ fontSize:17, fontWeight:700, marginBottom:6 }}>¿Eliminar sala?</h3>
+            <p style=${{ fontSize:13, color:'#86868B', marginBottom:14, lineHeight:1.5 }}>
+              Sala: <strong style=${{ color:'#1D1D1F' }}>${rooms.find(r=>r.slug===confirmDelete)?.name || confirmDelete}</strong>
+            </p>
+            <div style=${{ background:'#FFF5F5', border:'1.5px solid #FF3B3020', borderRadius:12, padding:'12px 16px', marginBottom:20, textAlign:'left' }}>
+              <p style=${{ fontSize:12, fontWeight:700, color:'#FF3B30', marginBottom:6 }}>Se borrará permanentemente:</p>
+              <p style=${{ fontSize:12, color:'#86868B', lineHeight:1.7 }}>
+                • Todas las retros guardadas en Supabase<br/>
+                • Los riesgos de esta sala<br/>
+                • El registro de usuarios<br/>
+                • Las métricas históricas
+              </p>
+            </div>
+            <div style=${{ display:'flex', gap:10 }}>
+              <button onClick=${()=>setConfirmDelete(null)} style=${{ ...bS, flex:1, padding:'11px' }}>Cancelar</button>
+              <button onClick=${doDelete} style=${{ ...bP, flex:1, padding:'11px', background:'#FF3B30' }}>Sí, eliminar todo</button>
+            </div>
+          </div>
+        </div>
+      `}
+
+      <!-- ── MODAL: Editar sala ── -->
+      ${editRoom && html`
+        <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${()=>setEditRoom(null)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 30px', maxWidth:420, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h3 style=${{ fontSize:17, fontWeight:700, marginBottom:18 }}>✏️ Editar sala</h3>
+            <p style=${{ fontSize:11, color:'#86868B', marginBottom:6 }}>Nombre</p>
+            <input value=${editRoom.name} onInput=${e=>setEditRoom({...editRoom,name:e.target.value})}
+              onKeyDown=${e=>e.key==='Enter'&&saveEdit()}
+              style=${{ ...iS, marginBottom:14, fontSize:14 }} />
+            <p style=${{ fontSize:11, color:'#86868B', marginBottom:6 }}>Metodología</p>
+            <select value=${editRoom.tipo} onChange=${e=>setEditRoom({...editRoom,tipo:e.target.value})}
+              style=${{ ...iS, marginBottom:20 }}>
+              ${Object.entries(TASK_TEMPLATES).map(([k,v]) => html`<option key=${k} value=${k}>${v.icon} ${v.label}</option>`)}
+            </select>
+            <p style=${{ fontSize:10, color:'#C7C7CC', marginBottom:14 }}>El slug (<code>${editRoom.slug}</code>) no se puede cambiar — es la URL de la sala.</p>
+            <div style=${{ display:'flex', gap:10 }}>
+              <button onClick=${()=>setEditRoom(null)} style=${{ ...bS, flex:1, padding:'11px' }}>Cancelar</button>
+              <button onClick=${saveEdit} style=${{ ...bP, flex:1, padding:'11px' }}>Guardar cambios</button>
+            </div>
+          </div>
+        </div>
+      `}
+
     </div>
   `;
 }
+
 /* ═══ LOGIN ═══ */
 function Login({ onJoin }) {
   const [nm, setNm] = useState('');
@@ -948,13 +1206,24 @@ function Login({ onJoin }) {
 }
 
 /* ═══ RETRO BOARD ═══ */
-function RetroBoard({ user, onLogout }) {
-  const { state, upd, online, cursors, moveCursor, reset } = useRealtime(user);
+function RetroBoard({ user, onLogout, roomTipo }) {
+  const tipoResolved = roomTipo || TIPO_URL;
+  const TIPO_INFO = TASK_TEMPLATES[tipoResolved] || TASK_TEMPLATES.agile;
+  const { state, upd, online, cursors, moveCursor, reset, broadcastTimer } = useRealtime(user, tipoResolved);
   const [phase, setPhase] = useState(0);
   const [timer, setTimer] = useState(900);
   const [running, setRunning] = useState(false);
+
+  // Register timer sync receiver
+  useEffect(() => {
+    window._timerSync = (secs, run) => { setTimer(secs); setRunning(run); };
+    return () => { window._timerSync = null; };
+  }, []);
+
+  const syncTimer = (secs, run) => { setTimer(secs); setRunning(run); broadcastTimer(secs, run); };
   const [showReset, setShowReset] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showHistorial, setShowHistorial] = useState(false);
   const [toast, setToast] = useState(null);
   const tRef = useRef(null);
   const bRef = useRef(null);
@@ -997,8 +1266,6 @@ function RetroBoard({ user, onLogout }) {
   const sO = d => upd('obj',d);
   const sR = d => { upd('risks',d); saveRisks(d); };
 
-  const fileRef = useRef(null);
-
   const saveRetro = () => {
     const data = { sala: SALA, date: new Date().toISOString(), ...state };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1026,24 +1293,8 @@ function RetroBoard({ user, onLogout }) {
       });
     } catch {}
     showToast(SAVE_QUOTES[Math.floor(Math.random()*SAVE_QUOTES.length)]);
-  };
-
-  const loadRetro = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (data.notes) upd('notes', data.notes);
-        if (data.tasks) upd('tasks', data.tasks);
-        if (data.actions) upd('actions', data.actions);
-        if (data.obj) upd('obj', data.obj);
-        if (data.risks) { upd('risks', data.risks); saveRisks(data.risks); }
-      } catch (err) { console.error('Error cargando retro:', err); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+    // Also persist snapshot to Supabase (async, fire-and-forget)
+    sbSaveRetroSnapshot(SALA, TIPO, state, user.id).catch(() => {});
   };
 
   const content = () => {
@@ -1071,78 +1322,18 @@ function RetroBoard({ user, onLogout }) {
             <h2 style=${{ fontSize:16, fontWeight:700 }}><span class="wm" style=${{ fontSize:18 }}>revelio</span> <span style=${{ fontSize:12, fontWeight:500, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6, marginLeft:4 }}>${SALA_DISPLAY}</span> <span style=${{ fontSize:10, fontWeight:500, color:TIPO_INFO.color, background:TIPO_INFO.color+'10', padding:'2px 6px', borderRadius:5, marginLeft:2 }}>${TIPO_INFO.icon} ${TIPO_INFO.label}</span></h2>
             <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
           </div>
-          <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🗑 Nueva</button>
-          <button onClick=${saveRetro} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #34C75940', background:'#FFF', color:'#34C759', fontSize:11, fontWeight:600 }}>💾 Guardar</button>
-          <button onClick=${()=>fileRef.current.click()} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #007AFF40', background:'#FFF', color:'#007AFF', fontSize:11, fontWeight:600 }}>📂 Cargar</button>
-          <input ref=${fileRef} type="file" accept=".json" onChange=${loadRetro} style=${{ display:'none' }} />
+          <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🆕 Nueva retro</button>
+          <button onClick=${()=>setShowHistorial(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF950040', background:'#FFF', color:'#FF9500', fontSize:11, fontWeight:600 }}>📚 Historial</button>
           <button onClick=${()=>setShowGuide(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #5856D640', background:'#FFF', color:'#5856D6', fontSize:11, fontWeight:600 }}>📖 Guía</button>
         </div>
-        ${showReset && html`
-          <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.3)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }} onClick=${()=>setShowReset(false)}>
-            <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 32px', maxWidth:380, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.15)', textAlign:'center' }}>
-              <div style=${{ fontSize:36, marginBottom:12 }}>🗑</div>
-              <h3 style=${{ fontSize:18, fontWeight:700, marginBottom:8 }}>¿Nueva retrospectiva?</h3>
-              <p style=${{ fontSize:13, color:'#86868B', marginBottom:20 }}>Se borran notas, tareas y objetivo. Los accionables abiertos y los riesgos se mantienen.</p>
-              <div style=${{ display:'flex', gap:8, justifyContent:'center' }}>
-                <button onClick=${()=>setShowReset(false)} style=${{ ...bS, padding:'10px 20px' }}>Cancelar</button>
-                <button onClick=${()=>{reset();setShowReset(false);setPhase(0);setTimer(900);setRunning(false)}} style=${{ ...bP, padding:'10px 20px', background:'#FF3B30' }}>Borrar y empezar</button>
-              </div>
-            </div>
-          </div>
-        `}
-        ${showGuide && html`
-          <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.4)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }} onClick=${()=>setShowGuide(false)}>
-            <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:600, width:'100%', maxHeight:'85vh', overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', display:'flex', flexDirection:'column' }}>
-              <div style=${{ padding:'24px 28px 16px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
-                <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <div><h2 style=${{ fontSize:20, fontWeight:700 }}>📖 Libro de Hechizos</h2><p style=${{ fontSize:12, color:'#86868B' }}>Todo lo que necesitas para dominar revelio</p></div>
-                  <button onClick=${()=>setShowGuide(false)} style=${{ width:30, height:30, borderRadius:15, border:'none', background:'#F2F2F7', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
-                </div>
-              </div>
-              <div style=${{ padding:'20px 28px 28px', overflowY:'auto', flex:1 }}>
-                <h3 style=${{ fontSize:14, fontWeight:700, color:'#007AFF', marginBottom:12 }}>🧙 Para el equipo</h3>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>1. Entra con el enlace</h4><p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5 }}>Tu SM te dará una URL tipo <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?sala=mi-proyecto</code>. Pon tu nombre, elige patronus y casa. Clic en 🪄 Revelio!</p></div>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>2. Las 6 fases</h4>
-                  <div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
-                    ${[
-                      {i:'📋',t:'Repaso Inicial',d:'Revisa objetivo y tareas. Marca las completadas.'},
-                      {i:'✍️',t:'Análisis Individual',d:'Escribe notas en Good/Bad/Start/Stop. Arrastra entre columnas. Las tuyas tienen borde grueso.'},
-                      {i:'💬',t:'Puesta en Común',d:'Filtra por categoría o "Mis notas". Vota con 👍. Reacciona con emojis rápidos (🔥💡❤️😂🎯🤯).'},
-                      {i:'⚠️',t:'Riesgos',d:'Crea riesgos o convierte notas Bad/Stop. Vota impacto y probabilidad. El mapa de calor se actualiza en tiempo real.'},
-                      {i:'🎯',t:'Accionables',d:'Crea acciones o convierte notas/riesgos en accionables. Asigna responsable, fecha y prioridad.'},
-                      {i:'📊',t:'Dashboard',d:'Ranking, métricas y descarga del informe PDF con todo.'},
-                    ].map((p,i)=>html`<div key=${i} style=${{ padding:'7px 10px', borderRadius:8, background:'#F9F9FB', border:'1px solid #E5E5EA' }}><span style=${{ fontSize:12, fontWeight:700 }}>${p.i} ${p.t}</span><p style=${{ fontSize:11, color:'#6E6E73', margin:'2px 0 0', lineHeight:1.4 }}>${p.d}</p></div>`)}
-                  </div>
-                </div>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>3. Tips rápidos</h4>
-                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>✏️ Edita tus notas con el lápiz, elimina con ✕</p><p>🔄 Si cierras y vuelves al enlace, entras automáticamente</p><p>👤 Cambia de usuario con el botón de tu nombre arriba a la derecha</p><p>⏱️ Timer con presets de 5, 10, 15 y 20 minutos</p></div>
-                </div>
-                <div style=${{ height:1, background:'#E5E5EA', margin:'16px 0' }} />
-                <h3 style=${{ fontSize:14, fontWeight:700, color:'#5856D6', marginBottom:12 }}>🏰 Para el Scrum Master</h3>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Panel admin</h4>
-                  <p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5, marginBottom:6 }}>Accede con <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?admin</code> al final de la URL.</p>
-                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>📂 <strong>Crear salas</strong> — Nombre + metodología (Agile/Waterfall/ITIL/Kanban)</p><p>📋 <strong>Copiar enlace</strong> — Botón 📋 en cada sala para Slack/Teams</p><p>📊 <strong>Dashboard</strong> — KPIs, gráficos, tabla portfolio. Filtra por proyecto</p><p>👥 <strong>Usuarios</strong> — Quién ha entrado y cuándo en cada sala</p></div>
-                </div>
-                <div style=${{ marginBottom:14 }}><h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Datos y persistencia</h4>
-                  <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}><p>💾 <strong>Guardar</strong> — JSON + métricas para el dashboard</p><p>📂 <strong>Cargar</strong> — Restaura una retro desde JSON</p><p>📄 <strong>PDF</strong> — Informe completo desde el Dashboard</p><p>🗑 <strong>Nueva retro</strong> — Borra notas y tareas. Accionables abiertos y riesgos se mantienen</p></div>
-                </div>
-                <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:14 }}>
-                  <div style=${{ padding:'10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}><p style=${{ fontSize:11, fontWeight:700, color:'#34C759', marginBottom:4 }}>Se mantiene entre retros</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>⚠️ Riesgos abiertos<br/>🎯 Accionables pendientes<br/>👤 Identidad del usuario<br/>📊 Métricas del admin</p></div>
-                  <div style=${{ padding:'10px', borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}><p style=${{ fontSize:11, fontWeight:700, color:'#FF3B30', marginBottom:4 }}>Se resetea</p><p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>📝 Notas del tablero<br/>📋 Tareas de la iteración<br/>🎯 Objetivo<br/>✅ Accionables completados</p></div>
-                </div>
-                <div style=${{ textAlign:'center', padding:'8px 0 0', color:'#C7C7CC', fontSize:11 }}><p>Hecho con ✨ y sin Horcruxes</p></div>
-              </div>
-            </div>
-          </div>
-        `}
         <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
           <div style=${{ background:running?'#1D1D1F':'#F2F2F7', color:running?'#FFF':'#1D1D1F', borderRadius:10, padding:'6px 10px', display:'flex', alignItems:'center', gap:5 }}>
             ${!running && html`<div style=${{ display:'flex', gap:2 }}>
-              ${[5,10,15,20].map(m => html`<button key=${m} onClick=${()=>{setTimer(m*60);setRunning(false)}} style=${{ padding:'3px 6px', borderRadius:6, border:'none', background:timer===m*60?'#007AFF':'transparent', color:timer===m*60?'#FFF':running?'#FFF':'#86868B', fontSize:10, fontWeight:600 }}>${m}'</button>`)}
+              ${[5,10,15,20].map(m => html`<button key=${m} onClick=${()=>syncTimer(m*60, false)} style=${{ padding:'3px 6px', borderRadius:6, border:'none', background:timer===m*60?'#007AFF':'transparent', color:timer===m*60?'#FFF':running?'#FFF':'#86868B', fontSize:10, fontWeight:600 }}>${m}'</button>`)}
             </div>`}
             <span style=${{ fontSize:18, fontWeight:700, fontVariantNumeric:'tabular-nums', minWidth:52, textAlign:'center' }}>${fmt(timer)}</span>
-            <button onClick=${()=>setRunning(!running)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:running?'#FF3B30':'#34C759', color:'#FFF', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>${running?'⏸':'▶'}</button>
-            <button onClick=${()=>{setTimer(900);setRunning(false)}} style=${{ width:26, height:26, borderRadius:13, border:'none', background:'rgba(128,128,128,0.12)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>↺</button>
+            <button onClick=${()=>syncTimer(timer, !running)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:running?'#FF3B30':'#34C759', color:'#FFF', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>${running?'⏸':'▶'}</button>
+            <button onClick=${()=>syncTimer(900, false)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:'rgba(128,128,128,0.12)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>↺</button>
           </div>
         </div>
         <div style=${{ display:'flex', alignItems:'center' }}>
@@ -1158,9 +1349,353 @@ function RetroBoard({ user, onLogout }) {
       ${toast && html`
         <div style=${{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', padding:'12px 24px', borderRadius:14, fontSize:14, fontWeight:600, boxShadow:'0 8px 30px rgba(0,0,0,0.15)', zIndex:300, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8 }}>${toast}</div>
       `}
+      ${globalError && html`
+        <div style=${{ position:'fixed', bottom:toast?72:24, left:'50%', transform:'translateX(-50%)', background:'#FF3B30', color:'#FFF', padding:'11px 22px', borderRadius:14, fontSize:13, fontWeight:600, boxShadow:'0 8px 30px rgba(255,59,48,.3)', zIndex:301, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8, whiteSpace:'nowrap' }}>
+          ${globalError}
+        </div>
+      `}
+
+      ${showHistorial && html`<${HistorialModal} onClose=${()=>setShowHistorial(false)} />`}
+
+      ${showReset && html`<${NewRetroModal}
+        user=${user} state=${state}
+        onClose=${()=>setShowReset(false)}
+        onConfirm=${()=>{ reset(); setShowReset(false); setPhase(0); setTimer(900); setRunning(false); }}
+      />`}
+
+      ${showGuide && html`
+        <div style=${{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:'5vh 16px' }} onClick=${()=>setShowGuide(false)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:600, width:'100%', height:'90vh', boxShadow:'0 24px 80px rgba(0,0,0,0.25)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            <div style=${{ padding:'22px 26px 14px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
+              <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div>
+                  <h2 style=${{ fontSize:20, fontWeight:700 }}>📖 Libro de Hechizos</h2>
+                  <p style=${{ fontSize:12, color:'#86868B' }}>Todo lo que necesitas para dominar revelio</p>
+                </div>
+                <button onClick=${()=>setShowGuide(false)} style=${{ width:34, height:34, borderRadius:17, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>✕</button>
+              </div>
+            </div>
+            <div style=${{ flex:1, overflowY:'auto', padding:'20px 26px 28px' }}>
+              <h3 style=${{ fontSize:14, fontWeight:700, color:'#007AFF', marginBottom:12 }}>🧙 Para el equipo</h3>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>1. Entra con el enlace</h4>
+                <p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5 }}>Tu SM te dará una URL tipo <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?sala=mi-proyecto</code>. Pon tu nombre, elige patronus y casa. Clic en 🪄 Revelio!</p>
+              </div>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>2. Las 6 fases</h4>
+                <div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
+                  ${[
+                    {i:'📋',t:'Repaso Inicial',d:'Revisa objetivo y tareas. Marca las completadas.'},
+                    {i:'✍️',t:'Análisis Individual',d:'Escribe notas en Good/Bad/Start/Stop. Arrastra entre columnas. Las tuyas tienen borde grueso.'},
+                    {i:'💬',t:'Puesta en Común',d:'Filtra por categoría o "Mis notas". Vota con 👍. Reacciona con emojis (🔥💡❤️😂🎯🤯).'},
+                    {i:'⚠️',t:'Riesgos',d:'Crea riesgos o convierte notas Bad/Stop. Vota impacto y probabilidad. Mapa de calor en tiempo real.'},
+                    {i:'🎯',t:'Accionables',d:'Crea acciones o convierte notas/riesgos. Responsable, fecha y prioridad.'},
+                    {i:'📊',t:'Dashboard',d:'Ranking, métricas y descarga del informe PDF.'},
+                  ].map((p,i)=>html`<div key=${i} style=${{ padding:'7px 10px', borderRadius:8, background:'#F9F9FB', border:'1px solid #E5E5EA' }}><span style=${{ fontSize:12, fontWeight:700 }}>${p.i} ${p.t}</span><p style=${{ fontSize:11, color:'#6E6E73', margin:'2px 0 0', lineHeight:1.4 }}>${p.d}</p></div>`)}
+                </div>
+              </div>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>3. Tips rápidos</h4>
+                <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}>
+                  <p>✏️ Edita tus notas con el lápiz, elimina con ✕</p>
+                  <p>🔄 Si cierras y vuelves al enlace, entras automáticamente</p>
+                  <p>👤 Cambia de usuario con el botón de tu nombre (arriba derecha)</p>
+                  <p>⏱️ Timer con presets de 5, 10, 15 y 20 minutos</p>
+                </div>
+              </div>
+              <div style=${{ height:1, background:'#E5E5EA', margin:'16px 0' }} />
+              <h3 style=${{ fontSize:14, fontWeight:700, color:'#5856D6', marginBottom:12 }}>🏰 Para el Scrum Master</h3>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Panel admin</h4>
+                <p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5, marginBottom:6 }}>Accede con <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?admin</code> + PIN al final de la URL.</p>
+                <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}>
+                  <p>📂 <strong>Crear salas</strong> — Nombre + metodología (Agile/Waterfall/ITIL/Kanban)</p>
+                  <p>📋 <strong>Copiar enlace</strong> — Botón 📋 en cada sala para Slack/Teams</p>
+                  <p>📊 <strong>Dashboard</strong> — KPIs, gráficos, tabla portfolio por proyecto</p>
+                  <p>👥 <strong>Usuarios</strong> — Quién ha entrado y cuándo en cada sala</p>
+                </div>
+              </div>
+              <div style=${{ marginBottom:14 }}>
+                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Datos y persistencia</h4>
+                <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}>
+                  <p>☁️ <strong>Auto-guardado</strong> — Las retros se guardan en Supabase al crear una nueva</p>
+                  <p>📄 <strong>PDF</strong> — Informe completo desde el Dashboard o el historial</p>
+                  <p>🆕 <strong>Nueva retro</strong> — Guarda la actual y empieza limpio. Historial accesible desde el modal</p>
+                </div>
+              </div>
+              <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:16 }}>
+                <div style=${{ padding:'10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}>
+                  <p style=${{ fontSize:11, fontWeight:700, color:'#34C759', marginBottom:4 }}>✅ Se guarda en historial</p>
+                  <p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>⚠️ Riesgos abiertos<br/>🎯 Accionables pendientes<br/>👤 Identidad del usuario<br/>📊 Snapshot completo</p>
+                </div>
+                <div style=${{ padding:'10px', borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}>
+                  <p style=${{ fontSize:11, fontWeight:700, color:'#FF3B30', marginBottom:4 }}>🔄 Se resetea en el tablero</p>
+                  <p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>📝 Notas del tablero<br/>📋 Tareas de la iteración<br/>🎯 Objetivo del sprint</p>
+                </div>
+              </div>
+              <div style=${{ textAlign:'center', padding:'4px 0', color:'#C7C7CC', fontSize:11 }}>Hecho con ✨ y sin Horcruxes</div>
+            </div>
+          </div>
+        </div>
+      `}
     </div>
   `;
 }
+
+/* ═══ HISTORIAL MODAL ═══ */
+function HistorialModal({ onClose }) {
+  const [retros,    setRetros]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [viewRetro, setViewRetro] = useState(null);
+
+  useEffect(() => {
+    sbLoadRetros().then(all => {
+      setRetros(all.filter(r => r.sala === SALA));
+      setLoading(false);
+    });
+  }, []);
+
+  // ── PDF export of a historic retro ──
+  const exportHistoricPDF = (snap) => {
+    const data = snap.data || {};
+    const notes   = data.notes   || [];
+    const actions = data.actions || [];
+    const risks   = (data.risks  || []).filter(r => r.status !== 'mitigated');
+    const obj     = data.obj     || {};
+    const aD = actions.filter(a => a.status === 'done').length;
+    const priO = {high:3,medium:2,low:1};
+    const nc = CATS.map(c => ({ ...c, notes: notes.filter(n => n.category === c.id).sort((a,b) => (b.voters?.length||0) - (a.voters?.length||0)) }));
+    const sa = [...actions].sort((a,b) => (priO[b.priority]||0) - (priO[a.priority]||0));
+    const objL = obj.met===true?'Cumplido ✅':obj.met===false?'No cumplido ❌':obj.met==='partial'?'Parcial ⚠️':'Sin evaluar';
+    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>revelio — ${SALA_DISPLAY} — ${fd(snap.created_at)}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;color:#1D1D1F;padding:40px;max-width:860px;margin:0 auto;font-size:13px;line-height:1.5}h2{font-size:16px;font-weight:700;margin:22px 0 10px;padding-bottom:5px;border-bottom:2px solid #E5E5EA}.cd{display:inline-block;text-align:center;min-width:90px;background:#F9F9FB;border-radius:10px;padding:12px;margin:4px;border:1px solid #E5E5EA}.cd .v{font-size:20px;font-weight:800}.cd .l{font-size:10px;color:#86868B}.ct{margin-bottom:16px;padding:12px;border-radius:10px;border-left:4px solid}.nt{padding:6px 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between}.ac{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #E5E5EA}@media print{body{padding:20px}}</style>
+</head><body>
+<div style="text-align:center;margin-bottom:20px">
+  <span style="font-size:24px;font-weight:700;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio</span>
+  <p style="font-size:18px;font-weight:700;margin:4px 0">${SALA_DISPLAY}</p>
+  <p style="color:#86868B;font-size:12px">${fd(snap.created_at)}</p>
+  ${obj.text ? '<p style="margin-top:8px;font-size:13px">🎯 <b>'+obj.text+'</b> — '+objL+'</p>' : ''}
+</div>
+<div style="display:flex;flex-wrap:wrap;margin-bottom:20px">
+  <div class="cd"><div class="v" style="color:#007AFF">${notes.length}</div><div class="l">Notas</div></div>
+  <div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div>
+  <div class="cd"><div class="v" style="color:#FF3B30">${risks.length}</div><div class="l">Riesgos abiertos</div></div>
+</div>
+<h2>📝 Notas</h2>
+${nc.map(c=>c.notes.length===0?'':'<div class="ct" style="border-color:'+c.color+';background:'+c.bg+'"><p style="font-weight:700;font-size:12px;color:'+c.color+';margin-bottom:6px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</p>'+c.notes.map(n=>'<div class="nt"><span>'+n.text+'</span><span style="color:#86868B;font-size:10px;white-space:nowrap;margin-left:8px">'+n.userAvatar+' '+n.userName+' · 👍'+(n.voters?.length||0)+'</span></div>').join('')+'</div>').join('')}
+<h2>🎯 Accionables</h2>
+${sa.length===0?'<p style="color:#86868B">Sin accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status);return'<div class="ac"><span style="font-size:14px">'+pr.icon+'</span><div style="flex:1"><b>'+a.text+'</b><div style="font-size:10px;color:#86868B">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span style="background:'+st.bg+';color:'+st.color+';padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700">'+st.label+'</span></div>';}).join('')}
+${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div class="ac" style="border-left:3px solid #FF9500"><div style="flex:1"><b>'+r.text+'</b>'+(r.mitigation?'<div style="font-size:10px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:10px;color:#86868B">Owner: '+r.owner+'</div></div></div>').join(''):''}
+<p style="text-align:center;color:#C7C7CC;font-size:10px;margin-top:24px">revelio · ${new Date().toLocaleString('es-ES')}</p>
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(doc); w.document.close(); }
+  };
+
+  // ── Detalle de una retro histórica ──
+  if (viewRetro) return html`
+    <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:9100, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${()=>setViewRetro(null)}>
+      <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:660, width:'100%', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.25)', overflow:'hidden' }}>
+        <div style=${{ padding:'18px 24px 14px', borderBottom:'1px solid #E5E5EA', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <h3 style=${{ fontSize:16, fontWeight:700 }}>📋 Retro del ${fd(viewRetro.created_at)}</h3>
+            <p style=${{ fontSize:11, color:'#86868B' }}>${SALA_DISPLAY} · ${(viewRetro.data?.notes||[]).length} notas · ${(viewRetro.data?.actions||[]).length} accionables</p>
+          </div>
+          <div style=${{ display:'flex', gap:8, alignItems:'center' }}>
+            <button onClick=${()=>exportHistoricPDF(viewRetro)} style=${{ ...bP, padding:'7px 16px', fontSize:12 }}>📄 PDF</button>
+            <button onClick=${()=>setViewRetro(null)} style=${{ width:32, height:32, borderRadius:16, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>←</button>
+          </div>
+        </div>
+        <div style=${{ flex:1, overflowY:'auto', padding:'18px 24px 24px' }}>
+          ${(viewRetro.data?.obj?.text) && html`
+            <div style=${{ padding:'10px 14px', borderRadius:10, background:'#F9F9FB', border:'1px solid #E5E5EA', marginBottom:14 }}>
+              <p style=${{ fontSize:12, fontWeight:700, marginBottom:2 }}>🎯 ${viewRetro.data.obj.text}</p>
+              <p style=${{ fontSize:11, color:'#86868B' }}>${viewRetro.data.obj.met===true?'✅ Cumplido':viewRetro.data.obj.met===false?'❌ No cumplido':viewRetro.data.obj.met==='partial'?'⚠️ Parcial':'Sin evaluar'}</p>
+            </div>
+          `}
+          ${CATS.map(c => {
+            const cn = (viewRetro.data?.notes||[]).filter(n=>n.category===c.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
+            if (!cn.length) return null;
+            return html`
+              <div key=${c.id} style=${{ marginBottom:12, padding:'10px 12px', borderRadius:12, background:c.bg, borderLeft:'4px solid '+c.color }}>
+                <p style=${{ fontWeight:700, fontSize:12, color:c.color, marginBottom:6 }}>${c.emoji} ${c.label} (${cn.length})</p>
+                ${cn.map(n=>html`<div key=${n.id} style=${{ padding:'5px 0', borderBottom:'1px solid rgba(0,0,0,.06)', display:'flex', justifyContent:'space-between', fontSize:12 }}>
+                  <span>${n.text}</span>
+                  <span style=${{ color:'#86868B', whiteSpace:'nowrap', marginLeft:8, flexShrink:0 }}>${n.userAvatar} · 👍${n.voters?.length||0}</span>
+                </div>`)}
+              </div>`;
+          })}
+          ${(viewRetro.data?.actions||[]).length > 0 && html`
+            <p style=${{ fontWeight:700, fontSize:13, margin:'14px 0 8px' }}>🎯 Accionables</p>
+            ${[...viewRetro.data.actions].sort((a,b)=>({high:3,medium:2,low:1}[b.priority]||0)-({high:3,medium:2,low:1}[a.priority]||0)).map(a=>{
+              const st=STS.find(s=>s.id===a.status)||STS[0];
+              const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];
+              return html`<div key=${a.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid #F2F2F7', fontSize:12 }}>
+                <span>${pr.icon}</span>
+                <span style=${{ flex:1 }}>${a.text}</span>
+                <span style=${{ color:'#86868B', fontSize:11 }}>${a.owner}</span>
+                <span style=${{ background:st.bg, color:st.color, padding:'2px 8px', borderRadius:5, fontSize:10, fontWeight:700 }}>${st.label}</span>
+              </div>`;
+            })}
+          `}
+        </div>
+      </div>
+    </div>`;
+
+  // ── Lista de retros ──
+  return html`
+    <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${onClose}>
+      <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:560, width:'100%', maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.22)', overflow:'hidden' }}>
+
+        <div style=${{ padding:'22px 26px 14px', borderBottom:'1px solid #E5E5EA', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <h2 style=${{ fontSize:18, fontWeight:700 }}>📚 Historial de retros</h2>
+            <p style=${{ fontSize:12, color:'#86868B' }}>Sala: <strong style=${{ color:'#007AFF' }}>${SALA_DISPLAY}</strong></p>
+          </div>
+          <button onClick=${onClose} style=${{ width:34, height:34, borderRadius:17, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+        </div>
+
+        <div style=${{ flex:1, overflowY:'auto', padding:'14px 26px 24px' }}>
+          ${loading ? html`
+            <div style=${{ textAlign:'center', padding:'40px 0', color:'#86868B' }}>
+              <p style=${{ fontSize:24, marginBottom:8 }}>⏳</p>
+              <p style=${{ fontSize:13 }}>Cargando desde Supabase…</p>
+            </div>`
+          : retros.length === 0 ? html`
+            <div style=${{ textAlign:'center', padding:'40px 0', color:'#C7C7CC' }}>
+              <p style=${{ fontSize:32, marginBottom:8 }}>📭</p>
+              <p style=${{ fontSize:13 }}>Sin retros guardadas en Supabase</p>
+              <p style=${{ fontSize:11, marginTop:6 }}>Usa "🆕 Nueva retro" para crear un snapshot</p>
+            </div>`
+          : retros.map(r => {
+              const nC  = r.data?.notes?.length || 0;
+              const aC  = r.data?.actions?.length || 0;
+              const dC  = (r.data?.actions||[]).filter(a=>a.status==='done').length;
+              const pct = aC > 0 ? Math.round(dC/aC*100) : 0;
+              const pctColor = pct>=75?'#34C759':pct>=40?'#FF9500':'#FF3B30';
+              const parts = [...new Set((r.data?.notes||[]).map(n=>n.userName))];
+              const rTipo = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
+              return html`
+                <div key=${r.id} class="hl" style=${{ padding:'13px 16px', borderRadius:14, border:'1.5px solid #E5E5EA', marginBottom:9, display:'flex', alignItems:'center', gap:12, background:'#FAFAFA', cursor:'pointer' }}
+                  onClick=${()=>setViewRetro(r)}>
+                  <div style=${{ flex:1 }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                      <span style=${{ fontSize:13, fontWeight:700 }}>${fd(r.created_at)}</span>
+                      <span style=${{ fontSize:9, color:rTipo.color, background:rTipo.color+'18', padding:'1px 6px', borderRadius:4, fontWeight:700 }}>${rTipo.icon} ${rTipo.label}</span>
+                    </div>
+                    <div style=${{ fontSize:11, color:'#86868B', display:'flex', gap:10, flexWrap:'wrap' }}>
+                      <span>📝 ${nC} notas</span>
+                      <span>🎯 ${dC}/${aC} accionables</span>
+                      ${parts.length>0 && html`<span>👥 ${parts.slice(0,3).join(', ')}${parts.length>3?' +'+( parts.length-3):''}</span>`}
+                    </div>
+                    <div style=${{ display:'flex', alignItems:'center', gap:6, marginTop:5 }}>
+                      <div style=${{ flex:1, maxWidth:120, height:4, background:'#E5E5EA', borderRadius:2, overflow:'hidden' }}>
+                        <div style=${{ width:pct+'%', height:'100%', background:pctColor, borderRadius:2 }} />
+                      </div>
+                      <span style=${{ fontSize:10, color:pctColor, fontWeight:700 }}>${pct}% completado</span>
+                    </div>
+                  </div>
+                  <div style=${{ color:'#C7C7CC', fontSize:16 }}>›</div>
+                </div>`;
+            })
+          }
+        </div>
+      </div>
+    </div>`;
+}
+
+
+/* ═══ NEW RETRO MODAL ═══ */
+function NewRetroModal({ user, state, onClose, onConfirm }) {
+  const [saving, setSaving] = useState(false);
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    // Save current retro to Supabase before resetting
+    await sbSaveRetroSnapshot(SALA, TIPO, state, user.id).catch(() => {});
+    setSaving(false);
+    onConfirm();
+  };
+
+  // PDF export of a historic retro
+  const exportHistoricPDF = (snap) => {
+    const data = snap.data || {};
+    const notes   = data.notes   || [];
+    const actions = data.actions || [];
+    const risks   = (data.risks  || []).filter(r => r.status !== 'mitigated');
+    const obj     = data.obj     || {};
+    const tN = notes.length;
+    const aD = actions.filter(a => a.status === 'done').length;
+    const priO = {high:3,medium:2,low:1};
+    const nc = CATS.map(c => ({ ...c, notes: notes.filter(n => n.category === c.id).sort((a,b) => (b.voters?.length||0) - (a.voters?.length||0)) }));
+    const sa = [...actions].sort((a,b) => (priO[b.priority]||0) - (priO[a.priority]||0));
+    const objL = obj.met===true?'Cumplido ✅':obj.met===false?'No cumplido ❌':obj.met==='partial'?'Parcial ⚠️':'Sin evaluar';
+    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>revelio — ${SALA_DISPLAY} — ${fd(snap.created_at)}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;color:#1D1D1F;padding:40px;max-width:860px;margin:0 auto;font-size:13px;line-height:1.5}h2{font-size:16px;font-weight:700;margin:22px 0 10px;padding-bottom:5px;border-bottom:2px solid #E5E5EA}.cd{display:inline-block;text-align:center;min-width:90px;background:#F9F9FB;border-radius:10px;padding:12px;margin:4px;border:1px solid #E5E5EA}.cd .v{font-size:20px;font-weight:800}.cd .l{font-size:10px;color:#86868B}.ct{margin-bottom:16px;padding:12px;border-radius:10px;border-left:4px solid}.nt{padding:6px 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between}.ac{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #E5E5EA}@media print{body{padding:20px}}</style></head><body>
+<div style="text-align:center;margin-bottom:20px"><span style="font-size:24px;font-weight:700;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio</span>
+<p style="font-size:18px;font-weight:700;margin:4px 0">${SALA_DISPLAY}</p>
+<p style="color:#86868B;font-size:12px">${fd(snap.created_at)}</p>
+${obj.text ? '<p style="margin-top:8px;font-size:13px">🎯 <b>'+obj.text+'</b> — '+objL+'</p>' : ''}</div>
+<div style="display:flex;flex-wrap:wrap;margin-bottom:20px">
+  <div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div>
+  <div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div>
+  <div class="cd"><div class="v" style="color:#FF3B30">${risks.length}</div><div class="l">Riesgos</div></div>
+</div>
+<h2>📝 Notas</h2>
+${nc.map(c=>c.notes.length===0?'':'<div class="ct" style="border-color:'+c.color+';background:'+c.bg+'"><p style="font-weight:700;font-size:12px;color:'+c.color+';margin-bottom:6px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</p>'+c.notes.map(n=>'<div class="nt"><span>'+n.text+'</span><span style="color:#86868B;font-size:10px;white-space:nowrap;margin-left:8px">'+n.userAvatar+' '+n.userName+' · 👍'+(n.voters?.length||0)+'</span></div>').join('')+'</div>').join('')}
+<h2>🎯 Accionables</h2>
+${sa.length===0?'<p style="color:#86868B">Sin accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status);return'<div class="ac"><span style="font-size:14px">'+pr.icon+'</span><div style="flex:1"><b>'+a.text+'</b><div style="font-size:10px;color:#86868B">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span style="background:'+st.bg+';color:'+st.color+';padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700">'+st.label+'</span></div>';}).join('')}
+${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div class="ac" style="border-left:3px solid #FF9500"><div style="flex:1"><b>'+r.text+'</b>'+(r.mitigation?'<div style="font-size:10px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:10px;color:#86868B">Owner: '+r.owner+'</div></div></div>').join(''):''}
+<p style="text-align:center;color:#C7C7CC;font-size:10px;margin-top:24px">revelio · ${new Date().toLocaleString('es-ES')}</p>
+<script>window.onload=function(){window.print()}<\/script></body></html>`;
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(doc); w.document.close(); }
+  };
+
+
+  return html`
+    <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${onClose}>
+      <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:560, width:'100%', maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.2)' }}>
+
+        <!-- Header -->
+        <div style=${{ padding:'22px 26px 16px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
+          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:2 }}>
+            <h2 style=${{ fontSize:18, fontWeight:700 }}>🆕 Nueva retrospectiva</h2>
+            <button onClick=${onClose} style=${{ width:30, height:30, borderRadius:15, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+          </div>
+          <p style=${{ fontSize:13, color:'#86868B' }}>La retro actual se guarda en Supabase y el tablero se limpia.</p>
+        </div>
+
+        <!-- Body: current retro summary + action -->
+        <div style=${{ padding:'22px 26px 26px' }}>
+          <div style=${{ display:'flex', gap:10, marginBottom:16 }}>
+            ${[['📝', state.notes?.length||0, 'Notas'], ['🎯', state.actions?.length||0, 'Accionables'], ['⚠️', (state.risks||[]).filter(r=>r.status!=='mitigated').length, 'Riesgos']].map(([ic,v,l]) => html`
+              <div style=${{ flex:1, textAlign:'center', background:'#F9F9FB', borderRadius:12, padding:'12px 6px', border:'1px solid #E5E5EA' }}>
+                <div style=${{ fontSize:18, marginBottom:3 }}>${ic}</div>
+                <div style=${{ fontSize:20, fontWeight:800, color:'#1D1D1F' }}>${v}</div>
+                <div style=${{ fontSize:10, color:'#86868B' }}>${l}</div>
+              </div>
+            `)}
+          </div>
+          <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, fontSize:11, marginBottom:18 }}>
+            <div style=${{ padding:10, borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}>
+              <p style=${{ fontWeight:700, color:'#34C759', marginBottom:4 }}>✅ Se guarda en historial</p>
+              <p style=${{ color:'#6E6E73', lineHeight:1.5 }}>📝 Notas · 🎯 Accionables · ⚠️ Riesgos · 🎯 Objetivo</p>
+            </div>
+            <div style=${{ padding:10, borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}>
+              <p style=${{ fontWeight:700, color:'#FF3B30', marginBottom:4 }}>🔄 Se resetea en el tablero</p>
+              <p style=${{ color:'#6E6E73', lineHeight:1.5 }}>📝 Notas · 📋 Tareas · 🎯 Objetivo</p>
+            </div>
+          </div>
+          <button onClick=${handleConfirm} disabled=${saving} style=${{ ...bP, width:'100%', padding:14, fontSize:14, background:saving?'#86868B':'#1D1D1F', cursor:saving?'default':'pointer' }}>
+            ${saving ? '⏳ Guardando en Supabase…' : '🚀 Guardar y empezar nueva retro'}
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
 
 /* ═══ PHASE 1: REVIEW ═══ */
 function P1({ tasks, sT, obj, sO, user }) {
@@ -1215,6 +1750,8 @@ function Board({ notes, sN, user, filter }) {
   const [eVal, setEVal] = useState('');
   const [dragId, setDragId] = useState(null);
   const [overCat, setOverCat] = useState(null);
+  const [touchDrag, setTouchDrag] = useState(null); // {id, startX, startY, curX, curY}
+  const touchRef = useRef(null);
 
   const addN = c => { if(!txt.trim())return; sN([...notes,{id:uid(),text:txt.trim(),category:c,userId:user.id,userName:user.name,userAvatar:user.avatar,userColor:user.color,voters:[],reactions:{}}]); setTxt(''); setAct(null); };
   const vote = nid => sN(notes.map(n=>{if(n.id!==nid)return n;const v=n.voters||[];return{...n,voters:v.includes(user.id)?v.filter(x=>x!==user.id):[...v,user.id]}}));
@@ -1223,17 +1760,54 @@ function Board({ notes, sN, user, filter }) {
   const saveE = () => { if(!eVal.trim())delN(eId); else sN(notes.map(n=>n.id===eId?{...n,text:eVal.trim()}:n)); setEId(null); };
   const drop = (e,c) => { e.preventDefault(); setOverCat(null); if(dragId)sN(notes.map(n=>n.id===dragId?{...n,category:c}:n)); setDragId(null); };
 
+  // ── Touch drag & drop ──
+  const onTouchStart = (e, noteId) => {
+    const t = e.touches[0];
+    touchRef.current = { id:noteId, startX:t.clientX, startY:t.clientY };
+    setTouchDrag({ id:noteId, x:t.clientX, y:t.clientY });
+  };
+  const onTouchMove = (e) => {
+    if (!touchRef.current) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    setTouchDrag(prev => prev ? {...prev, x:t.clientX, y:t.clientY} : null);
+    // highlight target column
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const col = el?.closest('[data-catid]');
+    setOverCat(col ? col.getAttribute('data-catid') : null);
+  };
+  const onTouchEnd = (e) => {
+    if (!touchRef.current) return;
+    const t = e.changedTouches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const col = el?.closest('[data-catid]');
+    if (col && touchRef.current.id) {
+      const catId = col.getAttribute('data-catid');
+      sN(notes.map(n => n.id===touchRef.current.id ? {...n, category:catId} : n));
+    }
+    touchRef.current = null;
+    setTouchDrag(null);
+    setOverCat(null);
+  };
+
   let fil = notes;
   if(filter==='mine') fil=notes.filter(n=>n.userId===user.id);
   else if(CATS.some(c=>c.id===filter)) fil=notes.filter(n=>n.category===filter);
   const cats2 = CATS.some(c=>c.id===filter)?CATS.filter(c=>c.id===filter):CATS;
 
   return html`
+    <div style=${{ position:'relative' }}>
+    ${touchDrag && html`
+      <div style=${{ position:'fixed', left:touchDrag.x-60, top:touchDrag.y-30, width:120, pointerEvents:'none', zIndex:9999, opacity:.85, transform:'rotate(3deg) scale(1.05)', background:'#FFF', border:'2px solid #007AFF', borderRadius:10, padding:'8px 10px', fontSize:11, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.2)', color:'#007AFF' }}>
+        ✋ Moviendo nota
+      </div>
+    `}
     <div style=${{ display:'grid', gridTemplateColumns:cats2.length===1?'1fr':'repeat(4,1fr)', gap:10, height:'100%' }}>
       ${cats2.map(cat => {
         const cn = fil.filter(n=>n.category===cat.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
         return html`
-          <div key=${cat.id} onDragOver=${e=>{e.preventDefault();setOverCat(cat.id)}} onDragLeave=${()=>setOverCat(null)} onDrop=${e=>drop(e,cat.id)}
+          <div key=${cat.id} data-catid=${cat.id}
+            onDragOver=${e=>{e.preventDefault();setOverCat(cat.id)}} onDragLeave=${()=>setOverCat(null)} onDrop=${e=>drop(e,cat.id)}
             style=${{ ...cS, display:'flex', flexDirection:'column', borderColor:overCat===cat.id?'#007AFF':'#E5E5EA', background:overCat===cat.id?'#007AFF04':'#FFF', transition:'all .2s' }}>
             <div style=${{ padding:'12px 14px 9px', background:cat.color+'06', borderBottom:'2.5px solid '+cat.color }}>
               <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -1245,8 +1819,12 @@ function Board({ notes, sN, user, filter }) {
               ${cn.map(note => {
                 const voted=note.voters?.includes(user.id); const mine=note.userId===user.id;
                 return html`
-                  <div key=${note.id} draggable=${true} onDragStart=${e=>{setDragId(note.id);e.dataTransfer.effectAllowed='move'}}
-                    style=${{ background:cat.bg, borderRadius:12, padding:'10px 12px', border:'1px solid '+cat.color+'15', borderLeft:mine?'3px solid '+cat.color:'1px solid '+cat.color+'15', cursor:'grab', opacity:dragId===note.id?0.4:1 }}>
+                  <div key=${note.id} draggable=${true}
+                    onDragStart=${e=>{setDragId(note.id);e.dataTransfer.effectAllowed='move'}}
+                    onTouchStart=${e=>onTouchStart(e,note.id)}
+                    onTouchMove=${onTouchMove}
+                    onTouchEnd=${onTouchEnd}
+                    style=${{ background:cat.bg, borderRadius:12, padding:'10px 12px', border:'1px solid '+cat.color+'15', borderLeft:mine?'3px solid '+cat.color:'1px solid '+cat.color+'15', cursor:'grab', opacity:(dragId===note.id||touchDrag?.id===note.id)?0.4:1, touchAction:'none', userSelect:'none' }}>
                     ${eId===note.id
                       ? html`<div>
                           <textarea autofocus value=${eVal} onInput=${e=>setEVal(e.target.value)} onKeyDown=${e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveE()}if(e.key==='Escape')setEId(null)}} style=${{ ...iS, height:48, resize:'none', fontSize:12, padding:'8px 10px' }} />
@@ -1288,6 +1866,7 @@ function Board({ notes, sN, user, filter }) {
               : html`<button onClick=${()=>{setAct(cat.id);setTxt('')}} style=${{ margin:'5px 8px 8px', padding:'8px', borderRadius:9, border:'1.5px dashed '+cat.color+'30', background:'transparent', color:cat.color, fontSize:12, fontWeight:600 }}>+ Añadir nota</button>`}
           </div>`;
       })}
+    </div>
     </div>
   `;
 }
@@ -1634,95 +2213,387 @@ function P5Risks({ risks, sR, notes, user }) {
 
 /* ═══ PHASE 6: DASHBOARD + PDF ═══ */
 function P6({ notes, actions, risks, users, user, obj, tasks }) {
-  // Build ranking from notes (not from online users — so it works even if someone disconnects)
+  const [activeTab, setActiveTab] = useState('resumen');
+
+  // ── derived data ──
+  const priO = {high:3,medium:2,low:1};
+  const tN   = notes.length;
+  const tV   = notes.reduce((s,n) => s + (n.voters?.length||0), 0);
+  const tD   = tasks.filter(t => t.done).length;
+  const aD   = actions.filter(a => a.status === 'done').length;
+  const openRisks   = risks.filter(r => r.status !== 'mitigated');
+  const closedRisks = risks.filter(r => r.status === 'mitigated');
+  const topNotes    = [...notes].sort((a,b) => (b.voters?.length||0) - (a.voters?.length||0)).slice(0, 10);
+  const sortedActs  = [...actions].sort((a,b) => (priO[b.priority]||0) - (priO[a.priority]||0));
+  const medals      = ['🥇','🥈','🥉'];
+  const objL        = obj.met===true?'Cumplido ✅':obj.met===false?'No cumplido ❌':obj.met==='partial'?'Parcial ⚠️':'Sin evaluar';
+  const objColor    = obj.met===true?'#34C759':obj.met===false?'#FF3B30':obj.met==='partial'?'#FF9500':'#86868B';
+
+  // ranking
   const authorMap = {};
   notes.forEach(n => {
-    if (!authorMap[n.userId]) authorMap[n.userId] = { name: n.userName, avatar: n.userAvatar, color: n.userColor || '#007AFF', tarjetas: 0, votosRecibidos: 0 };
+    if (!authorMap[n.userId]) authorMap[n.userId] = { name:n.userName, avatar:n.userAvatar, color:n.userColor||'#007AFF', tarjetas:0, votosRecibidos:0 };
     authorMap[n.userId].tarjetas++;
-    authorMap[n.userId].votosRecibidos += (n.voters?.length || 0);
+    authorMap[n.userId].votosRecibidos += (n.voters?.length||0);
   });
-  const ranking = Object.entries(authorMap).map(([id, d]) => ({
-    id, name: d.name, avatar: d.avatar, color: d.color,
-    tarjetas: d.tarjetas, votosRecibidos: d.votosRecibidos,
-    score: d.tarjetas + d.votosRecibidos,
-  })).sort((a, b) => b.score - a.score);
-  const mx=ranking[0]?.score||1;
-  const tN=notes.length; const tV=notes.reduce((s,n)=>s+(n.voters?.length||0),0);
-  const tD=tasks.filter(t=>t.done).length; const aD=actions.filter(a=>a.status==='done').length;
-  const openRisks=risks.filter(r=>r.status!=='mitigated');
-  const medals=['🥇','🥈','🥉']; const priO={high:3,medium:2,low:1};
-  const objL=obj.met===true?'Cumplido ✅':obj.met===false?'No cumplido ❌':obj.met==='partial'?'Parcial ⚠️':'Sin evaluar';
+  const ranking = Object.entries(authorMap).map(([id,d]) => ({
+    id, ...d, score: d.tarjetas + d.votosRecibidos
+  })).sort((a,b) => b.score - a.score);
+  const mx = ranking[0]?.score || 1;
 
+  // risk helpers
+  const riskScore = r => {
+    const avg = v => { const vs=Object.values(v||{}); return vs.length ? vs.reduce((a,b)=>a+b,0)/vs.length : 0; };
+    return avg(r.impactVotes) * avg(r.probVotes);
+  };
+  const riskColor = r => { const s=riskScore(r); return s>=6?'#FF3B30':s>=2?'#FF9500':'#34C759'; };
+
+  // ── PDF export ──
   const exportPDF = () => {
-    const nc=CATS.map(c=>({...c,notes:notes.filter(n=>n.category===c.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0))}));
-    const sa=[...actions].sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0));
-    const doc=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>revelio - Informe</title>
+    const nc  = CATS.map(c => ({...c, notes: notes.filter(n=>n.category===c.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0))}));
+    const sa  = [...actions].sort((a,b) => (priO[b.priority]||0)-(priO[a.priority]||0));
+    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>revelio - ${SALA_DISPLAY}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/comfortaa@5.0.18/latin-400.css">
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',sans-serif;color:#1D1D1F;padding:40px;max-width:900px;margin:0 auto;font-size:13px;line-height:1.5}h1{font-size:26px;font-weight:700;margin-bottom:4px}h2{font-size:18px;font-weight:700;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid #E5E5EA}.sum{display:flex;gap:12px;margin-bottom:24px}.cd{flex:1;background:#F9F9FB;border-radius:12px;padding:16px;text-align:center;border:1px solid #E5E5EA}.cd .v{font-size:22px;font-weight:800}.cd .l{font-size:11px;color:#86868B;margin-top:2px}.ct{margin-bottom:20px;padding:14px;border-radius:12px;border-left:4px solid}.good{border-color:#34C759;background:#F0FFF4}.bad{border-color:#FF3B30;background:#FFF5F5}.start{border-color:#007AFF;background:#EBF5FF}.stop{border-color:#FF9500;background:#FFF8EB}.nt{padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;justify-content:space-between}.nt:last-child{border-bottom:none}.ac{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E5E5EA}.ac:last-child{border-bottom:none}.bg{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}.rk{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F2F2F7}.rk:last-child{border-bottom:none}.tk{padding:4px 0}.tk.dn{text-decoration:line-through;color:#86868B}.br{height:6px;background:#E5E5EA;border-radius:3px;margin:4px 0 12px;overflow:hidden}.fl{height:100%;border-radius:3px}@media print{body{padding:20px}}</style></head><body>
-<div style="text-align:center;margin-bottom:8px"><span style="font-family:'Comfortaa',sans-serif;font-size:28px;font-weight:400;letter-spacing:2px;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio</span></div>
-<p style="text-align:center;font-size:20px;font-weight:700;margin-bottom:4px">${SALA_DISPLAY}</p>
-<p style="text-align:center;font-size:12px;color:#86868B;margin-bottom:4px">${TIPO_INFO.icon} ${TIPO_INFO.label}</p>
-<p style="text-align:center;color:#86868B;font-size:13px;margin-bottom:24px">${fd(new Date())}</p>
-<div class="sum"><div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div><div class="cd"><div class="v" style="color:#FF9500">${tV}</div><div class="l">Votos</div></div><div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div><div class="cd"><div class="v" style="color:#FF3B30">${openRisks.length}</div><div class="l">Riesgos</div></div><div class="cd"><div class="v" style="color:${obj.met===true?'#34C759':obj.met===false?'#FF3B30':'#FF9500'};font-size:14px">${objL}</div><div class="l">Objetivo</div></div></div>
-${obj.text?'<h2>🎯 Objetivo</h2><p style="margin-bottom:16px">'+obj.text+'</p>':''}
-<h2>📋 Tareas (${tD}/${tasks.length})</h2><div class="br"><div class="fl" style="width:${tasks.length?(tD/tasks.length)*100:0}%;background:linear-gradient(90deg,#34C759,#007AFF)"></div></div>
-${tasks.map(t=>'<div class="tk'+(t.done?' dn':'')+'">'+(t.done?'✅':'⬜')+' '+t.text+'</div>').join('')}
-<h2>📝 Notas del equipo</h2>
-${nc.map(c=>c.notes.length===0?'':'<div class="ct '+c.id+'"><h3 style="font-size:14px;font-weight:700;margin-bottom:8px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</h3>'+c.notes.map(n=>'<div class="nt"><div style="flex:1">'+n.text+'</div><div style="font-size:11px;color:#86868B;white-space:nowrap;margin-left:12px">'+n.userAvatar+' '+n.userName+' · 👍 '+(n.voters?.length||0)+'</div></div>').join('')+'</div>').join('')}
-<h2>🎯 Accionables</h2>
-${sa.length===0?'<p style="color:#86868B">No se definieron accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status);return'<div class="ac"><div style="font-size:16px;width:24px;text-align:center">'+pr.icon+'</div><div style="flex:1"><strong>'+a.text+'</strong><div style="font-size:11px;color:#86868B">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span class="bg" style="background:'+st.bg+';color:'+st.color+'">'+st.label+'</span></div>'}).join('')}
-<h2>⚠️ Riesgos (${openRisks.length} abiertos)</h2>
-${risks.length===0?'<p style="color:#86868B">No se identificaron riesgos</p>':risks.map((r,i)=>{const imp=getRiskLevel(r.impactVotes);const prob=getRiskLevel(r.probVotes);const hc=getHeatColor(imp,prob);const st=RISK_STATUS.find(s=>s.id===r.status)||RISK_STATUS[0];return'<div class="ac" style="border-left:4px solid '+hc+'"><div style="font-weight:800;color:'+hc+';min-width:28px">R'+(i+1)+'</div><div style="flex:1"><strong>'+r.text+'</strong>'+(r.mitigation?'<div style="font-size:11px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:11px;color:#86868B">Impacto: '+imp.label+' · Prob: '+prob.label+' · Owner: '+r.owner+'</div></div><span class="bg" style="background:'+st.color+'20;color:'+st.color+'">'+st.label+'</span></div>'}).join('')}
-<h2>🏆 Ranking</h2><p style="font-size:11px;color:#86868B;margin-bottom:12px">Tarjetas aportadas + votos recibidos</p>
-${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;text-align:center;font-size:18px">'+(i<3?medals[i]:(i+1)+'º')+'</div><div><strong>'+r.avatar+' '+r.name+'</strong> <span style="font-weight:800;color:#FFB800">'+r.score+' pts</span><div style="font-size:10px;color:#86868B">📝 '+r.tarjetas+' tarjetas · 👍 '+r.votosRecibidos+' votos recibidos</div></div></div>').join('')}
-<div style="margin-top:32px;text-align:center;color:#C7C7CC;font-size:11px;font-family:'Comfortaa',sans-serif">revelio · ${new Date().toLocaleString('es-ES')}</div>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;color:#1D1D1F;padding:40px;max-width:900px;margin:0 auto;font-size:13px;line-height:1.5}h2{font-size:17px;font-weight:700;margin:26px 0 10px;padding-bottom:5px;border-bottom:2px solid #E5E5EA}.sum{display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap}.cd{flex:1;min-width:80px;background:#F9F9FB;border-radius:12px;padding:14px;text-align:center;border:1px solid #E5E5EA}.cd .v{font-size:20px;font-weight:800}.cd .l{font-size:10px;color:#86868B;margin-top:2px}.ct{margin-bottom:16px;padding:12px;border-radius:10px;border-left:4px solid}.nt{padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06);display:flex;justify-content:space-between;gap:8px}.ac{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #E5E5EA}.bg{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700}.rk{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #F2F2F7}.rsk{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #E5E5EA;border-left-width:4px;border-left-style:solid;padding-left:10px}.br{height:6px;background:#E5E5EA;border-radius:3px;margin:4px 0 10px;overflow:hidden}.fl{height:100%;border-radius:3px}@media print{body{padding:20px}}</style>
+</head><body>
+<div style="text-align:center;margin-bottom:20px"><span style="font-family:'Comfortaa',sans-serif;font-size:26px;letter-spacing:2px;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio</span>
+<p style="font-size:19px;font-weight:700;margin:4px 0">${SALA_DISPLAY}</p>
+<p style="color:#86868B;font-size:11px">${TIPO_INFO.icon} ${TIPO_INFO.label} · ${fd(new Date())}</p>
+${obj.text?'<p style="margin-top:8px;font-size:13px">🎯 <b>'+obj.text+'</b> — <span style="color:'+objColor+'">'+objL+'</span></p>':''}</div>
+<div class="sum">
+  <div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div>
+  <div class="cd"><div class="v" style="color:#FF9500">${tV}</div><div class="l">Votos</div></div>
+  <div class="cd"><div class="v" style="color:#34C759">${aD}/${actions.length}</div><div class="l">Accionables</div></div>
+  <div class="cd"><div class="v" style="color:${openRisks.length>0?'#FF3B30':'#34C759'}">${openRisks.length}</div><div class="l">Riesgos abiertos</div></div>
+  <div class="cd"><div class="v" style="color:#007AFF">${tD}/${tasks.length}</div><div class="l">Tareas</div></div>
+</div>
+<h2>📋 Tareas</h2>
+<div class="br"><div class="fl" style="width:${tasks.length?(tD/tasks.length)*100:0}%;background:#34C759"></div></div>
+${tasks.map(t=>'<div style="padding:3px 0;font-size:12px;'+(t.done?'text-decoration:line-through;color:#86868B;':'')+'">'+( t.done?'✅':'⬜')+' '+t.text+'</div>').join('')}
+<h2>📝 Notas</h2>
+${nc.map(c=>c.notes.length===0?'':'<div class="ct" style="border-color:'+c.color+';background:'+c.bg+'"><p style="font-weight:700;font-size:12px;color:'+c.color+';margin-bottom:7px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</p>'+c.notes.map(n=>'<div class="nt"><div style="flex:1">'+n.text+'</div><div style="font-size:10px;color:#86868B;white-space:nowrap">'+n.userAvatar+' '+n.userName+' · 👍'+(n.voters?.length||0)+'</div></div>').join('')+'</div>').join('')}
+<h2>🎯 Accionables (${actions.length})</h2>
+${sa.length===0?'<p style="color:#86868B;font-size:12px">Sin accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status)||STS[0];return'<div class="ac"><div style="font-size:15px;min-width:22px">'+pr.icon+'</div><div style="flex:1"><b style="font-size:12px">'+a.text+'</b><div style="font-size:10px;color:#86868B;margin-top:1px">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span class="bg" style="background:'+st.bg+';color:'+st.color+'">'+st.label+'</span></div>';}).join('')}
+<h2>⚠️ Riesgos</h2>
+${risks.length===0?'<p style="color:#86868B;font-size:12px">Sin riesgos identificados</p>':risks.map((r,i)=>{const imp=getRiskLevel(r.impactVotes);const prob=getRiskLevel(r.probVotes);const hc=getHeatColor(imp,prob);const st=RISK_STATUS.find(s=>s.id===r.status)||RISK_STATUS[0];return'<div class="rsk" style="border-left-color:'+hc+';margin-bottom:4px"><div style="font-weight:800;color:'+hc+';min-width:28px;font-size:12px">R'+(i+1)+'</div><div style="flex:1"><b style="font-size:12px">'+r.text+'</b>'+(r.mitigation?'<div style="font-size:10px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:10px;color:#86868B">Impacto: '+imp.label+' · Prob: '+prob.label+' · '+r.owner+'</div></div><span class="bg" style="background:'+st.color+'20;color:'+st.color+'">'+st.label+'</span></div>';}).join('')}
+<h2>🏆 Ranking</h2>
+${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18:13)+'px;text-align:center">'+(i<3?medals[i]:(i+1)+'º')+'</div><div style="width:28px;height:28px;border-radius:14px;background:'+r.color+';display:flex;align-items:center;justify-content:center;font-size:15px">'+r.avatar+'</div><div><b>'+r.name+'</b> <span style="color:#FFB800;font-weight:800">'+r.score+' pts</span><div style="font-size:10px;color:#86868B">📝 '+r.tarjetas+' tarjetas · 👍 '+r.votosRecibidos+' votos</div></div></div>').join('')}
+<div style="margin-top:28px;text-align:center;color:#C7C7CC;font-size:10px;font-family:'Comfortaa',sans-serif">revelio · ${new Date().toLocaleString('es-ES')}</div>
 <script>window.onload=function(){window.print()}<\/script></body></html>`;
-    const w=window.open('','_blank');
-    if(w){w.document.write(doc);w.document.close()}
+    const w = window.open('','_blank');
+    if (w) { w.document.write(doc); w.document.close(); }
   };
 
+  const TABS = [
+    { id:'resumen',     label:'📊 Resumen'     },
+    { id:'notas',       label:'📝 Notas'       },
+    { id:'accionables', label:'🎯 Accionables' },
+    { id:'riesgos',     label:'⚠️ Riesgos'     },
+    { id:'ranking',     label:'🏆 Ranking'     },
+  ];
+
   return html`
-    <div style=${{ maxWidth:960, margin:'0 auto', display:'flex', flexDirection:'column', gap:14 }}>
-      <div style=${{ display:'flex', justifyContent:'flex-end' }}>
-        <button onClick=${exportPDF} style=${{ ...bP, background:'#007AFF', display:'flex', alignItems:'center', gap:6 }}>📄 Descargar informe PDF</button>
+    <div style=${{ maxWidth:980, margin:'0 auto', display:'flex', flexDirection:'column', gap:12 }}>
+
+      <!-- ── KPI CARDS ── -->
+      <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
+        ${[
+          {l:'Notas',          v:tN,                   i:'📝', c:'#007AFF'},
+          {l:'Votos',          v:tV,                   i:'👍', c:'#FF9500'},
+          {l:'Accionables',    v:aD+'/'+actions.length, i:'🎯', c:'#34C759'},
+          {l:'Riesgos abiertos',v:openRisks.length,    i:'⚠️', c:openRisks.length>0?'#FF3B30':'#34C759'},
+          {l:'Objetivo',       v:objL,                 i:'🏁', c:objColor},
+        ].map((s,i) => html`
+          <div key=${i} style=${{ ...cS, padding:'14px 10px', textAlign:'center' }}>
+            <div style=${{ fontSize:20, marginBottom:4 }}>${s.i}</div>
+            <div style=${{ fontSize:s.v.length>6?13:20, fontWeight:800, color:s.c, lineHeight:1.1 }}>${s.v}</div>
+            <div style=${{ fontSize:10, color:'#86868B', marginTop:3 }}>${s.l}</div>
+          </div>`)}
       </div>
-      <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10 }}>
-        ${[{l:'Notas',v:tN,i:'📝',c:'#007AFF'},{l:'Votos',v:tV,i:'👍',c:'#FF9500'},{l:'Accionables',v:aD+'/'+actions.length,i:'🎯',c:'#34C759'},{l:'Riesgos abiertos',v:openRisks.length,i:'⚠️',c:openRisks.length>0?'#FF3B30':'#34C759'},{l:'Objetivo',v:objL,i:'🏁',c:obj.met===true?'#34C759':obj.met===false?'#FF3B30':'#FF9500'}].map((s,i)=>html`
-          <div key=${i} style=${{ ...cS, padding:18, textAlign:'center' }}><div style=${{ fontSize:24, marginBottom:6 }}>${s.i}</div><div style=${{ fontSize:24, fontWeight:800, color:s.c }}>${s.v}</div><div style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>${s.l}</div></div>`)}
+
+      <!-- ── TAB BAR ── -->
+      <div style=${{ display:'flex', gap:4, background:'#FFF', borderRadius:14, padding:4, border:'1.5px solid #E5E5EA' }}>
+        ${TABS.map(t => html`
+          <button key=${t.id} onClick=${()=>setActiveTab(t.id)} style=${{
+            flex:1, padding:'7px 6px', borderRadius:10, border:'none',
+            background:activeTab===t.id?'#1D1D1F':'transparent',
+            color:activeTab===t.id?'#FFF':'#6E6E73',
+            fontSize:11, fontWeight:600, cursor:'pointer', transition:'all .15s', whiteSpace:'nowrap'
+          }}>${t.label}</button>
+        `)}
+        <button onClick=${exportPDF} style=${{ padding:'7px 14px', borderRadius:10, border:'none', background:'#007AFF', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>📄 PDF</button>
       </div>
-      <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-        <div style=${{ ...cS, padding:22 }}>
-          <h3 style=${{ fontSize:15, fontWeight:700, marginBottom:14 }}>📊 Notas por categoría</h3>
-          ${CATS.map(c=>{const cnt=notes.filter(n=>n.category===c.id).length;const pct=tN>0?(cnt/tN)*100:0;return html`
-            <div key=${c.id} style=${{ marginBottom:10 }}><div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4 }}><span style=${{ fontSize:13, fontWeight:600 }}>${c.emoji} ${c.label}</span><span style=${{ fontSize:12, fontWeight:700, color:c.color }}>${cnt}</span></div><div style=${{ height:8, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}><div style=${{ height:'100%', width:pct+'%', background:c.color, borderRadius:4, transition:'width .5s' }} /></div></div>`})}
+
+      <!-- ══ RESUMEN ══ -->
+      ${activeTab === 'resumen' && html`
+        <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+
+          <!-- Notas por categoría -->
+          <div style=${{ ...cS, padding:20 }}>
+            <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>📊 Notas por categoría</h3>
+            ${CATS.map(c => {
+              const cnt = notes.filter(n=>n.category===c.id).length;
+              const pct = tN>0 ? (cnt/tN)*100 : 0;
+              return html`
+                <div key=${c.id} style=${{ marginBottom:10 }}>
+                  <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                    <span style=${{ fontSize:12, fontWeight:600 }}>${c.emoji} ${c.label}</span>
+                    <span style=${{ fontSize:12, fontWeight:700, color:c.color }}>${cnt}</span>
+                  </div>
+                  <div style=${{ height:8, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}>
+                    <div style=${{ height:'100%', width:pct+'%', background:c.color, borderRadius:4, transition:'width .6s' }} />
+                  </div>
+                </div>`;
+            })}
+          </div>
+
+          <!-- Progreso -->
+          <div style=${{ ...cS, padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+            <div>
+              <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>📋 Progreso</h3>
+              ${[{l:'Tareas',d:tD,t:tasks.length,c:'#007AFF'},{l:'Accionables',d:aD,t:actions.length,c:'#34C759'}].map((r,i) => html`
+                <div key=${i} style=${{ marginBottom:12 }}>
+                  <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                    <span style=${{ fontSize:12, fontWeight:600 }}>${r.l}</span>
+                    <span style=${{ fontSize:12, fontWeight:700, color:r.c }}>${r.d}/${r.t}</span>
+                  </div>
+                  <div style=${{ height:8, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}>
+                    <div style=${{ height:'100%', width:(r.t>0?(r.d/r.t)*100:0)+'%', background:r.c, borderRadius:4, transition:'width .6s' }} />
+                  </div>
+                </div>`)}
+            </div>
+
+            <!-- Objetivo -->
+            ${obj.text && html`
+              <div style=${{ padding:'12px 14px', borderRadius:12, background:objColor+'10', border:'1.5px solid '+objColor+'30' }}>
+                <p style=${{ fontSize:11, color:objColor, fontWeight:700, marginBottom:4 }}>🎯 Objetivo</p>
+                <p style=${{ fontSize:12, lineHeight:1.45, marginBottom:6 }}>${obj.text}</p>
+                <span style=${{ fontSize:11, fontWeight:700, color:objColor }}>${objL}</span>
+              </div>
+            `}
+
+            <!-- Riesgos mini resumen -->
+            <div style=${{ padding:'12px 14px', borderRadius:12, background:openRisks.length>0?'#FFF5F5':'#F0FFF4', border:'1.5px solid '+(openRisks.length>0?'#FF3B3020':'#34C75920') }}>
+              <p style=${{ fontSize:11, fontWeight:700, color:openRisks.length>0?'#FF3B30':'#34C759', marginBottom:4 }}>⚠️ Riesgos</p>
+              <div style=${{ display:'flex', gap:12, fontSize:12 }}>
+                <span style=${{ color:'#FF3B30', fontWeight:700 }}>${openRisks.length} abiertos</span>
+                <span style=${{ color:'#34C759' }}>${closedRisks.length} mitigados</span>
+              </div>
+              ${openRisks.slice(0,2).map(r => html`
+                <div key=${r.id} style=${{ fontSize:11, color:'#86868B', marginTop:4, borderLeft:'3px solid '+riskColor(r), paddingLeft:6 }}>${r.text}</div>
+              `)}
+              ${openRisks.length>2 && html`<p style=${{ fontSize:10, color:'#86868B', marginTop:4 }}>+ ${openRisks.length-2} más → pestaña Riesgos</p>`}
+            </div>
+          </div>
         </div>
-        <div style=${{ ...cS, padding:22 }}>
-          <h3 style=${{ fontSize:15, fontWeight:700, marginBottom:14 }}>📋 Progreso</h3>
-          ${[{l:'Tareas',d:tD,t:tasks.length,c:'#007AFF'},{l:'Accionables',d:aD,t:actions.length,c:'#34C759'}].map((r,i)=>html`
-            <div key=${i} style=${{ marginBottom:12 }}><div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4 }}><span style=${{ fontSize:13, fontWeight:600 }}>${r.l}</span><span style=${{ fontSize:12, fontWeight:700, color:r.c }}>${r.d}/${r.t}</span></div><div style=${{ height:8, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}><div style=${{ height:'100%', width:(r.t>0?(r.d/r.t)*100:0)+'%', background:r.c, borderRadius:4, transition:'width .5s' }} /></div></div>`)}
-        </div>
-      </div>
-      <div style=${{ ...cS, padding:24 }}>
-        <h3 style=${{ fontSize:18, fontWeight:700, marginBottom:4 }}>🏆 Ranking</h3>
-        <p style=${{ fontSize:11, color:'#86868B', marginBottom:18 }}>Tarjetas aportadas + votos recibidos en ellas</p>
-        <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
-          ${ranking.map((r,i)=>{const isMe=r.id===user.id;const bw=mx>0?(r.score/mx)*100:0;
-            const bg=i===0?'linear-gradient(90deg,#FFD60A,#FF9500)':i===1?'linear-gradient(90deg,#C0C0C0,#999)':i===2?'linear-gradient(90deg,#CD7F32,#B8860B)':'#007AFF';
+
+        <!-- Top notas -->
+        ${topNotes.length > 0 && html`
+          <div style=${{ ...cS, padding:20 }}>
+            <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:12 }}>🔥 Notas más votadas</h3>
+            <div style=${{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8 }}>
+              ${topNotes.slice(0,6).map((n,i) => {
+                const c = CATS.find(cat=>cat.id===n.category)||CATS[0];
+                return html`
+                  <div key=${n.id} style=${{ padding:'10px 12px', borderRadius:10, background:c.bg, borderLeft:'3px solid '+c.color, display:'flex', gap:8, alignItems:'flex-start' }}>
+                    <span style=${{ fontSize:14, fontWeight:800, color:'#C7C7CC', minWidth:18 }}>${i+1}</span>
+                    <div style=${{ flex:1 }}>
+                      <p style=${{ fontSize:12, lineHeight:1.4 }}>${n.text}</p>
+                      <div style=${{ display:'flex', gap:6, marginTop:4, fontSize:10, color:'#86868B' }}>
+                        <span>${n.userAvatar} ${n.userName}</span>
+                        <span style=${{ color:c.color, fontWeight:700 }}>▲ ${n.voters?.length||0}</span>
+                      </div>
+                    </div>
+                  </div>`;
+              })}
+            </div>
+          </div>
+        `}
+      `}
+
+      <!-- ══ NOTAS ══ -->
+      ${activeTab === 'notas' && html`
+        <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          ${CATS.map(c => {
+            const cn = [...notes.filter(n=>n.category===c.id)].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
             return html`
-              <div key=${r.id} style=${{ display:'flex', alignItems:'center', gap:12, padding:'14px 18px', borderRadius:14, background:isMe?'#007AFF06':i<3?'#FFFBEB':'#F9F9FB', border:isMe?'2px solid #007AFF25':i<3?'1.5px solid #FFD60A25':'1.5px solid #E5E5EA' }}>
-                <div style=${{ width:32, textAlign:'center', fontSize:i<3?22:14, fontWeight:700, color:'#86868B' }}>${i<3?medals[i]:(i+1)+'º'}</div>
-                <div style=${{ width:36, height:36, borderRadius:18, background:r.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0, border:'2px solid #FFF', boxShadow:'0 2px 6px rgba(0,0,0,0.06)' }}>${r.avatar}</div>
-                <div style=${{ flex:1 }}>
-                  <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}><span style=${{ fontSize:14, fontWeight:700 }}>${r.name}</span><span style=${{ fontSize:18, fontWeight:800, color:i<3?'#FFB800':'#86868B' }}>${r.score}</span><span style=${{ fontSize:10, color:'#86868B' }}>pts</span></div>
-                  <div style=${{ height:5, background:'#E5E5EA', borderRadius:3, overflow:'hidden', marginBottom:5 }}><div style=${{ height:'100%', width:bw+'%', background:bg, borderRadius:3, transition:'width .5s' }} /></div>
-                  <div style=${{ display:'flex', gap:10 }}><span style=${{ fontSize:11, color:'#86868B' }}>📝 ${r.tarjetas} tarjetas</span><span style=${{ fontSize:11, color:'#86868B' }}>👍 ${r.votosRecibidos} votos recibidos</span></div>
+              <div key=${c.id} style=${{ ...cS, padding:16 }}>
+                <div style=${{ display:'flex', alignItems:'center', gap:7, marginBottom:12 }}>
+                  <span style=${{ fontSize:16 }}>${c.emoji}</span>
+                  <span style=${{ fontSize:14, fontWeight:700, color:c.color }}>${c.label}</span>
+                  <span style=${{ marginLeft:'auto', background:c.color+'20', color:c.color, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6 }}>${cn.length}</span>
                 </div>
-              </div>`})}
+                ${cn.length===0
+                  ? html`<p style=${{ color:c.color, opacity:.4, fontSize:12, textAlign:'center', padding:'12px 0' }}>Sin notas</p>`
+                  : cn.map(n => html`
+                    <div key=${n.id} style=${{ padding:'8px 0', borderBottom:'1px solid #F2F2F7', display:'flex', gap:8, alignItems:'flex-start' }}>
+                      <div style=${{ flex:1 }}>
+                        <p style=${{ fontSize:12, lineHeight:1.4 }}>${n.text}</p>
+                        <div style=${{ display:'flex', gap:5, marginTop:3, fontSize:10, color:'#86868B' }}>
+                          <span>${n.userAvatar} ${n.userName}</span>
+                          ${(n.voters?.length||0)>0 && html`<span style=${{ color:c.color, fontWeight:700 }}>▲ ${n.voters.length}</span>`}
+                        </div>
+                      </div>
+                    </div>`)
+                }
+              </div>`;
+          })}
         </div>
-      </div>
+      `}
+
+      <!-- ══ ACCIONABLES ══ -->
+      ${activeTab === 'accionables' && html`
+        <div style=${{ ...cS, padding:20 }}>
+          <div style=${{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <h3 style=${{ fontSize:15, fontWeight:700 }}>🎯 Accionables (${actions.length})</h3>
+            <div style=${{ display:'flex', gap:6, fontSize:11 }}>
+              <span style=${{ color:'#34C759', fontWeight:700 }}>${aD} ✅ completados</span>
+              <span style=${{ color:'#86868B' }}>·</span>
+              <span style=${{ color:'#FF9500', fontWeight:700 }}>${actions.filter(a=>a.status==='pending').length} pendientes</span>
+            </div>
+          </div>
+          <!-- Progress bar -->
+          <div style=${{ height:8, background:'#F2F2F7', borderRadius:4, overflow:'hidden', marginBottom:16 }}>
+            <div style=${{ height:'100%', width:(actions.length?(aD/actions.length)*100:0)+'%', background:'linear-gradient(90deg,#34C759,#30d158)', borderRadius:4, transition:'width .6s' }} />
+          </div>
+          ${sortedActs.length===0
+            ? html`<p style=${{ color:'#C7C7CC', textAlign:'center', padding:20, fontSize:13 }}>Sin accionables</p>`
+            : sortedActs.map(a => {
+              const pr = PRIS.find(p=>p.id===a.priority)||PRIS[1];
+              const st = STS.find(s=>s.id===a.status)||STS[0];
+              const ct = a.fromCategory ? CATS.find(c=>c.id===a.fromCategory) : null;
+              return html`
+                <div key=${a.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'11px 12px', borderRadius:12, background:a.status==='done'?'#F9F9FB':'#FFF', border:'1.5px solid #E5E5EA', marginBottom:7, opacity:a.status==='discarded'?.5:1 }}>
+                  <span style=${{ fontSize:16, flexShrink:0 }}>${pr.icon}</span>
+                  <div style=${{ flex:1, minWidth:0 }}>
+                    ${ct && html`<span style=${{ fontSize:9, fontWeight:700, color:ct.color, background:ct.color+'10', padding:'1px 5px', borderRadius:3, marginBottom:2, display:'inline-block' }}>${ct.emoji} ${ct.label}</span>`}
+                    <p style=${{ fontSize:13, fontWeight:600, textDecoration:a.status==='done'?'line-through':'none', color:a.status==='done'?'#86868B':'#1D1D1F' }}>${a.text}</p>
+                    <div style=${{ display:'flex', gap:8, marginTop:2, fontSize:11, color:'#86868B' }}>
+                      <span style=${{ color:'#007AFF', fontWeight:600 }}>👤 ${a.owner}</span>
+                      ${a.date && html`<span>📅 ${fd(a.date)}</span>`}
+                    </div>
+                  </div>
+                  <span style=${{ padding:'3px 10px', borderRadius:8, background:st.bg, color:st.color, fontSize:10, fontWeight:700, whiteSpace:'nowrap', flexShrink:0 }}>${st.label}</span>
+                </div>`;
+            })
+          }
+        </div>
+      `}
+
+      <!-- ══ RIESGOS ══ -->
+      ${activeTab === 'riesgos' && html`
+        <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
+
+          <!-- Resumen riesgos -->
+          <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+            ${[
+              {l:'Abiertos',   v:openRisks.filter(r=>riskScore(r)>=6).length,  c:'#FF3B30', sub:'Score alto (≥6)'},
+              {l:'Medios',     v:openRisks.filter(r=>riskScore(r)>=2&&riskScore(r)<6).length, c:'#FF9500', sub:'Score medio (2-5)'},
+              {l:'Bajos',      v:openRisks.filter(r=>riskScore(r)<2).length,   c:'#34C759', sub:'Score bajo (<2)'},
+            ].map((s,i) => html`
+              <div key=${i} style=${{ ...cS, padding:'14px', textAlign:'center' }}>
+                <div style=${{ fontSize:22, fontWeight:800, color:s.c }}>${s.v}</div>
+                <div style=${{ fontSize:12, fontWeight:600, marginTop:2 }}>${s.l}</div>
+                <div style=${{ fontSize:10, color:'#86868B' }}>${s.sub}</div>
+              </div>`)}
+          </div>
+
+          <!-- Lista riesgos abiertos -->
+          ${openRisks.length > 0 && html`
+            <div style=${{ ...cS, padding:20 }}>
+              <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:12, color:'#FF3B30' }}>⚠️ Riesgos abiertos (${openRisks.length})</h3>
+              ${[...openRisks].sort((a,b) => riskScore(b)-riskScore(a)).map((r,idx) => {
+                const imp  = getRiskLevel(r.impactVotes);
+                const prob = getRiskLevel(r.probVotes);
+                const hc   = getHeatColor(imp, prob);
+                const st   = RISK_STATUS.find(s=>s.id===r.status)||RISK_STATUS[0];
+                const sc   = Math.round(riskScore(r)*10)/10;
+                return html`
+                  <div key=${r.id} style=${{ padding:'12px 14px', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'5px solid '+hc, marginBottom:9, background:'#FAFAFA' }}>
+                    <div style=${{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:6 }}>
+                      <div style=${{ background:hc, color:'#FFF', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:800, whiteSpace:'nowrap', flexShrink:0 }}>R${idx+1} · ${sc}</div>
+                      <div style=${{ flex:1 }}>
+                        <p style=${{ fontSize:13, fontWeight:700, marginBottom:3 }}>${r.text}</p>
+                        ${r.mitigation && html`<p style=${{ fontSize:11, color:'#86868B' }}>🛡️ ${r.mitigation}</p>`}
+                      </div>
+                      <span style=${{ fontSize:10, fontWeight:700, color:st.color, background:st.color+'18', padding:'2px 8px', borderRadius:6, flexShrink:0 }}>${st.label}</span>
+                    </div>
+                    <div style=${{ display:'flex', gap:12, fontSize:11, color:'#86868B' }}>
+                      <span>⚡ Impacto: <b style=${{ color:hc }}>${imp.label}</b></span>
+                      <span>🎲 Prob: <b style=${{ color:hc }}>${prob.label}</b></span>
+                      <span>👤 ${r.owner}</span>
+                    </div>
+                  </div>`;
+              })}
+            </div>
+          `}
+
+          <!-- Riesgos mitigados -->
+          ${closedRisks.length > 0 && html`
+            <div style=${{ ...cS, padding:20 }}>
+              <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:10, color:'#34C759' }}>✅ Mitigados (${closedRisks.length})</h3>
+              ${closedRisks.map(r => html`
+                <div key=${r.id} style=${{ padding:'8px 12px', borderRadius:10, background:'#F0FFF4', border:'1px solid #34C75920', marginBottom:6, display:'flex', alignItems:'center', gap:8 }}>
+                  <span style=${{ fontSize:16 }}>✅</span>
+                  <div style=${{ flex:1 }}>
+                    <p style=${{ fontSize:12, textDecoration:'line-through', color:'#86868B' }}>${r.text}</p>
+                    ${r.mitigation && html`<p style=${{ fontSize:10, color:'#34C759' }}>🛡️ ${r.mitigation}</p>`}
+                  </div>
+                  <span style=${{ fontSize:10, color:'#86868B' }}>${r.owner}</span>
+                </div>`)}
+            </div>
+          `}
+
+          ${risks.length === 0 && html`
+            <div style=${{ ...cS, padding:28, textAlign:'center', color:'#C7C7CC' }}>
+              <p style=${{ fontSize:24, marginBottom:8 }}>✅</p>
+              <p style=${{ fontSize:13 }}>Sin riesgos identificados</p>
+            </div>
+          `}
+        </div>
+      `}
+
+      <!-- ══ RANKING ══ -->
+      ${activeTab === 'ranking' && html`
+        <div style=${{ ...cS, padding:22 }}>
+          <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:4 }}>🏆 Ranking</h3>
+          <p style=${{ fontSize:11, color:'#86868B', marginBottom:18 }}>Tarjetas aportadas + votos recibidos</p>
+          ${ranking.length === 0
+            ? html`<p style=${{ color:'#C7C7CC', textAlign:'center', padding:20, fontSize:13 }}>Aún no hay notas en el tablero</p>`
+            : html`<div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+              ${ranking.map((r,i) => {
+                const isMe = r.id === user.id;
+                const bw   = mx>0?(r.score/mx)*100:0;
+                const bg   = i===0?'linear-gradient(90deg,#FFD60A,#FF9500)':i===1?'linear-gradient(90deg,#C0C0C0,#999)':i===2?'linear-gradient(90deg,#CD7F32,#B8860B)':'#007AFF';
+                return html`
+                  <div key=${r.id} style=${{ display:'flex', alignItems:'center', gap:12, padding:'14px 18px', borderRadius:14, background:isMe?'#007AFF06':i<3?'#FFFBEB':'#F9F9FB', border:isMe?'2px solid #007AFF25':i<3?'1.5px solid #FFD60A25':'1.5px solid #E5E5EA' }}>
+                    <div style=${{ width:32, textAlign:'center', fontSize:i<3?22:14, fontWeight:700, color:'#86868B' }}>${i<3?medals[i]:(i+1)+'º'}</div>
+                    <div style=${{ width:36, height:36, borderRadius:18, background:r.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0, border:'2px solid #FFF', boxShadow:'0 2px 6px rgba(0,0,0,0.06)' }}>${r.avatar}</div>
+                    <div style=${{ flex:1 }}>
+                      <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                        <span style=${{ fontSize:14, fontWeight:700 }}>${r.name}</span>
+                        <span style=${{ fontSize:18, fontWeight:800, color:i<3?'#FFB800':'#86868B' }}>${r.score}</span>
+                        <span style=${{ fontSize:10, color:'#86868B' }}>pts</span>
+                      </div>
+                      <div style=${{ height:5, background:'#E5E5EA', borderRadius:3, overflow:'hidden', marginBottom:5 }}>
+                        <div style=${{ height:'100%', width:bw+'%', background:bg, borderRadius:3, transition:'width .5s' }} />
+                      </div>
+                      <div style=${{ display:'flex', gap:10 }}>
+                        <span style=${{ fontSize:11, color:'#86868B' }}>📝 ${r.tarjetas} tarjetas</span>
+                        <span style=${{ fontSize:11, color:'#86868B' }}>👍 ${r.votosRecibidos} votos recibidos</span>
+                      </div>
+                    </div>
+                  </div>`;
+              })}
+            </div>`
+          }
+        </div>
+      `}
+
     </div>
   `;
 }
+
 
 render(html`<${App} />`, document.getElementById('app'));
 </script>
