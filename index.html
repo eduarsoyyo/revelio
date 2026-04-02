@@ -123,6 +123,8 @@ const PHASES = [
   { id:'risks', label:'Riesgos', icon:'⚠️' },
   { id:'actions', label:'Accionables', icon:'🎯' },
   { id:'dashboard', label:'Dashboard', icon:'📊' },
+  { id:'equipo', label:'Equipo', icon:'👥' },
+  { id:'vacaciones', label:'Vacaciones', icon:'🏖️' },
 ];
 const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
 const REACTIONS = ['🔥','💡','❤️','😂','🎯','🤯'];
@@ -1050,162 +1052,295 @@ function Login({ onJoin }) {
 }
 
 /* ═══ RETRO BOARD ═══ */
-/* ═══ TEAM MODAL (inside sala) ═══ */
-function TeamModal({ onClose }) {
-  const [team,   setTeam]  = useState(() => { try { return JSON.parse(localStorage.getItem('rf-team-'+SALA)||'[]'); } catch { return []; } });
-  const [vacs,   setVacs]  = useState(() => { try { return JSON.parse(localStorage.getItem('rf-vac-'+SALA)||'[]');  } catch { return []; } });
-  const [tab,    setTab]   = useState('equipo');
+/* ═══ EQUIPO — helpers (shared with PEquipo + PVacaciones) ═══ */
+function loadTeamData() {
+  try { return JSON.parse(localStorage.getItem('rf-team-'+SALA)||'[]'); } catch { return []; }
+}
+function saveTeamLocal(t) {
+  try { localStorage.setItem('rf-team-'+SALA, JSON.stringify(t)); } catch {}
+}
+function loadVacsData() {
+  try { return JSON.parse(localStorage.getItem('rf-vac-'+SALA)||'[]'); } catch { return []; }
+}
+function saveVacsLocal(v) {
+  try { localStorage.setItem('rf-vac-'+SALA, JSON.stringify(v)); } catch {}
+}
+async function saveTeamSupabase(team, vacs) {
+  try { await sbUpdateRoomMeta(SALA, { team, vacs }); } catch {}
+}
+
+/* ═══ PHASE 7 — EQUIPO ═══ */
+function PEquipo() {
+  const [team,   setTeam]  = useState(loadTeamData);
   const [newMem, setNewMem]= useState('');
-  const [newVac, setNewVac]= useState({name:'',from:'',to:'',note:''});
   const [saving, setSaving]= useState(false);
+  const vacs = loadVacsData();
 
-  const today = new Date().toISOString().slice(0,10);
-
-  const saveAll = async (t, v) => {
-    localStorage.setItem('rf-team-'+SALA, JSON.stringify(t));
-    localStorage.setItem('rf-vac-'+SALA, JSON.stringify(v));
+  const persist = async (t) => {
+    saveTeamLocal(t);
     setSaving(true);
-    await sbUpdateRoomMeta(SALA, { team: t, vacs: v });
+    await saveTeamSupabase(t, vacs);
+    setSaving(false);
+  };
+  const addMember = () => {
+    if (!newMem.trim()) return;
+    const t=[...team,{id:uid(),name:newMem.trim(),role:'',avatar:'👤'}];
+    setTeam(t); setNewMem(''); persist(t);
+  };
+  const delMember = id => { const t=team.filter(m=>m.id!==id); setTeam(t); persist(t); };
+  const updMember = (id,field,val) => {
+    const t=team.map(m=>m.id===id?{...m,[field]:val}:m); setTeam(t);
+    clearTimeout(window['_tedit_'+id]);
+    window['_tedit_'+id]=setTimeout(()=>persist(t),800);
+  };
+
+  return html`
+    <div style=${{ maxWidth:700, margin:'0 auto' }}>
+      <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+        <div>
+          <h2 style=${{ fontSize:20, fontWeight:700 }}>👥 Equipo</h2>
+          <p style=${{ fontSize:12, color:'#86868B', marginTop:2 }}>${team.length} miembros en ${SALA_DISPLAY}</p>
+        </div>
+        ${saving && html`<span style=${{ fontSize:11, color:'#007AFF' }}>💾 Guardando…</span>`}
+      </div>
+
+      <!-- Member list -->
+      <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+        ${team.length===0 && html`
+          <div style=${{ textAlign:'center', padding:'48px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:16 }}>
+            <p style=${{ fontSize:40, marginBottom:8 }}>👤</p>
+            <p style=${{ fontSize:14 }}>Añade los miembros del equipo abajo</p>
+          </div>`}
+        ${team.map(m => {
+          const mVacs = loadVacsData().filter(v=>v.memberId===m.id||v.name===m.name);
+          const today = new Date().toISOString().slice(0,10);
+          const onVac = mVacs.some(v=>v.from<=today&&(!v.to||v.to>=today));
+          return html`
+            <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:14,
+              background:onVac?'#FFF9E6':'#FAFAFA', border:'1.5px solid '+(onVac?'#FF9500':'#E5E5EA') }}>
+              <input value=${m.avatar} onInput=${e=>updMember(m.id,'avatar',e.target.value)}
+                title="Emoji avatar"
+                style=${{ width:42, height:42, textAlign:'center', border:'1.5px solid #E5E5EA', borderRadius:10,
+                  fontSize:22, background:'#FFF', cursor:'text', outline:'none', fontFamily:'inherit' }} maxLength="2" />
+              <div style=${{ flex:1 }}>
+                <input value=${m.name} onInput=${e=>updMember(m.id,'name',e.target.value)}
+                  style=${{ display:'block', width:'100%', border:'none', background:'transparent',
+                    fontSize:15, fontWeight:600, color:'#1D1D1F', outline:'none', fontFamily:'inherit', marginBottom:2 }} placeholder="Nombre" />
+                <input value=${m.role||''} onInput=${e=>updMember(m.id,'role',e.target.value)}
+                  style=${{ display:'block', width:'100%', border:'none', background:'transparent',
+                    fontSize:12, color:'#86868B', outline:'none', fontFamily:'inherit' }} placeholder="Rol (opcional)" />
+              </div>
+              ${onVac && html`<span style=${{ fontSize:10, color:'#FF9500', fontWeight:700, background:'#FF950020', padding:'3px 8px', borderRadius:5 }}>🏖️ Vacaciones</span>`}
+              <button onClick=${()=>delMember(m.id)}
+                style=${{ width:28, height:28, border:'none', background:'#FFF', borderRadius:8, color:'#FF3B30', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+            </div>`;
+        })}
+      </div>
+
+      <!-- Add member -->
+      <div style=${{ display:'flex', gap:8, padding:'14px 16px', borderRadius:14, background:'#F9F9FB', border:'1.5px solid #E5E5EA' }}>
+        <input value=${newMem} onInput=${e=>setNewMem(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&addMember()}
+          placeholder="Nombre del nuevo miembro…"
+          style=${{ flex:1, border:'1.5px solid #E5E5EA', borderRadius:10, padding:'10px 14px', fontSize:14,
+            outline:'none', fontFamily:'inherit', background:'#FFF' }} />
+        <button onClick=${addMember}
+          style=${{ padding:'10px 20px', borderRadius:10, border:'none', background:'#1D1D1F', color:'#FFF',
+            fontSize:14, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>+ Añadir</button>
+      </div>
+    </div>`;
+}
+
+/* ═══ PHASE 8 — VACACIONES (calendar view) ═══ */
+function PVacaciones() {
+  const [team,    setTeam]   = useState(loadTeamData);
+  const [vacs,    setVacs]   = useState(loadVacsData);
+  const [newVac,  setNewVac] = useState({memberId:'', name:'', from:'', to:'', note:''});
+  const [saving,  setSaving] = useState(false);
+  const today = new Date();
+  const [viewYear,  setViewYear]  = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-11
+
+  const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const days = Array.from({length:daysInMonth},(_,i)=>i+1);
+  const todayStr = today.toISOString().slice(0,10);
+
+  const prevMonth = () => { if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);} else setViewMonth(m=>m-1); };
+  const nextMonth = () => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);} else setViewMonth(m=>m+1); };
+  const goToday   = () => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); };
+
+  const isOnVac = (member, day) => {
+    const dateStr = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    return vacs.some(v =>
+      (v.memberId===member.id || v.name===member.name) &&
+      v.from <= dateStr &&
+      (!v.to || v.to >= dateStr)
+    );
+  };
+  const isWeekend = (day) => { const d=new Date(viewYear,viewMonth,day).getDay(); return d===0||d===6; };
+  const isToday   = (day) => todayStr === viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+
+  const persist = async (t, v) => {
+    saveTeamLocal(t); saveVacsLocal(v);
+    setSaving(true);
+    await saveTeamSupabase(t, v);
     setSaving(false);
   };
 
-  const addMember = () => {
-    if (!newMem.trim()) return;
-    const t = [...team, {id:uid(), name:newMem.trim(), role:'', avatar:'👤'}];
-    setTeam(t); setNewMem(''); saveAll(t, vacs);
-  };
-  const delMember = id => { const t=team.filter(m=>m.id!==id); setTeam(t); saveAll(t,vacs); };
-  const updMember = (id, field, val) => {
-    const t = team.map(m=>m.id===id?{...m,[field]:val}:m); setTeam(t);
-    clearTimeout(window['_tm_'+id]);
-    window['_tm_'+id] = setTimeout(()=>saveAll(t,vacs), 800);
-  };
-
   const addVac = () => {
-    if (!newVac.name.trim()||!newVac.from) return;
-    const v=[...vacs,{id:uid(),...newVac}]; setVacs(v);
-    setNewVac({name:'',from:'',to:'',note:''}); saveAll(team,v);
+    const name = newVac.memberId
+      ? (team.find(m=>m.id===newVac.memberId)?.name || '')
+      : newVac.name.trim();
+    if (!name || !newVac.from) return;
+    const v=[...vacs,{id:uid(), memberId:newVac.memberId||null, name, from:newVac.from, to:newVac.to||newVac.from, note:newVac.note}];
+    setVacs(v); setNewVac({memberId:'',name:'',from:'',to:'',note:''}); persist(team,v);
   };
-  const delVac = id => { const v=vacs.filter(x=>x.id!==id); setVacs(v); saveAll(team,v); };
+  const delVac = id => { const v=vacs.filter(x=>x.id!==id); setVacs(v); persist(team,v); };
 
-  const activeVacs = vacs.filter(v => v.from<=today && (!v.to||v.to>=today));
+  // Active vacations this month
+  const monthStart = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-01';
+  const monthEnd   = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(daysInMonth).padStart(2,'0');
+  const activeThisMonth = vacs.filter(v => v.from<=monthEnd && (!v.to||v.to>=monthStart));
+
+  // Use team; if team is empty, build from vac names
+  const members = team.length > 0 ? team
+    : [...new Set(vacs.map(v=>v.name))].map((n,i)=>({id:'anon-'+i,name:n,avatar:'👤',role:''}));
 
   return html`
-    <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${onClose}>
-      <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:520, width:'100%', maxHeight:'85vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.22)', overflow:'hidden' }}>
+    <div style=${{ maxWidth:960, margin:'0 auto' }}>
 
-        <!-- Header -->
-        <div style=${{ padding:'18px 22px 0', flexShrink:0 }}>
-          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-            <div>
-              <h2 style=${{ fontSize:17, fontWeight:700 }}>👥 Equipo · ${SALA_DISPLAY}</h2>
-              <p style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>${team.length} miembros · ${activeVacs.length} de vacaciones hoy</p>
-            </div>
-            <button onClick=${onClose} style=${{ width:32, height:32, borderRadius:16, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer' }}>✕</button>
-          </div>
+      <!-- Month nav -->
+      <div style=${{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+        <button onClick=${prevMonth} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>‹</button>
+        <h2 style=${{ fontSize:20, fontWeight:700, flex:1, textAlign:'center' }}>${MONTH_NAMES[viewMonth]} ${viewYear}</h2>
+        <button onClick=${nextMonth} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>›</button>
+        <button onClick=${goToday} style=${{ padding:'6px 14px', borderRadius:8, border:'1.5px solid #007AFF20', background:'#007AFF10', color:'#007AFF', fontSize:12, fontWeight:600, cursor:'pointer' }}>Hoy</button>
+        ${saving && html`<span style=${{ fontSize:11, color:'#007AFF' }}>💾</span>`}
+        <span style=${{ fontSize:11, color:'#86868B' }}>${activeThisMonth.length} ausencias este mes</span>
+      </div>
 
-          <!-- Tabs -->
-          <div style=${{ display:'flex', gap:0, borderBottom:'2px solid #F2F2F7' }}>
-            ${[['equipo','👥 Equipo'],['vacaciones','🏖️ Vacaciones']].map(([tid,tlabel]) => html`
-              <button key=${tid} onClick=${()=>setTab(tid)}
-                style=${{ padding:'9px 20px', fontSize:13, fontWeight:tab===tid?700:500,
-                  color:tab===tid?'#007AFF':'#86868B',
-                  border:'none', borderBottom:tab===tid?'2px solid #007AFF':'2px solid transparent',
-                  background:'transparent', cursor:'pointer', marginBottom:'-2px' }}>
-                ${tlabel}
-              </button>`)}
-            <div style=${{ flex:1 }} />
-            ${saving && html`<span style=${{ fontSize:10, color:'#007AFF', alignSelf:'center', marginRight:8 }}>💾 Guardando…</span>`}
-          </div>
+      <!-- Calendar grid -->
+      ${members.length === 0 ? html`
+        <div style=${{ textAlign:'center', padding:'48px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:16, marginBottom:20 }}>
+          <p style=${{ fontSize:40, marginBottom:8 }}>👥</p>
+          <p style=${{ fontSize:14 }}>Añade miembros en la pestaña Equipo para ver el calendario</p>
         </div>
-
-        <!-- Tab content -->
-        <div style=${{ flex:1, overflowY:'auto', padding:'16px 22px 20px' }}>
-
-          ${tab==='equipo' && html`
-            <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:14 }}>
-              ${team.length===0 && html`
-                <div style=${{ textAlign:'center', padding:'24px 0', color:'#C7C7CC' }}>
-                  <p style=${{ fontSize:32, marginBottom:8 }}>👤</p>
-                  <p style=${{ fontSize:13 }}>Añade los miembros del equipo</p>
-                </div>`}
-              ${team.map(m => html`
-                <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:12, background:'#F9F9FB', border:'1px solid #E5E5EA' }}>
-                  <input value=${m.avatar} onInput=${e=>updMember(m.id,'avatar',e.target.value)}
-                    style=${{ width:34, textAlign:'center', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'4px', fontSize:18, background:'#FFF', cursor:'text' }} maxLength="2" title="Emoji avatar" />
-                  <input value=${m.name} onInput=${e=>updMember(m.id,'name',e.target.value)}
-                    style=${{ flex:1, border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:13, background:'#FFF', fontFamily:'inherit', outline:'none' }} placeholder="Nombre" />
-                  <input value=${m.role||''} onInput=${e=>updMember(m.id,'role',e.target.value)}
-                    style=${{ width:100, border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:11, background:'#FFF', color:'#86868B', fontFamily:'inherit', outline:'none' }} placeholder="Rol" />
-                  <button onClick=${()=>delMember(m.id)} style=${{ border:'none', background:'none', color:'#FF3B30', fontSize:18, cursor:'pointer', padding:'2px 4px' }}>✕</button>
-                </div>`)}
-            </div>
-            <div style=${{ display:'flex', gap:8 }}>
-              <input value=${newMem} onInput=${e=>setNewMem(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&addMember()}
-                placeholder="Nombre del nuevo miembro…"
-                style=${{ flex:1, border:'1.5px solid #E5E5EA', borderRadius:10, padding:'9px 14px', fontSize:13, outline:'none', fontFamily:'inherit' }} />
-              <button onClick=${addMember} style=${{ padding:'9px 18px', borderRadius:10, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer' }}>+ Añadir</button>
-            </div>
-          `}
-
-          ${tab==='vacaciones' && html`
-            <!-- Active vacations banner -->
-            ${activeVacs.length>0 && html`
-              <div style=${{ padding:'10px 14px', borderRadius:12, background:'#FFF9E6', border:'1.5px solid #FF9500', marginBottom:14 }}>
-                <p style=${{ fontSize:12, fontWeight:700, color:'#FF9500', marginBottom:6 }}>🏖️ De vacaciones hoy (${activeVacs.length})</p>
-                <div style=${{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                  ${activeVacs.map(v => html`
-                    <span style=${{ fontSize:12, fontWeight:600, background:'#FFF', border:'1px solid #FF950040', borderRadius:8, padding:'3px 10px' }}>${v.name}</span>`)}
-                </div>
-              </div>
-            `}
-
-            <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:14 }}>
-              ${vacs.length===0 && html`
-                <div style=${{ textAlign:'center', padding:'24px 0', color:'#C7C7CC' }}>
-                  <p style=${{ fontSize:32, marginBottom:8 }}>🏖️</p>
-                  <p style=${{ fontSize:13 }}>Sin ausencias registradas</p>
-                </div>`}
-              ${vacs.map(v => {
-                const active = v.from<=today && (!v.to||v.to>=today);
-                return html`
-                  <div key=${v.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:12,
-                    background:active?'#FFF9E6':'#F9F9FB', border:'1.5px solid '+(active?'#FF9500':'#E5E5EA') }}>
-                    <span style=${{ fontSize:20 }}>${active?'🏖️':'📅'}</span>
-                    <div style=${{ flex:1 }}>
-                      <span style=${{ fontSize:13, fontWeight:600 }}>${v.name}</span>
-                      <div style=${{ fontSize:11, color:'#86868B', marginTop:1 }}>
-                        ${v.from}${v.to?' → '+v.to:''}${v.note?' · '+v.note:''}
+      ` : html`
+        <div style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', overflow:'auto', marginBottom:20 }}>
+          <table style=${{ width:'100%', borderCollapse:'collapse', minWidth: members.length>0?600:0 }}>
+            <thead>
+              <tr style=${{ background:'#F9F9FB' }}>
+                <!-- Member column -->
+                <th style=${{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#86868B',
+                  position:'sticky', left:0, background:'#F9F9FB', borderBottom:'2px solid #E5E5EA',
+                  borderRight:'1px solid #E5E5EA', minWidth:140, zIndex:2 }}>Miembro</th>
+                <!-- Day columns -->
+                ${days.map(d => {
+                  const wknd = isWeekend(d);
+                  const td   = isToday(d);
+                  const dow  = ['D','L','M','X','J','V','S'][new Date(viewYear,viewMonth,d).getDay()];
+                  return html`
+                    <th key=${d} style=${{ padding:'4px 2px', textAlign:'center', fontSize:10,
+                      fontWeight:td?800:500, color:td?'#007AFF':wknd?'#C7C7CC':'#86868B',
+                      background:td?'#007AFF10':wknd?'#FAFAFA':'#F9F9FB',
+                      borderBottom:'2px solid '+(td?'#007AFF':'#E5E5EA'),
+                      borderLeft:'1px solid #F2F2F7', minWidth:26 }}>
+                      <div>${d}</div>
+                      <div style=${{ fontSize:8, fontWeight:400 }}>${dow}</div>
+                    </th>`;
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              ${members.map((m,mi) => html`
+                <tr key=${m.id} style=${{ background:mi%2===0?'#FFF':'#FAFAFA' }}>
+                  <!-- Member cell -->
+                  <td style=${{ padding:'8px 14px', position:'sticky', left:0, background:mi%2===0?'#FFF':'#FAFAFA',
+                    borderRight:'1px solid #E5E5EA', borderBottom:'1px solid #F2F2F7', zIndex:1 }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style=${{ width:28, height:28, borderRadius:8, background: m.color||'#E5E5EA',
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>${m.avatar||'👤'}</div>
+                      <div>
+                        <div style=${{ fontSize:12, fontWeight:600, color:'#1D1D1F', whiteSpace:'nowrap' }}>${m.name}</div>
+                        ${m.role && html`<div style=${{ fontSize:10, color:'#86868B' }}>${m.role}</div>`}
                       </div>
                     </div>
-                    ${active && html`<span style=${{ fontSize:9, color:'#FF9500', fontWeight:700, background:'#FF950020', padding:'3px 7px', borderRadius:5 }}>HOY</span>`}
-                    <button onClick=${()=>delVac(v.id)} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:16, cursor:'pointer' }}>✕</button>
-                  </div>`;
-              })}
-            </div>
+                  </td>
+                  <!-- Day cells -->
+                  ${days.map(d => {
+                    const onVac = isOnVac(m, d);
+                    const wknd  = isWeekend(d);
+                    const td    = isToday(d);
+                    return html`
+                      <td key=${d} title=${onVac?m.name+' - vacaciones':''}
+                        style=${{ padding:'4px 2px', textAlign:'center', borderBottom:'1px solid #F2F2F7', borderLeft:'1px solid #F2F2F7',
+                          background:onVac?'#007AFF':td?'#007AFF10':wknd?'#F5F5F7':'transparent',
+                          minWidth:26 }}>
+                        ${onVac && html`<div style=${{ width:'100%', height:18, borderRadius:3, background:'#007AFF' }} />`}
+                      </td>`;
+                  })}
+                </tr>`)}
+            </tbody>
+          </table>
+        </div>
+      `}
 
-            <!-- Add vacation form -->
-            <div style=${{ background:'#F9F9FB', borderRadius:12, padding:'14px', border:'1px solid #E5E5EA' }}>
-              <p style=${{ fontSize:12, fontWeight:700, marginBottom:10, color:'#1D1D1F' }}>➕ Registrar ausencia</p>
-              <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
-                <input value=${newVac.name} onInput=${e=>setNewVac({...newVac,name:e.target.value})}
-                  placeholder="Persona" style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
-                <input value=${newVac.note||''} onInput=${e=>setNewVac({...newVac,note:e.target.value})}
-                  placeholder="Motivo (opcional)" style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
-                <div>
-                  <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:3 }}>Desde</label>
-                  <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
-                    style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
+      <!-- Vacation list for this month -->
+      <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+
+        <!-- Active/upcoming -->
+        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
+          <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:10, color:'#1D1D1F' }}>📅 Ausencias — ${MONTH_NAMES[viewMonth]}</h3>
+          ${activeThisMonth.length===0 && html`<p style=${{ fontSize:12, color:'#C7C7CC' }}>Sin ausencias este mes</p>`}
+          ${activeThisMonth.map(v => {
+            const isActive = v.from<=todayStr && (!v.to||v.to>=todayStr);
+            return html`
+              <div key=${v.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid #F2F2F7' }}>
+                <span style=${{ fontSize:14 }}>${isActive?'🏖️':'📅'}</span>
+                <div style=${{ flex:1 }}>
+                  <span style=${{ fontSize:12, fontWeight:600 }}>${v.name}</span>
+                  <div style=${{ fontSize:10, color:'#86868B' }}>${v.from}${v.to&&v.to!==v.from?' → '+v.to:''}${v.note?' · '+v.note:''}</div>
                 </div>
-                <div>
-                  <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:3 }}>Hasta (opcional)</label>
-                  <input type="date" value=${newVac.to||''} onInput=${e=>setNewVac({...newVac,to:e.target.value})}
-                    style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
-                </div>
+                ${isActive && html`<span style=${{ fontSize:9, color:'#FF9500', fontWeight:700, background:'#FF950015', padding:'2px 7px', borderRadius:4 }}>HOY</span>`}
+                <button onClick=${()=>delVac(v.id)} style=${{ border:'none',background:'none',color:'#C7C7CC',fontSize:14,cursor:'pointer' }}>✕</button>
+              </div>`;
+          })}
+        </div>
+
+        <!-- Add vacation form -->
+        <div style=${{ background:'#F9F9FB', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
+          <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:10 }}>➕ Registrar ausencia</h3>
+          <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+            <select value=${newVac.memberId} onChange=${e=>setNewVac({...newVac,memberId:e.target.value,name:''})}
+              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
+              <option value="">— Selecciona miembro —</option>
+              ${members.map(m=>html`<option key=${m.id} value=${m.id}>${m.avatar} ${m.name}</option>`)}
+              <option value="__other__">Otro (escribir nombre)</option>
+            </select>
+            ${newVac.memberId==='__other__' && html`
+              <input value=${newVac.name} onInput=${e=>setNewVac({...newVac,name:e.target.value})}
+                placeholder="Nombre"
+                style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }} />`}
+            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div>
+                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2 }}>Desde</label>
+                <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
+                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
               </div>
-              <button onClick=${addVac} style=${{ width:'100%', padding:'9px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer' }}>+ Registrar</button>
+              <div>
+                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2 }}>Hasta</label>
+                <input type="date" value=${newVac.to} onInput=${e=>setNewVac({...newVac,to:e.target.value})}
+                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
+              </div>
             </div>
-          `}
+            <input value=${newVac.note||''} onInput=${e=>setNewVac({...newVac,note:e.target.value})}
+              placeholder="Nota (opcional)"
+              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }} />
+            <button onClick=${addVac}
+              style=${{ padding:'9px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              + Registrar
+            </button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1252,7 +1387,6 @@ function RetroBoard({ user, onLogout }) {
   const [showReset, setShowReset] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
-  const [showTeam,     setShowTeam]     = useState(false);
   const [toast,   setToast]   = useState(null);
   const globalErr = useErrToast();
   const tRef = useRef(null);
@@ -1335,6 +1469,8 @@ function RetroBoard({ user, onLogout }) {
     if (phase===3) return html`<${P5Risks} risks=${state.risks} sR=${sR} notes=${state.notes} user=${user} />`;
     if (phase===4) return html`<${P4} notes=${state.notes} actions=${state.actions} risks=${state.risks} sA=${sA} user=${user} />`;
     if (phase===5) return html`<${P6} notes=${state.notes} actions=${state.actions} risks=${state.risks} users=${online} user=${user} obj=${state.obj} tasks=${state.tasks} />`;
+    if (phase===6) return html`<${PEquipo} />`;
+    if (phase===7) return html`<${PVacaciones} />`;
     return null;
   };
 
@@ -1354,8 +1490,7 @@ function RetroBoard({ user, onLogout }) {
             <span style=${{ fontSize:11, color:'#86868B' }}>${fd(new Date().toISOString())}</span>
           </div>
           <button onClick=${()=>setShowReset(true)} style=${{ marginLeft:12, padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF3B3040', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600 }}>🆕 Nueva retro</button>
-          <button onClick=${()=>setShowTeam(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #5856D620', background:'#FFF', color:'#5856D6', fontSize:11, fontWeight:600 }}>👥 Equipo</button>
-          <button onClick=${()=>setShowHistorial(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF950040', background:'#FFF', color:'#FF9500', fontSize:11, fontWeight:600 }}>📚 Historial</button>
+<button onClick=${()=>setShowHistorial(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #FF950040', background:'#FFF', color:'#FF9500', fontSize:11, fontWeight:600 }}>📚 Historial</button>
           <button onClick=${()=>setShowGuide(true)} style=${{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #5856D640', background:'#FFF', color:'#5856D6', fontSize:11, fontWeight:600 }}>📖 Guía</button>
         </div>
         <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
@@ -1387,7 +1522,6 @@ function RetroBoard({ user, onLogout }) {
         </div>
       `}
 
-      ${showTeam     && html`<${TeamModal}     onClose=${()=>setShowTeam(false)}     />`}
       ${showHistorial && html`<${HistorialModal} onClose=${()=>setShowHistorial(false)} />`}
 
       ${showReset && html`<${NewRetroModal}
