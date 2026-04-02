@@ -79,6 +79,19 @@ async function sbSaveTeamMember(m) {
 async function sbDeleteTeamMember(id) {
   try { await supabase.from('team_members').delete().eq('id',id); } catch {}
 }
+async function sbSaveMemberVacs(memberId, vacations) {
+  try { await supabase.from('team_members').update({ vacations }).eq('id', memberId); } catch {}
+}
+async function sbLoadAllVacsForSala(sala) {
+  // Load vacations from all team_members assigned to this sala
+  try {
+    const { data } = await supabase.from('team_members').select('id,name,avatar,color,vacations').order('name');
+    if (!data) return [];
+    return data
+      .filter(m => (m.rooms||[]).includes(sala) || true) // load all, filter in component
+      .flatMap(m => (m.vacations||[]).map(v => ({...v, memberId:m.id, memberName:m.name})));
+  } catch { return []; }
+}
 
 async function sbSaveRoom(slug, name, tipo, metadata) {
   try { await supabase.from('rooms').upsert({ slug, name, tipo, metadata: metadata||{} }); } catch {}
@@ -502,8 +515,17 @@ function MemberForm({ m, setM, rooms, saving, onSave, onCancel }) {
   return html`
     <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
       <div style=${{ display:'grid', gridTemplateColumns:'52px 1fr 1fr', gap:8, alignItems:'center' }}>
-        <input value=${m.avatar||'👤'} onInput=${e=>setM({...m,avatar:e.target.value})} maxLength="2" title="Emoji"
-          style=${{ textAlign:'center', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'6px', fontSize:22, fontFamily:'inherit', outline:'none', background:'#FFF' }} />
+        <div style=${{ position:'relative' }}>
+          <div style=${{ width:52, height:52, borderRadius:14, background:'#F2F2F7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, cursor:'pointer', border:'1.5px solid #E5E5EA' }}
+            onClick=${e=>{ e.stopPropagation(); const d=document.getElementById('avpick-'+m.id||'new'); if(d) d.style.display=d.style.display==='none'?'flex':'none'; }}>
+            ${m.avatar||'👤'}
+          </div>
+          <div id=${'avpick-'+(m.id||'new')} style=${{ display:'none', position:'absolute', top:56, left:0, zIndex:999, background:'#FFF', border:'1.5px solid #E5E5EA', borderRadius:14, padding:8, flexWrap:'wrap', gap:4, width:220, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
+            ${[...AVATARS,'😀','😎','🤓','🦸','🧑‍💻','🧑‍🎨','🧑‍🔬','👩‍💼','👨‍💼'].map(a => html`
+              <button key=${a} onClick=${e=>{ e.stopPropagation(); setM({...m,avatar:a}); document.getElementById('avpick-'+(m.id||'new')).style.display='none'; }}
+                style=${{ width:34, height:34, borderRadius:8, border:m.avatar===a?'2px solid #007AFF':'1px solid #E5E5EA', background:m.avatar===a?'#007AFF10':'#FAFAFA', fontSize:20, cursor:'pointer' }}>${a}</button>`)}
+          </div>
+        </div>
         <input value=${m.name||''} onInput=${e=>setM({...m,name:e.target.value})} placeholder="Nombre completo *"
           style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'9px 12px', fontSize:13, fontFamily:'inherit', outline:'none' }} />
         <input value=${m.username||''} onInput=${e=>setM({...m,username:e.target.value})} placeholder="Usuario (login)"
@@ -607,8 +629,8 @@ function AdminUsuarios({ rooms }) {
             ` : html`
               <div key=${m.id} style=${{ ...cS, padding:'12px 16px' }}>
                 <div style=${{ display:'flex', alignItems:'center', gap:12 }}>
-                  <div style=${{ width:40, height:40, borderRadius:12, background:m.color||'#007AFF',
-                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>${m.avatar||'👤'}</div>
+                  <div style=${{ width:48, height:48, borderRadius:14, background:m.color||'#007AFF',
+                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, flexShrink:0 }}>${m.avatar||'👤'}</div>
                   <div style=${{ flex:1 }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:2 }}>
                       <span style=${{ fontSize:14, fontWeight:700 }}>${m.name}</span>
@@ -1221,7 +1243,13 @@ function saveVacsLocal(v) {
   try { localStorage.setItem('rf-vac-'+SALA, JSON.stringify(v)); } catch {}
 }
 async function saveTeamSupabase(team, vacs) {
-  try { await sbUpdateRoomMeta(SALA, { team, vacs }); } catch {}
+  // Save team to room metadata (names/roles for this sala)
+  try { await sbUpdateRoomMeta(SALA, { team }); } catch {}
+  // Save vacations globally per team_member
+  // Group vacs by memberId and save to each member
+  const byMember = {};
+  vacs.forEach(v => { if (v.memberId) { if(!byMember[v.memberId]) byMember[v.memberId]=[]; byMember[v.memberId].push(v); } });
+  await Promise.all(Object.entries(byMember).map(([id, mv]) => sbSaveMemberVacs(id, mv)));
 }
 
 /* ═══ PHASE 7 — EQUIPO ═══ */
@@ -1273,10 +1301,17 @@ function PEquipo() {
           return html`
             <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:14,
               background:onVac?'#FFF9E6':'#FAFAFA', border:'1.5px solid '+(onVac?'#FF9500':'#E5E5EA') }}>
-              <input value=${m.avatar} onInput=${e=>updMember(m.id,'avatar',e.target.value)}
-                title="Emoji avatar"
-                style=${{ width:42, height:42, textAlign:'center', border:'1.5px solid #E5E5EA', borderRadius:10,
-                  fontSize:22, background:'#FFF', cursor:'text', outline:'none', fontFamily:'inherit' }} maxLength="2" />
+              <div style=${{ position:'relative', flexShrink:0 }}>
+                <div style=${{ width:52, height:52, borderRadius:14, background:m.color||'#E5E5EA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, cursor:'pointer', border:'1.5px solid rgba(0,0,0,.06)' }}
+                  onClick=${e=>{ e.stopPropagation(); const d=document.getElementById('avp-'+m.id); if(d) d.style.display=d.style.display==='none'?'flex':'none'; }}>
+                  ${m.avatar||'👤'}
+                </div>
+                <div id=${'avp-'+m.id} style=${{ display:'none', position:'absolute', top:56, left:0, zIndex:999, background:'#FFF', border:'1.5px solid #E5E5EA', borderRadius:14, padding:8, flexWrap:'wrap', gap:4, width:220, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
+                  ${[...AVATARS,'😀','😎','🤓','🦸','🧑‍💻','🧑‍🎨','🧑‍🔬','👩‍💼','👨‍💼'].map(a => html`
+                    <button key=${a} onClick=${e=>{ e.stopPropagation(); updMember(m.id,'avatar',a); document.getElementById('avp-'+m.id).style.display='none'; }}
+                      style=${{ width:34, height:34, borderRadius:8, border:m.avatar===a?'2px solid #007AFF':'1px solid #E5E5EA', background:m.avatar===a?'#007AFF10':'#FAFAFA', fontSize:20, cursor:'pointer' }}>${a}</button>`)}
+                </div>
+              </div>
               <div style=${{ flex:1 }}>
                 <input value=${m.name} onInput=${e=>updMember(m.id,'name',e.target.value)}
                   style=${{ display:'block', width:'100%', border:'none', background:'transparent',
@@ -1311,19 +1346,19 @@ function PVacaciones() {
   const [sbMembers, setSbMembers] = useState([]);
   useEffect(() => {
     sbLoadTeamMembers().then(data => {
-      // Merge Supabase members (filtered to this sala) with local team
       const salaMembers = data.filter(m=>(m.rooms||[]).includes(SALA));
       setSbMembers(salaMembers);
-      if (salaMembers.length > 0 && loadTeamData().length === 0) {
-        const merged = salaMembers.map(m=>({id:m.id,name:m.name,avatar:m.avatar||'👤',role:'',color:m.color}));
+      // Build team from Supabase members assigned to this sala
+      if (salaMembers.length > 0) {
+        const merged = salaMembers.map(m=>({id:m.id,name:m.name,avatar:m.avatar||'👤',role:m.role||'',color:m.color||'#007AFF'}));
         setTeam(merged); saveTeamLocal(merged);
       }
+      // Load ALL vacations from team_members (global, not sala-specific)
+      const allVacs = data.flatMap(m => (m.vacations||[]).map(v=>({...v, memberId:m.id, name:v.name||m.name})));
+      setVacs(allVacs); saveVacsLocal(allVacs);
     });
   }, []);
-  const [vacs,    setVacs]   = useState(() => {
-    // Merge local vacs with any stored in team_members (handled via useEffect)
-    return loadVacsData();
-  });
+  const [vacs, setVacs] = useState(loadVacsData);
   const [newVac,  setNewVac] = useState({memberId:'', name:'', from:'', to:'', note:''});
   const [saving,  setSaving] = useState(false);
   const today = new Date();
@@ -1360,14 +1395,27 @@ function PVacaciones() {
   };
 
   const addVac = () => {
-    const name = newVac.memberId
-      ? (team.find(m=>m.id===newVac.memberId)?.name || '')
-      : newVac.name.trim();
+    const member = newVac.memberId ? team.find(m=>m.id===newVac.memberId) : null;
+    const name = member?.name || newVac.name.trim();
     if (!name || !newVac.from) return;
-    const v=[...vacs,{id:uid(), memberId:newVac.memberId||null, name, from:newVac.from, to:newVac.to||newVac.from, note:newVac.note}];
-    setVacs(v); setNewVac({memberId:'',name:'',from:'',to:'',note:''}); persist(team,v);
+    const newEntry = {id:uid(), memberId:newVac.memberId||null, name, from:newVac.from, to:newVac.to||newVac.from, note:newVac.note};
+    const v = [...vacs, newEntry];
+    setVacs(v); saveVacsLocal(v);
+    setNewVac({memberId:'',name:'',from:'',to:'',note:''});
+    // Save globally to the team_member record
+    if (newVac.memberId) {
+      const memberVacs = v.filter(x=>x.memberId===newVac.memberId);
+      sbSaveMemberVacs(newVac.memberId, memberVacs);
+    }
   };
-  const delVac = id => { const v=vacs.filter(x=>x.id!==id); setVacs(v); persist(team,v); };
+  const delVac = id => {
+    const removing = vacs.find(x=>x.id===id);
+    const v = vacs.filter(x=>x.id!==id); setVacs(v); saveVacsLocal(v);
+    if (removing?.memberId) {
+      const memberVacs = v.filter(x=>x.memberId===removing.memberId);
+      sbSaveMemberVacs(removing.memberId, memberVacs);
+    }
+  };
 
   // Active vacations this month
   const monthStart = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-01';
@@ -1436,8 +1484,8 @@ function PVacaciones() {
                   <td style=${{ padding:'8px 14px', position:'sticky', left:0, background:mi%2===0?'#FFF':'#FAFAFA',
                     borderRight:'1px solid #E5E5EA', borderBottom:'1px solid #F2F2F7', zIndex:1 }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
-                      <div style=${{ width:28, height:28, borderRadius:8, background: m.color||'#E5E5EA',
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>${m.avatar||'👤'}</div>
+                      <div style=${{ width:36, height:36, borderRadius:10, background: m.color||'#E5E5EA',
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>${m.avatar||'👤'}</div>
                       <div>
                         <div style=${{ fontSize:12, fontWeight:600, color:'#1D1D1F', whiteSpace:'nowrap' }}>${m.name}</div>
                         ${m.role && html`<div style=${{ fontSize:10, color:'#86868B' }}>${m.role}</div>`}
@@ -1680,7 +1728,7 @@ function RetroBoard({ user, onLogout }) {
           </div>
         </div>
         <div style=${{ display:'flex', alignItems:'center' }}>
-          ${uList.slice(0,8).map(([id,u],i)=>html`<div key=${id} title=${u.name} style=${{ width:44, height:44, borderRadius:22, background:u.color, border:'3px solid #FFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, marginLeft:i>0?-10:0, zIndex:10-i, boxShadow:'0 2px 8px rgba(0,0,0,.15)' }}>${u.avatar}</div>`)}
+          ${uList.slice(0,8).map(([id,u],i)=>html`<div key=${id} title=${u.name} style=${{ width:52, height:52, borderRadius:26, background:u.color, border:'3px solid #FFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, marginLeft:i>0?-12:0, zIndex:10-i, boxShadow:'0 2px 10px rgba(0,0,0,.18)' }}>${u.avatar}</div>`)}
           ${uList.length>0 && html`<span style=${{ fontSize:11, color:'#86868B', marginLeft:8 }}>${uList.length} online</span>`}
           <button onClick=${onLogout} style=${{ marginLeft:6, padding:'3px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#FFF', fontSize:10, color:'#86868B', cursor:'pointer' }} title="Cambiar usuario">👤 ${user.name} ✕</button>
         </div>
