@@ -291,16 +291,48 @@ function useRealtime(user) {
 
 /* ═══ APP ═══ */
 function App() {
-  const [user, setUser] = useState(() => params.has('sala') ? loadUser() : null);
+  const [user,       setUser]       = useState(() => params.has('sala') ? loadUser() : null);
+  const [salaValid,  setSalaValid]  = useState(null); // null=checking, true=ok, false=blocked
 
-  const handleJoin = (u) => { saveUser(u); registerUser(u); setUser(u); };
+  const handleJoin   = (u) => { saveUser(u); registerUser(u); setUser(u); };
   const handleLogout = () => { clearUser(); setUser(null); };
 
-  // No sala → admin sees picker, others see "pide el enlace"
+  // No sala → admin sees picker, others see landing
   if (!params.has('sala')) {
     if (IS_ADMIN) return html`<${RoomPicker} />`;
     return html`<${NeedLink} />`;
   }
+
+  // Check sala exists in Supabase (runs once on mount)
+  useEffect(() => {
+    sbLoadRooms().then(rooms => {
+      if (!rooms) { setSalaValid(true); return; } // Supabase unreachable → allow
+      const exists = rooms.some(r => r.slug === SALA);
+      setSalaValid(exists);
+    });
+  }, []);
+
+  if (salaValid === null) return html`
+    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7' }}>
+      <div style=${{ textAlign:'center', color:'#86868B' }}>
+        <div style=${{ fontSize:32, marginBottom:8, animation:'spin 1s linear infinite', display:'inline-block' }}>⏳</div>
+        <p style=${{ fontSize:14 }}>Verificando sala…</p>
+      </div>
+    </div>`;
+
+  if (salaValid === false) return html`
+    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7' }}>
+      <div style=${{ background:'#FFF', borderRadius:24, padding:'44px 40px', maxWidth:420, width:'90%', textAlign:'center', boxShadow:'0 8px 40px rgba(0,0,0,0.08)' }}>
+        <div style=${{ fontSize:52, marginBottom:12 }}>🚫</div>
+        <h2 style=${{ fontSize:20, fontWeight:700, marginBottom:8 }}>Sala no encontrada</h2>
+        <p style=${{ fontSize:14, color:'#86868B', marginBottom:6, lineHeight:1.5 }}>
+          La sala <code style=${{ background:'#F2F2F7', padding:'2px 8px', borderRadius:5, fontSize:13 }}>${SALA}</code> no existe o no está registrada.
+        </p>
+        <p style=${{ fontSize:13, color:'#C7C7CC', marginBottom:24 }}>Pide a tu Scrum Master el enlace correcto.</p>
+        <a href="/" style=${{ display:'inline-block', padding:'11px 24px', background:'linear-gradient(135deg,#007AFF,#5856D6)', color:'#FFF', borderRadius:12, fontSize:14, fontWeight:600, textDecoration:'none' }}>← Volver al inicio</a>
+      </div>
+    </div>`;
+
   if (!user) return html`<${Login} onJoin=${handleJoin} />`;
   return html`<${RetroBoard} user=${user} onLogout=${handleLogout} />`;
 }
