@@ -44,6 +44,15 @@ const SUPABASE_URL = 'https://lvsfrynsnyofroscaxhl.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZYRlCDmIE80AYrZWEeeWnw_hXWcg2rA';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+/* ═══ ERROR TOAST ═══ */
+let _errToast = null;
+function setErrToast(msg) { if (_errToast) _errToast(msg); }
+function useErrToast() {
+  const [e, setE] = useState(null);
+  useEffect(() => { _errToast = setE; return () => { _errToast = null; }; }, []);
+  return e;
+}
+
 /* ═══ ADMIN AUTH — Supabase Auth ═══ */
 const sbGetSession = async () => { try { const {data} = await supabase.auth.getSession(); return data?.session||null; } catch { return null; } };
 const sbSignIn     = async (email,pass) => { try { const {data,error} = await supabase.auth.signInWithPassword({email,password:pass}); return {session:data?.session,error}; } catch(e) { return {session:null,error:e}; } };
@@ -78,12 +87,9 @@ async function sbLoadRetros() {
 }
 async function sbSaveRetroSnapshot(sala, tipo, stateData, userId) {
   try {
-    await supabase.from('retros').insert({
-      sala, tipo, status: 'closed',
-      data: stateData,
-      created_by: userId,
-    });
-  } catch {}
+    const {error} = await supabase.from('retros').insert({ sala, tipo, status:'closed', data:stateData, created_by:userId });
+    if (error) setErrToast('⚠️ Error guardando retro: ' + error.message);
+  } catch { setErrToast('⚠️ Sin conexión con Supabase'); }
 }
 
 /* ═══ CONSTANTS ═══ */
@@ -338,74 +344,25 @@ function App() {
 
 /* ═══ NEED LINK SCREEN ═══ */
 function NeedLink() {
-  const phases = [
-    { n:1, label:'Repaso',      sub:'Objetivo y tareas del sprint'   },
-    { n:2, label:'Análisis',    sub:'Notas individuales Good/Bad'     },
-    { n:3, label:'En Común',    sub:'Debatid y votad'                 },
-    { n:4, label:'Riesgos',     sub:'Identificad y medid el impacto'  },
-    { n:5, label:'Accionables', sub:'Asignad responsable y fecha'     },
-    { n:6, label:'Dashboard',   sub:'Ranking, métricas e informe PDF' },
-  ];
-
   return html`
-    <div style=${{ minHeight:'100vh', background:'#FAFAFA', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'48px 20px', textAlign:'center' }}>
+    <div style=${{ minHeight:'100vh', background:'linear-gradient(135deg,#0057FF 0%,#0099FF 50%,#00C6FF 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, textAlign:'center', position:'relative', overflow:'hidden' }}>
 
-      <!-- Decorative blobs -->
-      <div style=${{ position:'fixed', top:-120, right:-120, width:400, height:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(0,122,255,.12),transparent 70%)', pointerEvents:'none' }} />
-      <div style=${{ position:'fixed', bottom:-100, left:-100, width:350, height:350, borderRadius:'50%', background:'radial-gradient(circle,rgba(88,86,214,.1),transparent 70%)', pointerEvents:'none' }} />
+      <!-- Orbs decorativos -->
+      <div style=${{ position:'absolute', top:'-20%', right:'-15%', width:'50vw', height:'50vw', maxWidth:480, maxHeight:480, borderRadius:'50%', background:'radial-gradient(circle,rgba(255,255,255,.15),transparent 65%)', pointerEvents:'none' }} />
+      <div style=${{ position:'absolute', bottom:'-15%', left:'-10%', width:'40vw', height:'40vw', maxWidth:400, maxHeight:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(0,30,120,.3),transparent 65%)', pointerEvents:'none' }} />
 
       <!-- Logo -->
-      <div style=${{ marginBottom:40 }}>
-        <h1 style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:52, fontWeight:400, letterSpacing:3, color:'#1D1D1F', marginBottom:8, lineHeight:1 }}>revelio</h1>
-        <p style=${{ fontSize:14, color:'#86868B', letterSpacing:.5 }}>Retrospectivas ágiles en tiempo real</p>
+      <h1 style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:'clamp(52px,10vw,88px)', fontWeight:400, letterSpacing:6, color:'#FFF', margin:0, lineHeight:1, textShadow:'0 4px 32px rgba(0,0,0,.15)', zIndex:1 }}>revelio</h1>
+
+      <p style=${{ fontSize:'clamp(14px,2vw,18px)', color:'rgba(255,255,255,.75)', marginTop:16, marginBottom:64, letterSpacing:1.5, textTransform:'uppercase', fontWeight:400, zIndex:1 }}>Retrospectivas ágiles · Tiempo real</p>
+
+      <!-- Card CTA -->
+      <div style=${{ background:'rgba(255,255,255,.12)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', border:'1px solid rgba(255,255,255,.25)', borderRadius:24, padding:'28px 36px', maxWidth:380, width:'100%', zIndex:1, boxShadow:'0 8px 48px rgba(0,0,0,.12)' }}>
+        <p style=${{ fontSize:17, fontWeight:600, color:'#FFF', marginBottom:8 }}>¿Listo para la retro?</p>
+        <p style=${{ fontSize:14, color:'rgba(255,255,255,.7)', lineHeight:1.6 }}>Pide a tu Scrum Master el enlace de acceso a tu sala.</p>
       </div>
 
-      <!-- 6 fases: línea de pasos horizontal -->
-      <div style=${{ maxWidth:640, width:'100%', marginBottom:52 }}>
-        <div style=${{ display:'flex', alignItems:'flex-start', gap:0, position:'relative' }}>
-          <!-- línea conectora -->
-          <div style=${{ position:'absolute', top:18, left:'calc(100%/12)', right:'calc(100%/12)', height:1, background:'linear-gradient(90deg,#007AFF,#5856D6)', opacity:.2, zIndex:0 }} />
-          ${phases.map((p,i) => html`
-            <div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:8, zIndex:1 }}>
-              <div style=${{
-                width:36, height:36, borderRadius:'50%', flexShrink:0,
-                background: i===0?'linear-gradient(135deg,#007AFF,#5856D6)':'#FFF',
-                border: i===0?'none':'1.5px solid #E5E5EA',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:13, fontWeight:700,
-                color: i===0?'#FFF':'#86868B',
-                boxShadow: i===0?'0 4px 12px rgba(0,122,255,.25)':'none',
-                transition:'all .2s'
-              }}>${p.n}</div>
-              <div style=${{ fontSize:11, fontWeight:700, color:'#1D1D1F', lineHeight:1.2 }}>${p.label}</div>
-              <div style=${{ fontSize:9, color:'#86868B', lineHeight:1.3, maxWidth:80 }}>${p.sub}</div>
-            </div>
-          `)}
-        </div>
-      </div>
-
-      <!-- 3 pills de features -->
-      <div style=${{ display:'flex', gap:10, marginBottom:52, flexWrap:'wrap', justifyContent:'center' }}>
-        ${[
-          ['Tiempo real','Notas y cursores sincronizados al instante'],
-          ['Votación anónima','Votos sin presión de grupo'],
-          ['Informe PDF','Exporta la retro completa en un clic'],
-        ].map(([t,d]) => html`
-          <div style=${{ background:'#FFF', border:'1px solid #E5E5EA', borderRadius:50, padding:'8px 18px', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
-            <span style=${{ fontSize:12, fontWeight:600, color:'#1D1D1F' }}>${t}</span>
-            <span style=${{ fontSize:11, color:'#86868B', marginLeft:6 }}>${d}</span>
-          </div>
-        `)}
-      </div>
-
-      <!-- CTA box -->
-      <div style=${{ background:'#FFF', borderRadius:20, padding:'24px 32px', border:'1px solid #E5E5EA', maxWidth:400, width:'100%', boxShadow:'0 4px 24px rgba(0,0,0,.06)' }}>
-        <div style=${{ width:44, height:44, borderRadius:14, background:'linear-gradient(135deg,#007AFF,#5856D6)', margin:'0 auto 14px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, boxShadow:'0 6px 16px rgba(0,122,255,.25)' }}>✨</div>
-        <p style=${{ fontSize:15, fontWeight:700, color:'#1D1D1F', marginBottom:6 }}>¿Listo para la retro?</p>
-        <p style=${{ fontSize:13, color:'#86868B', lineHeight:1.5 }}>Pide a tu Scrum Master el enlace de tu sala para comenzar.</p>
-      </div>
-
-      <p style=${{ fontSize:10, color:'#C7C7CC', marginTop:36 }}>Hecho con ✨ y sin Horcruxes</p>
+      <p style=${{ fontSize:11, color:'rgba(255,255,255,.3)', marginTop:40, zIndex:1 }}>Hecho con ✨ y sin Horcruxes</p>
     </div>
   `;
 }
@@ -1093,7 +1050,8 @@ function RetroBoard({ user, onLogout }) {
   const [showReset, setShowReset] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [toast,   setToast]   = useState(null);
+  const globalErr = useErrToast();
   const tRef = useRef(null);
   const bRef = useRef(null);
 
@@ -1218,6 +1176,11 @@ function RetroBoard({ user, onLogout }) {
       ${toast && html`
         <div style=${{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', padding:'12px 24px', borderRadius:14, fontSize:14, fontWeight:600, boxShadow:'0 8px 30px rgba(0,0,0,0.15)', zIndex:300, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8 }}>${toast}</div>
       `}
+      ${globalErr && html`
+        <div style=${{ position:'fixed', bottom:toast?70:24, left:'50%', transform:'translateX(-50%)', background:'#FF3B30', color:'#FFF', padding:'11px 22px', borderRadius:14, fontSize:13, fontWeight:600, boxShadow:'0 8px 30px rgba(255,59,48,.3)', zIndex:301, animation:'fadeIn .3s', whiteSpace:'nowrap' }}>
+          ${globalErr}
+        </div>
+      `}
 
       ${showHistorial && html`<${HistorialModal} onClose=${()=>setShowHistorial(false)} />`}
 
@@ -1265,36 +1228,6 @@ function RetroBoard({ user, onLogout }) {
                   <p>🔄 Si cierras y vuelves al enlace, entras automáticamente</p>
                   <p>👤 Cambia de usuario con el botón de tu nombre (arriba derecha)</p>
                   <p>⏱️ Timer con presets de 5, 10, 15 y 20 minutos</p>
-                </div>
-              </div>
-              <div style=${{ height:1, background:'#E5E5EA', margin:'16px 0' }} />
-              <h3 style=${{ fontSize:14, fontWeight:700, color:'#5856D6', marginBottom:12 }}>🏰 Para el Scrum Master</h3>
-              <div style=${{ marginBottom:14 }}>
-                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Panel admin</h4>
-                <p style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.5, marginBottom:6 }}>Accede con <code style=${{ background:'#F2F2F7', padding:'1px 5px', borderRadius:3, fontSize:11 }}>?admin</code> + PIN al final de la URL.</p>
-                <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}>
-                  <p>📂 <strong>Crear salas</strong> — Nombre + metodología (Agile/Waterfall/ITIL/Kanban)</p>
-                  <p>📋 <strong>Copiar enlace</strong> — Botón 📋 en cada sala para Slack/Teams</p>
-                  <p>📊 <strong>Dashboard</strong> — KPIs, gráficos, tabla portfolio por proyecto</p>
-                  <p>👥 <strong>Usuarios</strong> — Quién ha entrado y cuándo en cada sala</p>
-                </div>
-              </div>
-              <div style=${{ marginBottom:14 }}>
-                <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Datos y persistencia</h4>
-                <div style=${{ fontSize:12, color:'#6E6E73', lineHeight:1.7 }}>
-                  <p>☁️ <strong>Auto-guardado</strong> — Las retros se guardan en Supabase al crear una nueva</p>
-                  <p>📄 <strong>PDF</strong> — Informe completo desde el Dashboard o el historial</p>
-                  <p>🆕 <strong>Nueva retro</strong> — Guarda la actual y empieza limpio. Historial accesible desde el modal</p>
-                </div>
-              </div>
-              <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:16 }}>
-                <div style=${{ padding:'10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}>
-                  <p style=${{ fontSize:11, fontWeight:700, color:'#34C759', marginBottom:4 }}>✅ Se guarda en historial</p>
-                  <p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>⚠️ Riesgos abiertos<br/>🎯 Accionables pendientes<br/>👤 Identidad del usuario<br/>📊 Snapshot completo</p>
-                </div>
-                <div style=${{ padding:'10px', borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}>
-                  <p style=${{ fontSize:11, fontWeight:700, color:'#FF3B30', marginBottom:4 }}>🔄 Se resetea en el tablero</p>
-                  <p style=${{ fontSize:11, color:'#6E6E73', lineHeight:1.5 }}>📝 Notas del tablero<br/>📋 Tareas de la iteración<br/>🎯 Objetivo del sprint</p>
                 </div>
               </div>
               <div style=${{ textAlign:'center', padding:'4px 0', color:'#C7C7CC', fontSize:11 }}>Hecho con ✨ y sin Horcruxes</div>
@@ -1608,12 +1541,14 @@ function P1({ tasks, sT, obj, sO, user }) {
 
 /* ═══ BOARD ═══ */
 function Board({ notes, sN, user, filter }) {
-  const [act, setAct] = useState(null);
-  const [txt, setTxt] = useState('');
-  const [eId, setEId] = useState(null);
-  const [eVal, setEVal] = useState('');
-  const [dragId, setDragId] = useState(null);
-  const [overCat, setOverCat] = useState(null);
+  const [act,      setAct]      = useState(null);
+  const [txt,      setTxt]      = useState('');
+  const [eId,      setEId]      = useState(null);
+  const [eVal,     setEVal]     = useState('');
+  const [dragId,   setDragId]   = useState(null);
+  const [overCat,  setOverCat]  = useState(null);
+  const [touchInfo,setTouchInfo]= useState(null); // {id, x, y}
+  const touchRef = useRef(null);
 
   const addN = c => { if(!txt.trim())return; sN([...notes,{id:uid(),text:txt.trim(),category:c,userId:user.id,userName:user.name,userAvatar:user.avatar,userColor:user.color,voters:[],reactions:{}}]); setTxt(''); setAct(null); };
   const vote = nid => sN(notes.map(n=>{if(n.id!==nid)return n;const v=n.voters||[];return{...n,voters:v.includes(user.id)?v.filter(x=>x!==user.id):[...v,user.id]}}));
@@ -1622,17 +1557,52 @@ function Board({ notes, sN, user, filter }) {
   const saveE = () => { if(!eVal.trim())delN(eId); else sN(notes.map(n=>n.id===eId?{...n,text:eVal.trim()}:n)); setEId(null); };
   const drop = (e,c) => { e.preventDefault(); setOverCat(null); if(dragId)sN(notes.map(n=>n.id===dragId?{...n,category:c}:n)); setDragId(null); };
 
+  // ── Touch drag ──
+  const onTouchStart = (e, noteId) => {
+    const t = e.touches[0];
+    touchRef.current = { id: noteId };
+    setTouchInfo({ id: noteId, x: t.clientX, y: t.clientY });
+  };
+  const onTouchMove = (e) => {
+    if (!touchRef.current) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    setTouchInfo(prev => prev ? { ...prev, x: t.clientX, y: t.clientY } : null);
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const col = el && el.closest('[data-cat]');
+    setOverCat(col ? col.getAttribute('data-cat') : null);
+  };
+  const onTouchEnd = (e) => {
+    if (!touchRef.current) return;
+    const t = e.changedTouches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const col = el && el.closest('[data-cat]');
+    if (col) sN(notes.map(n => n.id === touchRef.current.id ? { ...n, category: col.getAttribute('data-cat') } : n));
+    touchRef.current = null;
+    setTouchInfo(null);
+    setOverCat(null);
+  };
+
   let fil = notes;
   if(filter==='mine') fil=notes.filter(n=>n.userId===user.id);
   else if(CATS.some(c=>c.id===filter)) fil=notes.filter(n=>n.category===filter);
   const cats2 = CATS.some(c=>c.id===filter)?CATS.filter(c=>c.id===filter):CATS;
 
   return html`
+    <div style=${{ position:'relative' }}>
+    ${touchInfo && html`
+      <div style=${{ position:'fixed', left:touchInfo.x-50, top:touchInfo.y-24, pointerEvents:'none', zIndex:9999,
+        background:'#007AFF', color:'#FFF', borderRadius:10, padding:'6px 14px', fontSize:12, fontWeight:600,
+        boxShadow:'0 6px 20px rgba(0,122,255,.35)', transform:'rotate(-2deg) scale(1.05)', whiteSpace:'nowrap' }}>
+        ✋ Moviendo nota
+      </div>
+    `}
     <div style=${{ display:'grid', gridTemplateColumns:cats2.length===1?'1fr':'repeat(4,1fr)', gap:10, height:'100%' }}>
       ${cats2.map(cat => {
         const cn = fil.filter(n=>n.category===cat.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
         return html`
-          <div key=${cat.id} onDragOver=${e=>{e.preventDefault();setOverCat(cat.id)}} onDragLeave=${()=>setOverCat(null)} onDrop=${e=>drop(e,cat.id)}
+          <div key=${cat.id} data-cat=${cat.id}
+            onDragOver=${e=>{e.preventDefault();setOverCat(cat.id)}} onDragLeave=${()=>setOverCat(null)} onDrop=${e=>drop(e,cat.id)}
             style=${{ ...cS, display:'flex', flexDirection:'column', borderColor:overCat===cat.id?'#007AFF':'#E5E5EA', background:overCat===cat.id?'#007AFF04':'#FFF', transition:'all .2s' }}>
             <div style=${{ padding:'12px 14px 9px', background:cat.color+'06', borderBottom:'2.5px solid '+cat.color }}>
               <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -1644,8 +1614,13 @@ function Board({ notes, sN, user, filter }) {
               ${cn.map(note => {
                 const voted=note.voters?.includes(user.id); const mine=note.userId===user.id;
                 return html`
-                  <div key=${note.id} draggable=${true} onDragStart=${e=>{setDragId(note.id);e.dataTransfer.effectAllowed='move'}}
-                    style=${{ background:cat.bg, borderRadius:12, padding:'10px 12px', border:'1px solid '+cat.color+'15', borderLeft:mine?'3px solid '+cat.color:'1px solid '+cat.color+'15', cursor:'grab', opacity:dragId===note.id?0.4:1 }}>
+                  <div key=${note.id}
+                    draggable=${true}
+                    onDragStart=${e=>{setDragId(note.id);e.dataTransfer.effectAllowed='move'}}
+                    onTouchStart=${e=>onTouchStart(e,note.id)}
+                    onTouchMove=${onTouchMove}
+                    onTouchEnd=${onTouchEnd}
+                    style=${{ background:cat.bg, borderRadius:12, padding:'10px 12px', border:'1px solid '+cat.color+'15', borderLeft:mine?'3px solid '+cat.color:'1px solid '+cat.color+'15', cursor:'grab', touchAction:'none', userSelect:'none', opacity:(dragId===note.id||touchInfo?.id===note.id)?0.4:1 }}>
                     ${eId===note.id
                       ? html`<div>
                           <textarea autofocus value=${eVal} onInput=${e=>setEVal(e.target.value)} onKeyDown=${e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveE()}if(e.key==='Escape')setEId(null)}} style=${{ ...iS, height:48, resize:'none', fontSize:12, padding:'8px 10px' }} />
@@ -1687,6 +1662,7 @@ function Board({ notes, sN, user, filter }) {
               : html`<button onClick=${()=>{setAct(cat.id);setTxt('')}} style=${{ margin:'5px 8px 8px', padding:'8px', borderRadius:9, border:'1.5px dashed '+cat.color+'30', background:'transparent', color:cat.color, fontSize:12, fontWeight:600 }}>+ Añadir nota</button>`}
           </div>`;
       })}
+    </div>
     </div>
   `;
 }
