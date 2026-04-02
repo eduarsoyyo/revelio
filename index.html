@@ -1312,7 +1312,7 @@ function PEquipo() {
             <p style=${{ fontSize:14 }}>Sin miembros asignados a este proyecto</p>
             <p style=${{ fontSize:12, marginTop:6 }}>Añádelos desde Admin → Usuarios asignando este proyecto</p>
           </div>` :
-        ${team.map(m => {
+        team.map(m => {
           const mVacs = loadVacsData().filter(v=>v.memberId===m.id||v.name===m.name);
           const today = new Date().toISOString().slice(0,10);
           const onVac = mVacs.some(v=>v.from<=today&&(!v.to||v.to>=today));
