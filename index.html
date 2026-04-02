@@ -117,13 +117,16 @@ const PRIS = [
   { id:'low', label:'Baja', icon:'🟢', color:'#34C759' },
 ];
 const PHASES = [
-  { id:'review', label:'Repaso Inicial', icon:'📋' },
+  { id:'review',     label:'Repaso Inicial',     icon:'📋' },
   { id:'individual', label:'Análisis Individual', icon:'✍️' },
-  { id:'discuss', label:'Puesta en Común', icon:'💬' },
-  { id:'risks', label:'Riesgos', icon:'⚠️' },
-  { id:'actions', label:'Accionables', icon:'🎯' },
-  { id:'dashboard', label:'Dashboard', icon:'📊' },
-  { id:'equipo', label:'Equipo', icon:'👥' },
+  { id:'discuss',    label:'Puesta en Común',     icon:'💬' },
+  { id:'risks',      label:'Riesgos',             icon:'⚠️' },
+  { id:'actions',    label:'Accionables',          icon:'🎯' },
+  { id:'dashboard',  label:'Dashboard',            icon:'📊' },
+];
+const MAIN_TABS = [
+  { id:'retro',      label:'Retro',      icon:'📋' },
+  { id:'equipo',     label:'Equipo',     icon:'👥' },
   { id:'vacaciones', label:'Vacaciones', icon:'🏖️' },
 ];
 const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
@@ -1169,6 +1172,7 @@ function PVacaciones() {
   const nextMonth = () => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);} else setViewMonth(m=>m+1); };
   const goToday   = () => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); };
 
+  const HOLIDAYS = ['01-01','01-06','02-28','05-01','06-24','08-15','10-12','11-01','12-06','12-08','12-25','12-26'];
   const isOnVac = (member, day) => {
     const dateStr = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
     return vacs.some(v =>
@@ -1179,6 +1183,7 @@ function PVacaciones() {
   };
   const isWeekend = (day) => { const d=new Date(viewYear,viewMonth,day).getDay(); return d===0||d===6; };
   const isToday   = (day) => todayStr === viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  const isHoliday = (day) => { const mm=String(viewMonth+1).padStart(2,'0'); const dd=String(day).padStart(2,'0'); return HOLIDAYS.includes(mm+'-'+dd); };
 
   const persist = async (t, v) => {
     saveTeamLocal(t); saveVacsLocal(v);
@@ -1217,6 +1222,12 @@ function PVacaciones() {
         <button onClick=${goToday} style=${{ padding:'6px 14px', borderRadius:8, border:'1.5px solid #007AFF20', background:'#007AFF10', color:'#007AFF', fontSize:12, fontWeight:600, cursor:'pointer' }}>Hoy</button>
         ${saving && html`<span style=${{ fontSize:11, color:'#007AFF' }}>💾</span>`}
         <span style=${{ fontSize:11, color:'#86868B' }}>${activeThisMonth.length} ausencias este mes</span>
+        <div style=${{ display:'flex', gap:10, fontSize:10, alignItems:'center' }}>
+          <span><span style=${{ display:'inline-block', width:10, height:10, background:'#E8F8EC', border:'1px solid #ccc', borderRadius:2, marginRight:3 }}></span>Laboral</span>
+          <span><span style=${{ display:'inline-block', width:10, height:10, background:'#E8F4FD', border:'1px solid #ccc', borderRadius:2, marginRight:3 }}></span>Fin semana</span>
+          <span><span style=${{ display:'inline-block', width:10, height:10, background:'#EEEEFF', border:'1px solid #ccc', borderRadius:2, marginRight:3 }}></span>Festivo</span>
+          <span><span style=${{ display:'inline-block', width:10, height:10, background:'#007AFF', border:'1px solid #007AFF', borderRadius:2, marginRight:3 }}></span>Vacaciones</span>
+        </div>
       </div>
 
       <!-- Calendar grid -->
@@ -1241,9 +1252,9 @@ function PVacaciones() {
                   const dow  = ['D','L','M','X','J','V','S'][new Date(viewYear,viewMonth,d).getDay()];
                   return html`
                     <th key=${d} style=${{ padding:'4px 2px', textAlign:'center', fontSize:10,
-                      fontWeight:td?800:500, color:td?'#007AFF':wknd?'#C7C7CC':'#86868B',
-                      background:td?'#007AFF10':wknd?'#FAFAFA':'#F9F9FB',
-                      borderBottom:'2px solid '+(td?'#007AFF':'#E5E5EA'),
+                      fontWeight:td?800:500, color:td?'#007AFF':wknd?'#86868B':isHoliday(d)?'#5856D6':'#86868B',
+                      background:td?'#007AFF10':wknd?'#E8F4FD':isHoliday(d)?'#EEEEFF':'#F9F9FB',
+                      borderBottom:'2px solid '+(td?'#007AFF':isHoliday(d)?'#5856D640':'#E5E5EA'),
                       borderLeft:'1px solid #F2F2F7', minWidth:26 }}>
                       <div>${d}</div>
                       <div style=${{ fontSize:8, fontWeight:400 }}>${dow}</div>
@@ -1274,7 +1285,7 @@ function PVacaciones() {
                     return html`
                       <td key=${d} title=${onVac?m.name+' - vacaciones':''}
                         style=${{ padding:'4px 2px', textAlign:'center', borderBottom:'1px solid #F2F2F7', borderLeft:'1px solid #F2F2F7',
-                          background:onVac?'#007AFF':td?'#007AFF10':wknd?'#F5F5F7':'transparent',
+                          background:onVac?'#007AFF':td?'#007AFF10':wknd?'#E8F4FD':isHoliday?'#DDEEFF':'#E8F8EC',
                           minWidth:26 }}>
                         ${onVac && html`<div style=${{ width:'100%', height:18, borderRadius:3, background:'#007AFF' }} />`}
                       </td>`;
@@ -1349,6 +1360,7 @@ function PVacaciones() {
 
 function RetroBoard({ user, onLogout }) {
   const { state, upd, online, cursors, moveCursor, reset, broadcastTimer } = useRealtime(user);
+  const [mainTab, setMainTab] = useState('retro');
   const [phase, setPhase] = useState(0);
   const [timer,   setTimer]   = useState(900);
   const [running, setRunning] = useState(false);
@@ -1469,8 +1481,7 @@ function RetroBoard({ user, onLogout }) {
     if (phase===3) return html`<${P5Risks} risks=${state.risks} sR=${sR} notes=${state.notes} user=${user} />`;
     if (phase===4) return html`<${P4} notes=${state.notes} actions=${state.actions} risks=${state.risks} sA=${sA} user=${user} />`;
     if (phase===5) return html`<${P6} notes=${state.notes} actions=${state.actions} risks=${state.risks} users=${online} user=${user} obj=${state.obj} tasks=${state.tasks} />`;
-    if (phase===6) return html`<${PEquipo} />`;
-    if (phase===7) return html`<${PVacaciones} />`;
+
     return null;
   };
 
@@ -1509,10 +1520,39 @@ function RetroBoard({ user, onLogout }) {
           <button onClick=${onLogout} style=${{ marginLeft:6, padding:'3px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#FFF', fontSize:10, color:'#86868B', cursor:'pointer' }} title="Cambiar usuario">👤 ${user.name} ✕</button>
         </div>
       </header>
-      <div style=${{ padding:'8px 18px', display:'flex', gap:4, flexShrink:0, background:'#FFF', borderBottom:'1px solid #E5E5EA', overflowX:'auto' }}>
-        ${PHASES.map((p,i)=>html`<button key=${p.id} onClick=${()=>setPhase(i)} style=${{ padding:'8px 14px', borderRadius:9, border:phase===i?'none':'1.5px solid #E5E5EA', background:phase===i?'#1D1D1F':'#FFF', color:phase===i?'#FFF':'#6E6E73', fontSize:12, fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>${p.icon} ${p.label}</button>`)}
+      <!-- ── MAIN TABS ── -->
+      <div style=${{ padding:'0 18px', display:'flex', gap:0, flexShrink:0, background:'#FFF', borderBottom:'2px solid #F2F2F7' }}>
+        ${MAIN_TABS.map(t => html`
+          <button key=${t.id} onClick=${()=>{ setMainTab(t.id); if(t.id!=='retro') setPhase(0); }}
+            style=${{ padding:'11px 20px', fontSize:13, fontWeight:mainTab===t.id?700:500,
+              color:mainTab===t.id?'#007AFF':'#86868B', background:'transparent',
+              border:'none', borderBottom:mainTab===t.id?'2px solid #007AFF':'2px solid transparent',
+              cursor:'pointer', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap',
+              marginBottom:'-2px' }}>
+            ${t.icon} ${t.label}
+          </button>`)}
       </div>
-      <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>${content()}</div>
+
+      <!-- ── RETRO SUB-PHASES (only visible in Retro tab) ── -->
+      ${mainTab==='retro' && html`
+        <div style=${{ padding:'6px 14px', display:'flex', gap:4, flexShrink:0, background:'#FAFAFA', borderBottom:'1px solid #E5E5EA', overflowX:'auto' }}>
+          ${PHASES.map((p,i)=>html`
+            <button key=${p.id} onClick=${()=>setPhase(i)}
+              style=${{ padding:'6px 12px', borderRadius:8, border:phase===i?'none':'1.5px solid #E5E5EA',
+                background:phase===i?'#1D1D1F':'#FFF', color:phase===i?'#FFF':'#6E6E73',
+                fontSize:11, fontWeight:600, whiteSpace:'nowrap', display:'flex',
+                alignItems:'center', gap:3, flexShrink:0, cursor:'pointer' }}>
+              ${p.icon} ${p.label}
+            </button>`)}
+        </div>
+      `}
+
+      <!-- ── CONTENT ── -->
+      <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>
+        ${mainTab==='retro'      ? content()              : ''}
+        ${mainTab==='equipo'     ? html`<${PEquipo} />`   : ''}
+        ${mainTab==='vacaciones' ? html`<${PVacaciones} />` : ''}
+      </div>
       ${toast && html`
         <div style=${{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', padding:'12px 24px', borderRadius:14, fontSize:14, fontWeight:600, boxShadow:'0 8px 30px rgba(0,0,0,0.15)', zIndex:300, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8 }}>${toast}</div>
       `}
@@ -1527,7 +1567,7 @@ function RetroBoard({ user, onLogout }) {
       ${showReset && html`<${NewRetroModal}
         user=${user} state=${state}
         onClose=${()=>setShowReset(false)}
-        onConfirm=${()=>{ reset(); setShowReset(false); setPhase(0); setTimer(900); setRunning(false); }}
+        onConfirm=${()=>{ reset(); setShowReset(false); setPhase(0); setMainTab('retro'); setTimer(900); setRunning(false); }}
       />`}
 
       ${showGuide && html`
