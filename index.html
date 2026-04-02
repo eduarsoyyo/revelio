@@ -520,8 +520,17 @@ function RoomPicker() {
     go(slug, tipo);
   };
   const [confirmDelete, setConfirmDelete] = useState(null); // slug to delete
+  const [editRoom,      setEditRoom]      = useState(null); // {slug, name, tipo}
 
   const remove = (slug) => setConfirmDelete(slug);
+
+  const saveEdit = async () => {
+    if (!editRoom || !editRoom.name.trim()) return;
+    const updated = rooms.map(r => r.slug === editRoom.slug ? {...r, name:editRoom.name.trim(), tipo:editRoom.tipo} : r);
+    setRooms(updated); saveRooms(updated);
+    await sbSaveRoom(editRoom.slug, editRoom.name.trim(), editRoom.tipo);
+    setEditRoom(null);
+  };
 
   const doDelete = async () => {
     const slug = confirmDelete;
@@ -813,33 +822,39 @@ function RoomPicker() {
               const rTipo = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
               return html`
                 <div key=${r.slug} style=${{ ...cS }}>
-                  <div style=${{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px' }}>
+                  <div style=${{ display:'flex', alignItems:'center', gap:8, padding:'14px 16px' }}>
                     <button onClick=${()=>go(r.slug,r.tipo)} style=${{ flex:1, background:'none', border:'none', textAlign:'left', cursor:'pointer', padding:0 }}>
                       <div>
                         <span style=${{ fontSize:14, fontWeight:600, color:'#1D1D1F' }}>${r.name} <span style=${{ fontSize:9, fontWeight:500, color:rTipo.color, background:rTipo.color+'10', padding:'1px 6px', borderRadius:4 }}>${rTipo.icon} ${rTipo.label}</span></span>
-                        <div style=${{ fontSize:11, color:'#86868B' }}>${window.location.host}?sala=${r.slug}</div>
+                        <div style=${{ fontSize:11, color:'#86868B', marginTop:1 }}>${window.location.host}?sala=${r.slug}</div>
                       </div>
                     </button>
-                    <button onClick=${()=>{navigator.clipboard.writeText(link)}} style=${{ ...bS, padding:'6px 8px', fontSize:10, flexShrink:0 }}>📋</button>
-                    <button onClick=${()=>remove(r.slug)} style=${{ border:'none', background:'none', fontSize:14, color:'#C7C7CC', flexShrink:0, padding:'4px' }}>✕</button>
+                    <button onClick=${()=>{navigator.clipboard.writeText(link);}} title="Copiar enlace" style=${{ ...bS, padding:'5px 8px', fontSize:10, flexShrink:0 }}>📋</button>
+                    <button onClick=${()=>go(r.slug,r.tipo)} title="Entrar a la sala" style=${{ ...bS, padding:'5px 8px', fontSize:10, flexShrink:0 }}>→</button>
+                    <button onClick=${()=>setEditRoom({slug:r.slug, name:r.name, tipo:r.tipo||'agile'})} title="Editar" style=${{ border:'none', background:'none', fontSize:14, color:'#86868B', flexShrink:0, padding:'4px', cursor:'pointer' }}>✏️</button>
+                    <button onClick=${()=>remove(r.slug)} title="Eliminar sala" style=${{ border:'none', background:'none', fontSize:14, color:'#FF3B30', flexShrink:0, padding:'4px', cursor:'pointer', opacity:.6 }}>🗑</button>
                   </div>
-                  <div style=${{ padding:'0 16px 8px', display:'flex', gap:12, flexWrap:'wrap' }}>
+                  <div style=${{ padding:'0 16px 10px', display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
                     ${rm.length>0 ? html`
-                      <span style=${{ fontSize:11, color:'#86868B' }}>📊 ${rm.length} retros (Supabase)</span>
+                      <span style=${{ fontSize:11, color:'#86868B' }}>📊 ${rm.length} retros</span>
                       <span style=${{ fontSize:11, color:'#86868B' }}>📝 ${rm.reduce((s,rt)=>s+(rt.data?.notes?.length||0),0)} notas</span>
-                    ` : lsRm.length>0 ? html`
-                      <span style=${{ fontSize:11, color:'#86868B' }}>📊 ${lsRm.length} retros (local)</span>
-                      <span style=${{ fontSize:11, color:'#86868B' }}>📝 ${lsRm.reduce((s,e)=>s+(e.notes||0),0)} notas</span>
                     ` : html`<span style=${{ fontSize:11, color:'#C7C7CC' }}>Sin retros guardadas</span>`}
+                    ${users.length > 0 && html`
+                      <button onClick=${()=>{ ['rf-reg-','rf-user-'].forEach(k=>localStorage.removeItem(k+r.slug)); location.reload(); }}
+                        style=${{ marginLeft:'auto', fontSize:9, color:'#86868B', background:'none', border:'1px solid #E5E5EA', borderRadius:5, padding:'2px 7px', cursor:'pointer' }}
+                        title="Limpiar usuarios del localStorage">
+                        👥 ${users.length} usuarios · limpiar
+                      </button>
+                    `}
                   </div>
                   ${users.length > 0 && html`
-                    <div style=${{ padding:'0 16px 12px' }}>
+                    <div style=${{ padding:'0 16px 10px' }}>
                       <details>
-                        <summary style=${{ fontSize:11, color:'#86868B', cursor:'pointer', fontWeight:600 }}>👥 Usuarios registrados (${users.length})</summary>
+                        <summary style=${{ fontSize:11, color:'#86868B', cursor:'pointer', fontWeight:600 }}>👥 Ver usuarios (${users.length})</summary>
                         <div style=${{ display:'flex', flexDirection:'column', gap:4, marginTop:6 }}>
                           ${users.map(u => html`
                             <div key=${u.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'5px 8px', borderRadius:8, background:'#F9F9FB' }}>
-                              <div style=${{ width:24, height:24, borderRadius:12, background:u.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, flexShrink:0 }}>${u.avatar||'👤'}</div>
+                              <div style=${{ width:22, height:22, borderRadius:11, background:u.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, flexShrink:0 }}>${u.avatar||'👤'}</div>
                               <span style=${{ fontSize:12, fontWeight:600, flex:1 }}>${u.name}</span>
                               <span style=${{ fontSize:9, color:'#C7C7CC' }}>${u.lastSeen ? fd(u.lastSeen) : ''}</span>
                             </div>
@@ -851,9 +866,59 @@ function RoomPicker() {
                 </div>`;
             })}
           </div>
-          <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:16, textAlign:'center' }}>Las métricas se actualizan al guardar retros (💾) · Datos en Supabase y localStorage</p>
+          <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:16, textAlign:'center' }}>Datos sincronizados con Supabase</p>
         `}
       </div>
+
+      <!-- ── MODAL: Confirmar eliminar sala ── -->
+      ${confirmDelete && html`
+        <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${()=>setConfirmDelete(null)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 30px', maxWidth:400, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', textAlign:'center' }}>
+            <div style=${{ fontSize:40, marginBottom:10 }}>🗑</div>
+            <h3 style=${{ fontSize:17, fontWeight:700, marginBottom:6 }}>¿Eliminar sala?</h3>
+            <p style=${{ fontSize:13, color:'#86868B', marginBottom:14, lineHeight:1.5 }}>
+              Sala: <strong style=${{ color:'#1D1D1F' }}>${rooms.find(r=>r.slug===confirmDelete)?.name || confirmDelete}</strong>
+            </p>
+            <div style=${{ background:'#FFF5F5', border:'1.5px solid #FF3B3020', borderRadius:12, padding:'12px 16px', marginBottom:20, textAlign:'left' }}>
+              <p style=${{ fontSize:12, fontWeight:700, color:'#FF3B30', marginBottom:6 }}>Se borrará permanentemente:</p>
+              <p style=${{ fontSize:12, color:'#86868B', lineHeight:1.7 }}>
+                • Todas las retros guardadas en Supabase<br/>
+                • Los riesgos de esta sala<br/>
+                • El registro de usuarios<br/>
+                • Las métricas históricas
+              </p>
+            </div>
+            <div style=${{ display:'flex', gap:10 }}>
+              <button onClick=${()=>setConfirmDelete(null)} style=${{ ...bS, flex:1, padding:'11px' }}>Cancelar</button>
+              <button onClick=${doDelete} style=${{ ...bP, flex:1, padding:'11px', background:'#FF3B30' }}>Sí, eliminar todo</button>
+            </div>
+          </div>
+        </div>
+      `}
+
+      <!-- ── MODAL: Editar sala ── -->
+      ${editRoom && html`
+        <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${()=>setEditRoom(null)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 30px', maxWidth:420, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h3 style=${{ fontSize:17, fontWeight:700, marginBottom:18 }}>✏️ Editar sala</h3>
+            <p style=${{ fontSize:11, color:'#86868B', marginBottom:6 }}>Nombre</p>
+            <input value=${editRoom.name} onInput=${e=>setEditRoom({...editRoom,name:e.target.value})}
+              onKeyDown=${e=>e.key==='Enter'&&saveEdit()}
+              style=${{ ...iS, marginBottom:14, fontSize:14 }} />
+            <p style=${{ fontSize:11, color:'#86868B', marginBottom:6 }}>Metodología</p>
+            <select value=${editRoom.tipo} onChange=${e=>setEditRoom({...editRoom,tipo:e.target.value})}
+              style=${{ ...iS, marginBottom:20 }}>
+              ${Object.entries(TASK_TEMPLATES).map(([k,v]) => html`<option key=${k} value=${k}>${v.icon} ${v.label}</option>`)}
+            </select>
+            <p style=${{ fontSize:10, color:'#C7C7CC', marginBottom:14 }}>El slug (<code>${editRoom.slug}</code>) no se puede cambiar — es la URL de la sala.</p>
+            <div style=${{ display:'flex', gap:10 }}>
+              <button onClick=${()=>setEditRoom(null)} style=${{ ...bS, flex:1, padding:'11px' }}>Cancelar</button>
+              <button onClick=${saveEdit} style=${{ ...bP, flex:1, padding:'11px' }}>Guardar cambios</button>
+            </div>
+          </div>
+        </div>
+      `}
+
     </div>
   `;
 }
