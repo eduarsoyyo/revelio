@@ -284,8 +284,7 @@ const TASK_TEMPLATES = {
   },
 };
 
-// TIPO is resolved in App from Supabase; these are defaults
-const TIPO_INFO_DEFAULT_UNUSED = TASK_TEMPLATES[TIPO_URL] || TASK_TEMPLATES.agile;
+// TIPO is resolved per-session from Supabase in App → passed down as roomTipo
 
 /* ═══ REALTIME STATE ═══ */
 function useRealtime(user, tipoParam) {
@@ -1294,7 +1293,7 @@ function RetroBoard({ user, onLogout, roomTipo }) {
     } catch {}
     showToast(SAVE_QUOTES[Math.floor(Math.random()*SAVE_QUOTES.length)]);
     // Also persist snapshot to Supabase (async, fire-and-forget)
-    sbSaveRetroSnapshot(SALA, TIPO, state, user.id).catch(() => {});
+    sbSaveRetroSnapshot(SALA, tipoResolved, state, user.id).catch(() => {});
   };
 
   const content = () => {
@@ -1303,7 +1302,7 @@ function RetroBoard({ user, onLogout, roomTipo }) {
     if (phase===2) return html`<${P3} notes=${state.notes} sN=${sN} user=${user} />`;
     if (phase===3) return html`<${P5Risks} risks=${state.risks} sR=${sR} notes=${state.notes} user=${user} />`;
     if (phase===4) return html`<${P4} notes=${state.notes} actions=${state.actions} risks=${state.risks} sA=${sA} user=${user} />`;
-    if (phase===5) return html`<${P6} notes=${state.notes} actions=${state.actions} risks=${state.risks} users=${online} user=${user} obj=${state.obj} tasks=${state.tasks} />`;
+    if (phase===5) return html`<${P6} notes=${state.notes} actions=${state.actions} risks=${state.risks} users=${online} user=${user} obj=${state.obj} tasks=${state.tasks} tipoInfo=${TIPO_INFO} />`;
     return null;
   };
 
@@ -1613,7 +1612,7 @@ function NewRetroModal({ user, state, onClose, onConfirm }) {
   const handleConfirm = async () => {
     setSaving(true);
     // Save current retro to Supabase before resetting
-    await sbSaveRetroSnapshot(SALA, TIPO, state, user.id).catch(() => {});
+    await sbSaveRetroSnapshot(SALA, tipoResolved, state, user.id).catch(() => {});
     setSaving(false);
     onConfirm();
   };
@@ -2212,7 +2211,8 @@ function P5Risks({ risks, sR, notes, user }) {
 }
 
 /* ═══ PHASE 6: DASHBOARD + PDF ═══ */
-function P6({ notes, actions, risks, users, user, obj, tasks }) {
+function P6({ notes, actions, risks, users, user, obj, tasks, tipoInfo }) {
+  const TIPO_INFO = tipoInfo || TASK_TEMPLATES[TIPO_URL] || TASK_TEMPLATES.agile;
   const [activeTab, setActiveTab] = useState('resumen');
 
   // ── derived data ──
@@ -2258,7 +2258,7 @@ function P6({ notes, actions, risks, users, user, obj, tasks }) {
 </head><body>
 <div style="text-align:center;margin-bottom:20px"><span style="font-family:'Comfortaa',sans-serif;font-size:26px;letter-spacing:2px;background:linear-gradient(90deg,#007AFF,#5856D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">revelio</span>
 <p style="font-size:19px;font-weight:700;margin:4px 0">${SALA_DISPLAY}</p>
-<p style="color:#86868B;font-size:11px">${TIPO_INFO.icon} ${TIPO_INFO.label} · ${fd(new Date())}</p>
+<p style="color:#86868B;font-size:11px">${(TASK_TEMPLATES[TIPO_URL]||TASK_TEMPLATES.agile).icon} ${(TASK_TEMPLATES[TIPO_URL]||TASK_TEMPLATES.agile).label} · ${fd(new Date())}</p>
 ${obj.text?'<p style="margin-top:8px;font-size:13px">🎯 <b>'+obj.text+'</b> — <span style="color:'+objColor+'">'+objL+'</span></p>':''}</div>
 <div class="sum">
   <div class="cd"><div class="v" style="color:#007AFF">${tN}</div><div class="l">Notas</div></div>
