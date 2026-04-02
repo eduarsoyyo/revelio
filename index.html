@@ -1739,16 +1739,7 @@ function RetroBoard({ user, onLogout }) {
           </div>
 
         </div>
-        <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
-          <div style=${{ background:running?'#1D1D1F':'#F2F2F7', color:running?'#FFF':'#1D1D1F', borderRadius:10, padding:'6px 10px', display:'flex', alignItems:'center', gap:5 }}>
-            ${!running && html`<div style=${{ display:'flex', gap:2 }}>
-              ${[5,10,15,20].map(m => html`<button key=${m} onClick=${()=>syncTimer(m*60,false)} style=${{ padding:'3px 6px', borderRadius:6, border:'none', background:timer===m*60?'#007AFF':'transparent', color:timer===m*60?'#FFF':running?'#FFF':'#86868B', fontSize:10, fontWeight:600 }}>${m}'</button>`)}
-            </div>`}
-            <span style=${{ fontSize:18, fontWeight:700, fontVariantNumeric:'tabular-nums', minWidth:52, textAlign:'center' }}>${fmt(timer)}</span>
-            <button onClick=${()=>syncTimer(timer,!running)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:running?'#FF3B30':'#34C759', color:'#FFF', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>${running?'⏸':'▶'}</button>
-            <button onClick=${()=>syncTimer(900,false)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:'rgba(128,128,128,0.12)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>↺</button>
-          </div>
-        </div>
+
         <div style=${{ display:'flex', alignItems:'center' }}>
           ${uList.slice(0,8).map(([id,u],i)=>html`<div key=${id} title=${u.name} style=${{ width:52, height:52, borderRadius:26, background:u.color, border:'3px solid #FFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, marginLeft:i>0?-12:0, zIndex:10-i, boxShadow:'0 2px 10px rgba(0,0,0,.18)' }}>${u.avatar}</div>`)}
           ${uList.length>0 && html`<span style=${{ fontSize:11, color:'#86868B', marginLeft:8 }}>${uList.length} online</span>`}
@@ -1780,6 +1771,31 @@ function RetroBoard({ user, onLogout }) {
               ${p.icon} ${p.label}
             </button>`)}
           <div style=${{ flex:1 }} />
+
+          <!-- Timer (inside Retro tab) -->
+          <div style=${{ display:'flex', alignItems:'center', gap:4, background:running?'#1D1D1F':'#F2F2F7', borderRadius:10, padding:'4px 8px', flexShrink:0 }}>
+            ${!running && html`
+              <div style=${{ display:'flex', gap:2 }}>
+                ${[5,10,15,20].map(m => html`
+                  <button key=${m} onClick=${()=>syncTimer(m*60,false)}
+                    style=${{ padding:'2px 5px', borderRadius:5, border:'none',
+                      background:timer===m*60?'#007AFF':'transparent',
+                      color:timer===m*60?'#FFF':'#86868B',
+                      fontSize:10, fontWeight:600, cursor:'pointer' }}>${m}'</button>`)}
+              </div>`}
+            <span style=${{ fontSize:16, fontWeight:700, fontVariantNumeric:'tabular-nums', minWidth:46, textAlign:'center', color:running?'#FFF':'#1D1D1F' }}>${fmt(timer)}</span>
+            <button onClick=${()=>syncTimer(timer,!running)}
+              style=${{ width:24, height:24, borderRadius:12, border:'none',
+                background:running?'#FF3B30':'#34C759', color:'#FFF',
+                fontSize:11, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+              ${running?'⏸':'▶'}
+            </button>
+            <button onClick=${()=>syncTimer(900,false)}
+              style=${{ width:24, height:24, borderRadius:12, border:'none',
+                background:'rgba(128,128,128,0.15)', color:running?'#FFF':'#1D1D1F',
+                fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>↺</button>
+          </div>
+
           <button onClick=${()=>setShowReset(true)} style=${{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #FF3B3030', background:'#FFF', color:'#FF3B30', fontSize:10, fontWeight:600, whiteSpace:'nowrap', cursor:'pointer' }}>🆕 Nueva retro</button>
           <button onClick=${()=>setShowHistorial(true)} style=${{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #FF950030', background:'#FFF', color:'#FF9500', fontSize:10, fontWeight:600, whiteSpace:'nowrap', cursor:'pointer' }}>📚 Historial</button>
           <button onClick=${()=>setShowGuide(true)} style=${{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #5856D630', background:'#FFF', color:'#5856D6', fontSize:10, fontWeight:600, whiteSpace:'nowrap', cursor:'pointer' }}>📖 Guía</button>
