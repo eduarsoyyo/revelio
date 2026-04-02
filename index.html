@@ -340,68 +340,50 @@ function App() {
 /* ═══ NEED LINK SCREEN ═══ */
 function NeedLink() {
   const phases = [
-    { icon:'📋', name:'Pensadero', desc:'Revisa el objetivo y las tareas. Como el Pensieve de Dumbledore: mira atrás antes de avanzar.', spell:'Memoria revelio!' },
-    { icon:'✍️', name:'Revelio', desc:'Cada mago escribe sus notas en Good, Bad, Start y Stop. Anónimo hasta la puesta en común.', spell:'Revelio notae!' },
-    { icon:'💬', name:'Priori Incantatem', desc:'Las varitas se conectan. Debatid, votad y descubrid qué piensa el equipo de verdad.', spell:'Connectum ideas!' },
-    { icon:'⚠️', name:'Mapa del Merodeador', desc:'Detecta riesgos ocultos antes de que se conviertan en Voldemorts. Vota impacto y probabilidad.', spell:'Juro que mis intenciones no son buenas!' },
-    { icon:'🎯', name:'Expecto Patronum', desc:'Convoca acciones protectoras. Asigna responsable, fecha y prioridad a cada accionable.', spell:'Patronum actionem!' },
-    { icon:'📊', name:'El Sombrero Seleccionador', desc:'Ranking, métricas y el informe PDF. ¿Quién ha sido el MVP de esta retro?', spell:'Sorteo finalem!' },
+    { icon:'📋', label:'Repaso',      spell:'Pensadero'          },
+    { icon:'✍️',  label:'Análisis',   spell:'Revelio notae!'     },
+    { icon:'💬', label:'En Común',    spell:'Priori Incantatem'  },
+    { icon:'⚠️',  label:'Riesgos',    spell:'Mapa del Merodeador'},
+    { icon:'🎯', label:'Accionables', spell:'Expecto Patronum'   },
+    { icon:'📊', label:'Dashboard',   spell:'Sombrero Selector'  },
   ];
 
   return html`
-    <div style=${{ minHeight:'100vh', background:'#F5F5F7' }}>
-      <!-- Hero -->
-      <div style=${{ textAlign:'center', padding:'60px 20px 40px' }}>
-        <h1 class="wm" style=${{ fontSize:48, marginBottom:8, lineHeight:1.1 }}>revelio</h1>
-        <p style=${{ fontSize:18, color:'#86868B', maxWidth:440, margin:'0 auto 8px', lineHeight:1.5 }}>El hechizo que revela lo que tu equipo necesita decir (pero no sabe cómo)</p>
-        <p style=${{ fontSize:13, color:'#C7C7CC' }}>Retrospectivas colaborativas en tiempo real. Sin cuentas, sin setup, sin excusas.</p>
+    <div style=${{ minHeight:'100vh', background:'linear-gradient(160deg,#0F0C29,#302B63,#24243E)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 20px', textAlign:'center' }}>
+
+      <!-- Logo -->
+      <h1 class="wm" style=${{ fontSize:56, marginBottom:6, lineHeight:1 }}>revelio</h1>
+      <p style=${{ fontSize:15, color:'rgba(255,255,255,.55)', marginBottom:48, letterSpacing:1 }}>retrospectivas que revelan lo que importa</p>
+
+      <!-- 6 fases en grid compacto -->
+      <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, maxWidth:560, width:'100%', marginBottom:48 }}>
+        ${phases.map((p,i) => html`
+          <div key=${i} style=${{ background:'rgba(255,255,255,.07)', backdropFilter:'blur(12px)', borderRadius:16, padding:'18px 14px', border:'1px solid rgba(255,255,255,.12)', transition:'background .2s' }}
+            onMouseOver=${e=>e.currentTarget.style.background='rgba(255,255,255,.13)'}
+            onMouseOut=${e=>e.currentTarget.style.background='rgba(255,255,255,.07)'}>
+            <div style=${{ fontSize:26, marginBottom:6 }}>${p.icon}</div>
+            <div style=${{ fontSize:12, fontWeight:700, color:'#FFF', marginBottom:3 }}>${i+1}. ${p.label}</div>
+            <div style=${{ fontSize:10, color:'rgba(255,255,255,.4)', fontStyle:'italic' }}>${p.spell}</div>
+          </div>
+        `)}
       </div>
 
-      <!-- How it works -->
-      <div style=${{ maxWidth:700, margin:'0 auto', padding:'0 20px 40px' }}>
-        <h2 style=${{ textAlign:'center', fontSize:16, fontWeight:700, marginBottom:24, color:'#1D1D1F' }}>¿Cómo funciona? 6 hechizos en 45 minutos</h2>
-        <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
-          ${phases.map((p, i) => html`
-            <div key=${i} style=${{ ...gl, borderRadius:16, padding:'18px 22px', display:'flex', gap:16, alignItems:'flex-start', boxShadow:'0 2px 12px rgba(0,0,0,0.03)', border:'1px solid rgba(0,0,0,0.04)' }}>
-              <div style=${{ width:44, height:44, borderRadius:14, background:'linear-gradient(135deg,#007AFF,#5856D6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>${p.icon}</div>
-              <div style=${{ flex:1 }}>
-                <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                  <span style=${{ fontSize:11, fontWeight:700, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:6 }}>${i+1}/6</span>
-                  <span style=${{ fontSize:15, fontWeight:700 }}>${p.name}</span>
-                </div>
-                <p style=${{ fontSize:13, color:'#6E6E73', lineHeight:1.5, margin:0 }}>${p.desc}</p>
-                <p style=${{ fontSize:10, color:'#C7C7CC', fontStyle:'italic', marginTop:4 }}>✨ "${p.spell}"</p>
-              </div>
-            </div>
-          `)}
-        </div>
-      </div>
-
-      <!-- Features -->
-      <div style=${{ background:'#FFF', padding:'40px 20px', borderTop:'1px solid #E5E5EA' }}>
-        <div style=${{ maxWidth:600, margin:'0 auto', display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, textAlign:'center' }}>
-          ${[
-            { icon:'🧙', title:'Tiempo real', desc:'Ves las notas y cursores de todos al instante. Magia.' },
-            { icon:'🗳️', title:'Voto secreto', desc:'Vota impacto, prioridad y riesgos. Democracia mágica.' },
-            { icon:'📄', title:'PDF y backup', desc:'Descarga el informe. Los datos nunca se quedan en la nube.' },
-          ].map((f,i) => html`
-            <div key=${i} style=${{ padding:'16px 12px' }}>
-              <div style=${{ fontSize:28, marginBottom:8 }}>${f.icon}</div>
-              <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>${f.title}</h3>
-              <p style=${{ fontSize:11, color:'#86868B', lineHeight:1.4 }}>${f.desc}</p>
-            </div>
-          `)}
-        </div>
+      <!-- Features row -->
+      <div style=${{ display:'flex', gap:24, marginBottom:48, flexWrap:'wrap', justifyContent:'center' }}>
+        ${[['⚡','Tiempo real'],['🗳️','Votación anónima'],['⚠️','Gestión de riesgos'],['📄','Informe PDF']].map(([ic,l]) => html`
+          <div style=${{ display:'flex', alignItems:'center', gap:6, color:'rgba(255,255,255,.6)', fontSize:12 }}>
+            <span style=${{ fontSize:16 }}>${ic}</span><span>${l}</span>
+          </div>
+        `)}
       </div>
 
       <!-- CTA -->
-      <div style=${{ textAlign:'center', padding:'40px 20px 60px' }}>
-        <div style=${{ fontSize:40, marginBottom:12 }}>🪄</div>
-        <h2 style=${{ fontSize:18, fontWeight:700, marginBottom:8 }}>¿Listo para la retro?</h2>
-        <p style=${{ fontSize:14, color:'#86868B', marginBottom:4 }}>Pide a tu Scrum Master el enlace de tu sala.</p>
-        <p style=${{ fontSize:12, color:'#C7C7CC' }}>El enlace es algo como: <code style=${{ background:'#F2F2F7', padding:'2px 8px', borderRadius:4 }}>${window.location.host}?sala=tu-proyecto</code></p>
-        <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:20 }}>Hecho con ✨ y sin Horcruxes</p>
+      <div style=${{ background:'rgba(255,255,255,.08)', backdropFilter:'blur(16px)', borderRadius:16, padding:'20px 28px', border:'1px solid rgba(255,255,255,.15)', maxWidth:420, width:'100%' }}>
+        <p style=${{ fontSize:13, color:'rgba(255,255,255,.6)', marginBottom:8 }}>🪄 Pide a tu Scrum Master el enlace de tu sala</p>
+        <code style=${{ fontSize:11, color:'rgba(255,255,255,.35)', letterSpacing:.5 }}>${window.location.host}?sala=tu-proyecto</code>
       </div>
+
+      <p style=${{ fontSize:10, color:'rgba(255,255,255,.2)', marginTop:32 }}>Hecho con ✨ y sin Horcruxes</p>
     </div>
   `;
 }
