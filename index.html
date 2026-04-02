@@ -396,31 +396,46 @@ function useRealtime(user, tipoParam) {
 
 /* ═══ APP ═══ */
 function App() {
-  const [user,       setUser]       = useState(() => params.has('sala') ? loadUser() : null);
-  const [salaValid,  setSalaValid]  = useState(null); // null=checking, true=ok, false=blocked
-  const [roomTipo,   setRoomTipo]   = useState(TIPO_URL); // resolved from Supabase
+  // ALL hooks must be called unconditionally at the top
+  const [user,      setUser]      = useState(() => params.has('sala') ? loadUser() : null);
+  const [salaValid, setSalaValid] = useState(params.has('sala') ? null : true); // skip check if no sala
+  const [roomTipo,  setRoomTipo]  = useState(TIPO_URL);
 
   const handleJoin   = (u) => { saveUser(u); registerUser(u); setUser(u); };
   const handleLogout = () => { clearUser(); setUser(null); };
 
-  // No sala → admin sees picker, others see landing
+  // Validate sala against Supabase (only runs when there is a sala param)
+  useEffect(() => {
+    if (!params.has('sala')) return; // nothing to validate
+    let cancelled = false;
+
+    // Timeout: if Supabase takes >5s, let them in
+    const timer = setTimeout(() => {
+      if (!cancelled) setSalaValid(true);
+    }, 5000);
+
+    sbLoadRooms().then(rooms => {
+      if (cancelled) return;
+      clearTimeout(timer);
+      if (!rooms || rooms.length === 0) { setSalaValid(true); return; } // fail-open
+      const room = rooms.find(r => r.slug === SALA);
+      if (!room) { setSalaValid(false); return; }
+      setSalaValid(true);
+      if (room.tipo && TASK_TEMPLATES[room.tipo]) setRoomTipo(room.tipo);
+    }).catch(() => {
+      if (!cancelled) { clearTimeout(timer); setSalaValid(true); } // fail-open on error
+    });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // No sala param → routing
   if (!params.has('sala')) {
     if (IS_ADMIN) return html`<${RoomPicker} />`;
     return html`<${NeedLink} />`;
   }
 
-  // Check sala exists in Supabase AND get its tipo (runs once on mount)
-  useEffect(() => {
-    sbLoadRooms().then(rooms => {
-      if (!rooms) { setSalaValid(true); return; }
-      const room = rooms.find(r => r.slug === SALA);
-      if (!room) { setSalaValid(false); return; }
-      setSalaValid(true);
-      // Override tipo with Supabase value
-      if (room.tipo && TASK_TEMPLATES[room.tipo]) setRoomTipo(room.tipo);
-    });
-  }, []);
-
+  // Sala validation states
   if (salaValid === null) return html`
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7' }}>
       <div style=${{ textAlign:'center', color:'#86868B' }}>
