@@ -13,87 +13,10 @@
   ::-webkit-scrollbar-thumb { background: #D1D1D6; border-radius: 3px; }
   input:focus, textarea:focus, select:focus { border-color: #007AFF !important; outline: none; }
   button { font-family: inherit; cursor: pointer; }
-  @keyframes fadeIn  { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
   .hl { transition: transform .15s, box-shadow .15s; }
   .hl:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.07); }
   .wm { font-family: 'Comfortaa', sans-serif; font-weight: 400; letter-spacing: 2px; background: linear-gradient(90deg,#007AFF,#5856D6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: inline-block; }
-
-  /* ─── MOBILE ─────────────────────────────────────── */
-  @media (max-width: 640px) {
-
-    /* Header: stack logo+sala on one line, shrink controls */
-    header { flex-wrap: wrap; gap: 6px !important; padding: 8px 12px !important; }
-    header > div:first-child { flex: 1; min-width: 0; }
-    header h2 { font-size: 14px !important; }
-    header h2 span.wm { font-size: 15px !important; }
-
-    /* Phase nav: scrollable single row, smaller pills */
-    div[style*="overflowX:'auto'"] button {
-      padding: 7px 10px !important;
-      font-size: 11px !important;
-    }
-
-    /* Timer: smaller */
-    header span[style*="fontVariantNumeric"] { font-size: 15px !important; min-width: 42px !important; }
-
-    /* Main content: less padding */
-    div[style*="flex:1"][style*="overflowY:'auto'"] { padding: 10px 10px !important; }
-
-    /* Cards: full width, less padding */
-    div[style*="borderRadius:20"],
-    div[style*="borderRadius:16"],
-    div[style*="borderRadius:14"] { border-radius: 12px !important; }
-
-    /* Notes board: 1 col instead of 2 */
-    div[style*="gridTemplateColumns:'repeat(2,1fr)'"] { grid-template-columns: 1fr !important; }
-    div[style*="gridTemplateColumns:'1fr 1fr'"]       { grid-template-columns: 1fr !important; }
-    div[style*="gridTemplateColumns:'1fr 320px'"]     { grid-template-columns: 1fr !important; }
-    div[style*="gridTemplateColumns:'1fr 1fr 1fr'"]   { grid-template-columns: 1fr 1fr !important; }
-    div[style*="gridTemplateColumns:'repeat(5,1fr)'"] { grid-template-columns: repeat(3,1fr) !important; }
-    div[style*="gridTemplateColumns:'repeat(3,1fr)'"] { grid-template-columns: repeat(2,1fr) !important; }
-    div[style*="gridTemplateColumns:'200px 1fr'"]     { grid-template-columns: 1fr !important; }
-
-    /* Actions form: stack vertically */
-    div[style*="minWidth:150"] { min-width: 0 !important; }
-
-    /* Dashboard P6 tabs: wrap */
-    div[style*="background:'#FFF'"][style*="borderRadius:14"] button { font-size: 10px !important; padding: 6px 4px !important; }
-
-    /* Login card: tighter */
-    div[style*="borderRadius:28"] { padding: 28px 20px !important; border-radius: 20px !important; }
-
-    /* Risk heatmap: scale down */
-    div[style*="gridTemplateColumns:'repeat(3,1fr)'"] div[style*="minHeight:90"] { min-height: 60px !important; padding: 6px !important; }
-
-    /* Admin dashboard: 2-col KPIs */
-    /* Inputs full width on mobile */
-    input, select, textarea { font-size: 16px !important; } /* prevents iOS zoom */
-
-    /* Modals: full screen on mobile */
-    div[style*="position:'fixed'"][style*="zIndex:9000"] > div,
-    div[style*="position:'fixed'"][style*="zIndex:9100"] > div {
-      max-width: 100% !important;
-      margin: 0 !important;
-      border-radius: 20px 20px 0 0 !important;
-      position: fixed !important;
-      bottom: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
-      max-height: 90vh !important;
-    }
-
-    /* Retro board header buttons: icons only on very small */
-    header button[style*="5px 10px"] { padding: 5px 7px !important; font-size: 11px !important; }
-
-    /* Hide long labels on header buttons, keep emoji */
-    .mob-label { display: none; }
-  }
-
-  @media (max-width: 380px) {
-    header h2 span:not(.wm) { display: none; }
-    div[style*="gridTemplateColumns:'repeat(3,1fr)'"] { grid-template-columns: repeat(2,1fr) !important; }
-  }
 </style>
 <script type="importmap">
 {
@@ -121,21 +44,11 @@ const SUPABASE_URL = 'https://lvsfrynsnyofroscaxhl.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZYRlCDmIE80AYrZWEeeWnw_hXWcg2rA';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* ═══ SUPABASE AUTH ═══ */
-const sbGetSession  = async () => { try { const {data} = await supabase.auth.getSession(); return data?.session || null; } catch { return null; } };
-const sbSignIn      = async (email, password) => { try { const {data,error} = await supabase.auth.signInWithPassword({email,password}); return {session:data?.session, error}; } catch(e) { return {session:null, error:e}; } };
-const sbSignOut     = async () => { try { await supabase.auth.signOut(); } catch {} };
-
-/* ─── Global error toast ─── */
-let _errorToast = null;
-function setGlobalError(msg) {
-  if (_errorToast) { _errorToast(msg); }
-}
-function useErrorToast() {
-  const [err, setErr] = useState(null);
-  useEffect(() => { _errorToast = setErr; return () => { _errorToast = null; }; }, []);
-  return err;
-}
+/* ═══ ADMIN AUTH ═══ */
+const ADMIN_PIN = 'revelio25';
+const isAdminAuth = () => localStorage.getItem('rf-admin-auth') === ADMIN_PIN;
+const setAdminAuth = () => localStorage.setItem('rf-admin-auth', ADMIN_PIN);
+const clearAdminAuth = () => localStorage.removeItem('rf-admin-auth');
 
 /* ═══ SUPABASE DB LAYER (admin panel) ═══ */
 async function sbLoadRooms() {
@@ -146,10 +59,7 @@ async function sbLoadRooms() {
   return null;
 }
 async function sbSaveRoom(slug, name, tipo) {
-  try {
-    const {error} = await supabase.from('rooms').upsert({ slug, name, tipo });
-    if (error) setGlobalError('⚠️ Error guardando sala en Supabase');
-  } catch { setGlobalError('⚠️ Sin conexión con Supabase'); }
+  try { await supabase.from('rooms').upsert({ slug, name, tipo }); } catch {}
 }
 async function sbDeleteRoom(slug) {
   try { await supabase.from('rooms').delete().eq('slug', slug); } catch {}
@@ -169,13 +79,12 @@ async function sbLoadRetros() {
 }
 async function sbSaveRetroSnapshot(sala, tipo, stateData, userId) {
   try {
-    const {error} = await supabase.from('retros').insert({
+    await supabase.from('retros').insert({
       sala, tipo, status: 'closed',
       data: stateData,
       created_by: userId,
     });
-    if (error) setGlobalError('⚠️ Error guardando retro en Supabase');
-  } catch { setGlobalError('⚠️ Sin conexión con Supabase'); }
+  } catch {}
 }
 
 /* ═══ CONSTANTS ═══ */
@@ -230,7 +139,7 @@ const cS = { background:'#FFF', borderRadius:20, border:'1.5px solid #E5E5EA', o
 const params = new URLSearchParams(window.location.search);
 const SALA = params.get('sala') || 'general';
 const SALA_DISPLAY = SALA.charAt(0).toUpperCase() + SALA.slice(1);
-const TIPO_URL = params.get('tipo') || 'agile'; // hint only, Supabase overrides
+const TIPO = params.get('tipo') || 'agile';
 const IS_ADMIN = params.has('admin');
 
 const TASK_TEMPLATES = {
@@ -284,15 +193,12 @@ const TASK_TEMPLATES = {
   },
 };
 
-// TIPO is resolved in App from Supabase; these are defaults
-const TIPO_INFO_DEFAULT_UNUSED = TASK_TEMPLATES[TIPO_URL] || TASK_TEMPLATES.agile;
+const TIPO_INFO = TASK_TEMPLATES[TIPO] || TASK_TEMPLATES.agile;
+const DEFAULT_TASKS = TIPO_INFO.tasks.map(t => ({ id: uid(), text: t, done: false }));
 
 /* ═══ REALTIME STATE ═══ */
-function useRealtime(user, tipoParam) {
-  const resolvedTipo = tipoParam || TIPO_URL;
-  const tipoInfo = TASK_TEMPLATES[resolvedTipo] || TASK_TEMPLATES.agile;
-  const defaultTasks = tipoInfo.tasks.map(t => ({ id: uid(), text: t, done: false }));
-  const [state, setState] = useState({ notes:[], tasks:defaultTasks, actions:[], obj:{text:'',met:null}, risks:loadRisks() });
+function useRealtime(user) {
+  const [state, setState] = useState({ notes:[], tasks:DEFAULT_TASKS.map(t=>({...t,id:uid()})), actions:[], obj:{text:'',met:null}, risks:loadRisks() });
   const [online, setOnline] = useState({});
   const [cursors, setCursors] = useState({});
   const chRef = useRef(null);
@@ -327,12 +233,6 @@ function useRealtime(user, tipoParam) {
     ch.on('broadcast', { event:'sync' }, ({ payload }) => {
       if (payload.from === user.id) return;
       setState(prev => ({ ...prev, [payload.key]: payload.data }));
-    });
-
-    // Broadcast: timer sync
-    ch.on('broadcast', { event:'timer' }, ({ payload }) => {
-      if (payload.from === user.id) return;
-      if (typeof payload.seconds === 'number') _timerSync && _timerSync(payload.seconds, payload.running);
     });
 
     ch.on('broadcast', { event:'req' }, ({ payload }) => {
@@ -377,7 +277,7 @@ function useRealtime(user, tipoParam) {
   const reset = useCallback(() => {
     const currentRisks = stRef.current.risks || [];
     const openActions = (stRef.current.actions || []).filter(a => a.status !== 'done' && a.status !== 'discarded');
-    const fresh = { notes:[], tasks:defaultTasks.map(t=>({...t,id:uid()})), actions:openActions, obj:{text:'',met:null}, risks:currentRisks };
+    const fresh = { notes:[], tasks:DEFAULT_TASKS.map(t=>({...t,id:uid()})), actions:openActions, obj:{text:'',met:null}, risks:currentRisks };
     setState(fresh);
     if (chRef.current && user) {
       Object.keys(fresh).forEach(k => {
@@ -386,20 +286,13 @@ function useRealtime(user, tipoParam) {
     }
   }, [user]);
 
-  const broadcastTimer = useCallback((seconds, running) => {
-    if (chRef.current && user) {
-      chRef.current.send({ type:'broadcast', event:'timer', payload:{ seconds, running, from:user.id } });
-    }
-  }, [user]);
-
-  return { state, upd, online, cursors, moveCursor, reset, broadcastTimer };
+  return { state, upd, online, cursors, moveCursor, reset };
 }
 
 /* ═══ APP ═══ */
 function App() {
   const [user,       setUser]       = useState(() => params.has('sala') ? loadUser() : null);
   const [salaValid,  setSalaValid]  = useState(null); // null=checking, true=ok, false=blocked
-  const [roomTipo,   setRoomTipo]   = useState(TIPO_URL); // resolved from Supabase
 
   const handleJoin   = (u) => { saveUser(u); registerUser(u); setUser(u); };
   const handleLogout = () => { clearUser(); setUser(null); };
@@ -410,15 +303,12 @@ function App() {
     return html`<${NeedLink} />`;
   }
 
-  // Check sala exists in Supabase AND get its tipo (runs once on mount)
+  // Check sala exists in Supabase (runs once on mount)
   useEffect(() => {
     sbLoadRooms().then(rooms => {
-      if (!rooms) { setSalaValid(true); return; }
-      const room = rooms.find(r => r.slug === SALA);
-      if (!room) { setSalaValid(false); return; }
-      setSalaValid(true);
-      // Override tipo with Supabase value
-      if (room.tipo && TASK_TEMPLATES[room.tipo]) setRoomTipo(room.tipo);
+      if (!rooms) { setSalaValid(true); return; } // Supabase unreachable → allow
+      const exists = rooms.some(r => r.slug === SALA);
+      setSalaValid(exists);
     });
   }, []);
 
@@ -444,70 +334,79 @@ function App() {
     </div>`;
 
   if (!user) return html`<${Login} onJoin=${handleJoin} />`;
-  return html`<${RetroBoard} user=${user} onLogout=${handleLogout} roomTipo=${roomTipo} />`;
+  return html`<${RetroBoard} user=${user} onLogout=${handleLogout} />`;
 }
 
 /* ═══ NEED LINK SCREEN ═══ */
 function NeedLink() {
   const phases = [
-    { n:1, label:'Repaso',      sub:'Objetivo y tareas'          },
-    { n:2, label:'Análisis',    sub:'Notas Good / Bad'           },
-    { n:3, label:'En Común',    sub:'Debate y votación'          },
-    { n:4, label:'Riesgos',     sub:'Impacto y probabilidad'     },
-    { n:5, label:'Accionables', sub:'Responsable y fecha'        },
-    { n:6, label:'Dashboard',   sub:'Ranking e informe PDF'      },
+    { n:1, label:'Repaso',      sub:'Objetivo y tareas del sprint'   },
+    { n:2, label:'Análisis',    sub:'Notas individuales Good/Bad'     },
+    { n:3, label:'En Común',    sub:'Debatid y votad'                 },
+    { n:4, label:'Riesgos',     sub:'Identificad y medid el impacto'  },
+    { n:5, label:'Accionables', sub:'Asignad responsable y fecha'     },
+    { n:6, label:'Dashboard',   sub:'Ranking, métricas e informe PDF' },
   ];
 
   return html`
-    <div style=${{ minHeight:'100vh', background:'linear-gradient(135deg,#0057FF 0%,#00C6FF 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'52px 24px', textAlign:'center', position:'relative', overflow:'hidden' }}>
+    <div style=${{ minHeight:'100vh', background:'#FAFAFA', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'48px 20px', textAlign:'center' }}>
 
-      <!-- Glow orbs -->
-      <div style=${{ position:'absolute', top:-180, right:-160, width:480, height:480, borderRadius:'50%', background:'radial-gradient(circle,rgba(255,255,255,.18),transparent 65%)', pointerEvents:'none' }} />
-      <div style=${{ position:'absolute', bottom:-140, left:-140, width:400, height:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(0,30,120,.35),transparent 65%)', pointerEvents:'none' }} />
+      <!-- Decorative blobs -->
+      <div style=${{ position:'fixed', top:-120, right:-120, width:400, height:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(0,122,255,.12),transparent 70%)', pointerEvents:'none' }} />
+      <div style=${{ position:'fixed', bottom:-100, left:-100, width:350, height:350, borderRadius:'50%', background:'radial-gradient(circle,rgba(88,86,214,.1),transparent 70%)', pointerEvents:'none' }} />
 
       <!-- Logo -->
-      <div style=${{ marginBottom:44, zIndex:1 }}>
-        <h1 style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:58, fontWeight:400, letterSpacing:4, color:'#FFF', margin:0, lineHeight:1, textShadow:'0 2px 24px rgba(0,0,0,.12)' }}>revelio</h1>
-        <p style=${{ fontSize:13, color:'rgba(255,255,255,.7)', letterSpacing:1.5, marginTop:8, textTransform:'uppercase', fontWeight:500 }}>Retrospectivas ágiles · Tiempo real</p>
+      <div style=${{ marginBottom:40 }}>
+        <h1 style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:52, fontWeight:400, letterSpacing:3, color:'#1D1D1F', marginBottom:8, lineHeight:1 }}>revelio</h1>
+        <p style=${{ fontSize:14, color:'#86868B', letterSpacing:.5 }}>Retrospectivas ágiles en tiempo real</p>
       </div>
 
-      <!-- Steps -->
-      <div style=${{ maxWidth:620, width:'100%', marginBottom:48, zIndex:1 }}>
-        <div style=${{ display:'flex', alignItems:'flex-start', position:'relative' }}>
-          <div style=${{ position:'absolute', top:17, left:'8%', right:'8%', height:1, background:'rgba(255,255,255,.25)' }} />
+      <!-- 6 fases: línea de pasos horizontal -->
+      <div style=${{ maxWidth:640, width:'100%', marginBottom:52 }}>
+        <div style=${{ display:'flex', alignItems:'flex-start', gap:0, position:'relative' }}>
+          <!-- línea conectora -->
+          <div style=${{ position:'absolute', top:18, left:'calc(100%/12)', right:'calc(100%/12)', height:1, background:'linear-gradient(90deg,#007AFF,#5856D6)', opacity:.2, zIndex:0 }} />
           ${phases.map((p,i) => html`
-            <div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:7, zIndex:1 }}>
+            <div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:8, zIndex:1 }}>
               <div style=${{
-                width:34, height:34, borderRadius:'50%', flexShrink:0,
-                background: i===0 ? '#FFF' : 'rgba(255,255,255,.18)',
-                backdropFilter:'blur(8px)',
-                border:'1.5px solid rgba(255,255,255,.4)',
+                width:36, height:36, borderRadius:'50%', flexShrink:0,
+                background: i===0?'linear-gradient(135deg,#007AFF,#5856D6)':'#FFF',
+                border: i===0?'none':'1.5px solid #E5E5EA',
                 display:'flex', alignItems:'center', justifyContent:'center',
                 fontSize:13, fontWeight:700,
-                color: i===0 ? '#0057FF' : '#FFF',
-                boxShadow: i===0 ? '0 4px 16px rgba(0,0,0,.15)' : 'none',
+                color: i===0?'#FFF':'#86868B',
+                boxShadow: i===0?'0 4px 12px rgba(0,122,255,.25)':'none',
+                transition:'all .2s'
               }}>${p.n}</div>
-              <div style=${{ fontSize:11, fontWeight:700, color:'#FFF', lineHeight:1.2 }}>${p.label}</div>
-              <div style=${{ fontSize:9, color:'rgba(255,255,255,.6)', lineHeight:1.3, maxWidth:76 }}>${p.sub}</div>
+              <div style=${{ fontSize:11, fontWeight:700, color:'#1D1D1F', lineHeight:1.2 }}>${p.label}</div>
+              <div style=${{ fontSize:9, color:'#86868B', lineHeight:1.3, maxWidth:80 }}>${p.sub}</div>
             </div>
           `)}
         </div>
       </div>
 
-      <!-- Pills -->
-      <div style=${{ display:'flex', gap:8, marginBottom:48, flexWrap:'wrap', justifyContent:'center', zIndex:1 }}>
-        ${['⚡ Tiempo real','🗳️ Voto anónimo','📊 Gestión de riesgos','📄 PDF automático'].map(l => html`
-          <div style=${{ background:'rgba(255,255,255,.15)', backdropFilter:'blur(10px)', border:'1px solid rgba(255,255,255,.3)', borderRadius:50, padding:'7px 16px', fontSize:12, fontWeight:600, color:'#FFF' }}>${l}</div>
+      <!-- 3 pills de features -->
+      <div style=${{ display:'flex', gap:10, marginBottom:52, flexWrap:'wrap', justifyContent:'center' }}>
+        ${[
+          ['Tiempo real','Notas y cursores sincronizados al instante'],
+          ['Votación anónima','Votos sin presión de grupo'],
+          ['Informe PDF','Exporta la retro completa en un clic'],
+        ].map(([t,d]) => html`
+          <div style=${{ background:'#FFF', border:'1px solid #E5E5EA', borderRadius:50, padding:'8px 18px', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
+            <span style=${{ fontSize:12, fontWeight:600, color:'#1D1D1F' }}>${t}</span>
+            <span style=${{ fontSize:11, color:'#86868B', marginLeft:6 }}>${d}</span>
+          </div>
         `)}
       </div>
 
-      <!-- CTA -->
-      <div style=${{ background:'rgba(255,255,255,.12)', backdropFilter:'blur(16px)', borderRadius:20, padding:'22px 32px', border:'1px solid rgba(255,255,255,.25)', maxWidth:380, width:'100%', zIndex:1, boxShadow:'0 8px 32px rgba(0,0,0,.1)' }}>
-        <p style=${{ fontSize:15, fontWeight:700, color:'#FFF', marginBottom:6 }}>¿Listo para la retro?</p>
-        <p style=${{ fontSize:13, color:'rgba(255,255,255,.7)', lineHeight:1.5 }}>Pide a tu Scrum Master el enlace de acceso a tu sala.</p>
+      <!-- CTA box -->
+      <div style=${{ background:'#FFF', borderRadius:20, padding:'24px 32px', border:'1px solid #E5E5EA', maxWidth:400, width:'100%', boxShadow:'0 4px 24px rgba(0,0,0,.06)' }}>
+        <div style=${{ width:44, height:44, borderRadius:14, background:'linear-gradient(135deg,#007AFF,#5856D6)', margin:'0 auto 14px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, boxShadow:'0 6px 16px rgba(0,122,255,.25)' }}>✨</div>
+        <p style=${{ fontSize:15, fontWeight:700, color:'#1D1D1F', marginBottom:6 }}>¿Listo para la retro?</p>
+        <p style=${{ fontSize:13, color:'#86868B', lineHeight:1.5 }}>Pide a tu Scrum Master el enlace de tu sala para comenzar.</p>
       </div>
 
-      <p style=${{ fontSize:10, color:'rgba(255,255,255,.3)', marginTop:36, zIndex:1 }}>Hecho con ✨ y sin Horcruxes</p>
+      <p style=${{ fontSize:10, color:'#C7C7CC', marginTop:36 }}>Hecho con ✨ y sin Horcruxes</p>
     </div>
   `;
 }
@@ -605,94 +504,27 @@ function getHeatColor(impLvl, probLvl) {
 }
 
 function RoomPicker() {
-  // ─── SUPABASE AUTH GATE ───
-  const [authState,  setAuthState]  = useState('checking'); // checking | signed-in | signed-out
-  const [authUser,   setAuthUser]   = useState(null);
-  const [email,      setEmail]      = useState('');
-  const [password,   setPassword]   = useState('');
-  const [authError,  setAuthError]  = useState('');
-  const [authLoading,setAuthLoading]= useState(false);
+  // ─── PIN GATE ───
+  const [pinAuth, setPinAuth] = useState(isAdminAuth());
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
 
-  // Check existing session on mount
-  useEffect(() => {
-    sbGetSession().then(session => {
-      if (session) { setAuthUser(session.user); setAuthState('signed-in'); }
-      else          { setAuthState('signed-out'); }
-    });
-    // Listen for auth changes (e.g. token refresh, sign out from another tab)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) { setAuthUser(session.user); setAuthState('signed-in'); }
-      else          { setAuthUser(null); setAuthState('signed-out'); }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleSignIn = async () => {
-    if (!email.trim() || !password.trim()) return;
-    setAuthLoading(true); setAuthError('');
-    const { session, error } = await sbSignIn(email.trim(), password.trim());
-    setAuthLoading(false);
-    if (error || !session) {
-      setAuthError(error?.message === 'Invalid login credentials'
-        ? '❌ Email o contraseña incorrectos'
-        : '❌ ' + (error?.message || 'Error de conexión'));
-    } else {
-      setAuthUser(session.user); setAuthState('signed-in');
-    }
+  const checkPin = () => {
+    if (pinInput === ADMIN_PIN) { setAdminAuth(); setPinAuth(true); }
+    else { setPinError(true); setTimeout(() => setPinError(false), 1500); }
   };
 
-  const handleSignOut = async () => {
-    await sbSignOut();
-    setAuthState('signed-out'); setAuthUser(null);
-  };
-
-  // ── Checking session ──
-  if (authState === 'checking') return html`
+  if (!pinAuth) return html`
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7' }}>
-      <div style=${{ textAlign:'center', color:'#86868B' }}>
-        <div style=${{ fontSize:28, animation:'spin 1s linear infinite', display:'inline-block', marginBottom:8 }}>⏳</div>
-        <p style=${{ fontSize:14 }}>Verificando sesión…</p>
-      </div>
-    </div>`;
-
-  // ── Sign in form ──
-  if (authState === 'signed-out') return html`
-    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0057FF,#00C6FF)', padding:16 }}>
-      <div style=${{ background:'#FFF', borderRadius:24, padding:'44px 38px', maxWidth:400, width:'100%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,.15)' }}>
+      <div style=${{ ...gl, borderRadius:24, padding:'44px 38px', maxWidth:380, width:'100%', textAlign:'center', boxShadow:'0 8px 60px rgba(0,0,0,0.06)' }}>
         <h1 class="wm" style=${{ fontSize:30, marginBottom:4 }}>revelio</h1>
-        <p style=${{ color:'#86868B', fontSize:14, marginBottom:32 }}>Panel de administración</p>
-        <div style=${{ fontSize:40, marginBottom:24 }}>🏰</div>
-
-        <div style=${{ textAlign:'left', marginBottom:12 }}>
-          <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:5 }}>Email</label>
-          <input type="email" value=${email} onInput=${e=>{ setEmail(e.target.value); setAuthError(''); }}
-            onKeyDown=${e=>e.key==='Enter'&&handleSignIn()}
-            placeholder="tu@email.com"
-            style=${{ ...iS, fontSize:14, marginBottom:0 }} />
-        </div>
-
-        <div style=${{ textAlign:'left', marginBottom:20 }}>
-          <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:5 }}>Contraseña</label>
-          <input type="password" value=${password} onInput=${e=>{ setPassword(e.target.value); setAuthError(''); }}
-            onKeyDown=${e=>e.key==='Enter'&&handleSignIn()}
-            placeholder="••••••••"
-            style=${{ ...iS, fontSize:14, marginBottom:0 }} />
-        </div>
-
-        ${authError && html`
-          <div style=${{ background:'#FFF5F5', border:'1px solid #FF3B3025', borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:12, color:'#FF3B30', fontWeight:600 }}>
-            ${authError}
-          </div>
-        `}
-
-        <button onClick=${handleSignIn} disabled=${authLoading} style=${{ ...bP, width:'100%', padding:14, fontSize:15, opacity:authLoading?.6:1 }}>
-          ${authLoading ? '⏳ Accediendo…' : '🪄 Acceder'}
-        </button>
-
-        <p style=${{ marginTop:16, fontSize:11, color:'#C7C7CC', lineHeight:1.5 }}>
-          Acceso restringido al Scrum Master.<br/>
-          Credenciales gestionadas en Supabase Auth.
-        </p>
+        <p style=${{ color:'#86868B', fontSize:14, marginBottom:28 }}>Panel de administración</p>
+        <div style=${{ fontSize:40, marginBottom:16 }}>🏰</div>
+        <input type="password" value=${pinInput} onInput=${e=>setPinInput(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&checkPin()}
+          placeholder="PIN de acceso" style=${{ ...iS, textAlign:'center', fontSize:18, letterSpacing:6, borderColor:pinError?'#FF3B30':'#E5E5EA', background:pinError?'#FFF5F5':'#FAFAFA', marginBottom:10 }} />
+        ${pinError && html`<p style=${{ color:'#FF3B30', fontSize:12, marginBottom:8, fontWeight:600 }}>❌ PIN incorrecto</p>`}
+        <button onClick=${checkPin} style=${{ ...bP, width:'100%', padding:14, fontSize:15 }}>🪄 Acceder</button>
+        <p style=${{ marginTop:16, fontSize:11, color:'#C7C7CC' }}>Solo el Scrum Master tiene acceso</p>
       </div>
     </div>`;
 
@@ -798,10 +630,7 @@ function RoomPicker() {
             <h1 class="wm" style=${{ fontSize:28, marginBottom:2 }}>revelio</h1>
             <p style=${{ color:'#86868B', fontSize:13 }}>Panel de administración</p>
           </div>
-          <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
-            ${authUser && html`<span style=${{ fontSize:11, color:'#86868B' }}>${authUser.email}</span>`}
-            <button onClick=${handleSignOut} style=${{ ...bS, padding:'5px 12px', fontSize:11, color:'#FF3B30', borderColor:'#FF3B3030' }}>🔒 Cerrar sesión</button>
-          </div>
+          <button onClick=${()=>{clearAdminAuth();window.location.reload();}} style=${{ ...bS, padding:'5px 12px', fontSize:11, color:'#FF3B30', borderColor:'#FF3B3030' }}>🔒 Cerrar sesión</button>
         </div>
 
         <div style=${{ display:'flex', gap:4, marginBottom:20, justifyContent:'center' }}>
@@ -1206,21 +1035,11 @@ function Login({ onJoin }) {
 }
 
 /* ═══ RETRO BOARD ═══ */
-function RetroBoard({ user, onLogout, roomTipo }) {
-  const tipoResolved = roomTipo || TIPO_URL;
-  const TIPO_INFO = TASK_TEMPLATES[tipoResolved] || TASK_TEMPLATES.agile;
-  const { state, upd, online, cursors, moveCursor, reset, broadcastTimer } = useRealtime(user, tipoResolved);
+function RetroBoard({ user, onLogout }) {
+  const { state, upd, online, cursors, moveCursor, reset } = useRealtime(user);
   const [phase, setPhase] = useState(0);
   const [timer, setTimer] = useState(900);
   const [running, setRunning] = useState(false);
-
-  // Register timer sync receiver
-  useEffect(() => {
-    window._timerSync = (secs, run) => { setTimer(secs); setRunning(run); };
-    return () => { window._timerSync = null; };
-  }, []);
-
-  const syncTimer = (secs, run) => { setTimer(secs); setRunning(run); broadcastTimer(secs, run); };
   const [showReset, setShowReset] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
@@ -1329,11 +1148,11 @@ function RetroBoard({ user, onLogout, roomTipo }) {
         <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
           <div style=${{ background:running?'#1D1D1F':'#F2F2F7', color:running?'#FFF':'#1D1D1F', borderRadius:10, padding:'6px 10px', display:'flex', alignItems:'center', gap:5 }}>
             ${!running && html`<div style=${{ display:'flex', gap:2 }}>
-              ${[5,10,15,20].map(m => html`<button key=${m} onClick=${()=>syncTimer(m*60, false)} style=${{ padding:'3px 6px', borderRadius:6, border:'none', background:timer===m*60?'#007AFF':'transparent', color:timer===m*60?'#FFF':running?'#FFF':'#86868B', fontSize:10, fontWeight:600 }}>${m}'</button>`)}
+              ${[5,10,15,20].map(m => html`<button key=${m} onClick=${()=>{setTimer(m*60);setRunning(false)}} style=${{ padding:'3px 6px', borderRadius:6, border:'none', background:timer===m*60?'#007AFF':'transparent', color:timer===m*60?'#FFF':running?'#FFF':'#86868B', fontSize:10, fontWeight:600 }}>${m}'</button>`)}
             </div>`}
             <span style=${{ fontSize:18, fontWeight:700, fontVariantNumeric:'tabular-nums', minWidth:52, textAlign:'center' }}>${fmt(timer)}</span>
-            <button onClick=${()=>syncTimer(timer, !running)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:running?'#FF3B30':'#34C759', color:'#FFF', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>${running?'⏸':'▶'}</button>
-            <button onClick=${()=>syncTimer(900, false)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:'rgba(128,128,128,0.12)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>↺</button>
+            <button onClick=${()=>setRunning(!running)} style=${{ width:26, height:26, borderRadius:13, border:'none', background:running?'#FF3B30':'#34C759', color:'#FFF', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>${running?'⏸':'▶'}</button>
+            <button onClick=${()=>{setTimer(900);setRunning(false)}} style=${{ width:26, height:26, borderRadius:13, border:'none', background:'rgba(128,128,128,0.12)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>↺</button>
           </div>
         </div>
         <div style=${{ display:'flex', alignItems:'center' }}>
@@ -1348,11 +1167,6 @@ function RetroBoard({ user, onLogout, roomTipo }) {
       <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>${content()}</div>
       ${toast && html`
         <div style=${{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', padding:'12px 24px', borderRadius:14, fontSize:14, fontWeight:600, boxShadow:'0 8px 30px rgba(0,0,0,0.15)', zIndex:300, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8 }}>${toast}</div>
-      `}
-      ${globalError && html`
-        <div style=${{ position:'fixed', bottom:toast?72:24, left:'50%', transform:'translateX(-50%)', background:'#FF3B30', color:'#FFF', padding:'11px 22px', borderRadius:14, fontSize:13, fontWeight:600, boxShadow:'0 8px 30px rgba(255,59,48,.3)', zIndex:301, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8, whiteSpace:'nowrap' }}>
-          ${globalError}
-        </div>
       `}
 
       ${showHistorial && html`<${HistorialModal} onClose=${()=>setShowHistorial(false)} />`}
@@ -1750,8 +1564,6 @@ function Board({ notes, sN, user, filter }) {
   const [eVal, setEVal] = useState('');
   const [dragId, setDragId] = useState(null);
   const [overCat, setOverCat] = useState(null);
-  const [touchDrag, setTouchDrag] = useState(null); // {id, startX, startY, curX, curY}
-  const touchRef = useRef(null);
 
   const addN = c => { if(!txt.trim())return; sN([...notes,{id:uid(),text:txt.trim(),category:c,userId:user.id,userName:user.name,userAvatar:user.avatar,userColor:user.color,voters:[],reactions:{}}]); setTxt(''); setAct(null); };
   const vote = nid => sN(notes.map(n=>{if(n.id!==nid)return n;const v=n.voters||[];return{...n,voters:v.includes(user.id)?v.filter(x=>x!==user.id):[...v,user.id]}}));
@@ -1760,54 +1572,17 @@ function Board({ notes, sN, user, filter }) {
   const saveE = () => { if(!eVal.trim())delN(eId); else sN(notes.map(n=>n.id===eId?{...n,text:eVal.trim()}:n)); setEId(null); };
   const drop = (e,c) => { e.preventDefault(); setOverCat(null); if(dragId)sN(notes.map(n=>n.id===dragId?{...n,category:c}:n)); setDragId(null); };
 
-  // ── Touch drag & drop ──
-  const onTouchStart = (e, noteId) => {
-    const t = e.touches[0];
-    touchRef.current = { id:noteId, startX:t.clientX, startY:t.clientY };
-    setTouchDrag({ id:noteId, x:t.clientX, y:t.clientY });
-  };
-  const onTouchMove = (e) => {
-    if (!touchRef.current) return;
-    e.preventDefault();
-    const t = e.touches[0];
-    setTouchDrag(prev => prev ? {...prev, x:t.clientX, y:t.clientY} : null);
-    // highlight target column
-    const el = document.elementFromPoint(t.clientX, t.clientY);
-    const col = el?.closest('[data-catid]');
-    setOverCat(col ? col.getAttribute('data-catid') : null);
-  };
-  const onTouchEnd = (e) => {
-    if (!touchRef.current) return;
-    const t = e.changedTouches[0];
-    const el = document.elementFromPoint(t.clientX, t.clientY);
-    const col = el?.closest('[data-catid]');
-    if (col && touchRef.current.id) {
-      const catId = col.getAttribute('data-catid');
-      sN(notes.map(n => n.id===touchRef.current.id ? {...n, category:catId} : n));
-    }
-    touchRef.current = null;
-    setTouchDrag(null);
-    setOverCat(null);
-  };
-
   let fil = notes;
   if(filter==='mine') fil=notes.filter(n=>n.userId===user.id);
   else if(CATS.some(c=>c.id===filter)) fil=notes.filter(n=>n.category===filter);
   const cats2 = CATS.some(c=>c.id===filter)?CATS.filter(c=>c.id===filter):CATS;
 
   return html`
-    <div style=${{ position:'relative' }}>
-    ${touchDrag && html`
-      <div style=${{ position:'fixed', left:touchDrag.x-60, top:touchDrag.y-30, width:120, pointerEvents:'none', zIndex:9999, opacity:.85, transform:'rotate(3deg) scale(1.05)', background:'#FFF', border:'2px solid #007AFF', borderRadius:10, padding:'8px 10px', fontSize:11, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.2)', color:'#007AFF' }}>
-        ✋ Moviendo nota
-      </div>
-    `}
     <div style=${{ display:'grid', gridTemplateColumns:cats2.length===1?'1fr':'repeat(4,1fr)', gap:10, height:'100%' }}>
       ${cats2.map(cat => {
         const cn = fil.filter(n=>n.category===cat.id).sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
         return html`
-          <div key=${cat.id} data-catid=${cat.id}
-            onDragOver=${e=>{e.preventDefault();setOverCat(cat.id)}} onDragLeave=${()=>setOverCat(null)} onDrop=${e=>drop(e,cat.id)}
+          <div key=${cat.id} onDragOver=${e=>{e.preventDefault();setOverCat(cat.id)}} onDragLeave=${()=>setOverCat(null)} onDrop=${e=>drop(e,cat.id)}
             style=${{ ...cS, display:'flex', flexDirection:'column', borderColor:overCat===cat.id?'#007AFF':'#E5E5EA', background:overCat===cat.id?'#007AFF04':'#FFF', transition:'all .2s' }}>
             <div style=${{ padding:'12px 14px 9px', background:cat.color+'06', borderBottom:'2.5px solid '+cat.color }}>
               <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -1819,12 +1594,8 @@ function Board({ notes, sN, user, filter }) {
               ${cn.map(note => {
                 const voted=note.voters?.includes(user.id); const mine=note.userId===user.id;
                 return html`
-                  <div key=${note.id} draggable=${true}
-                    onDragStart=${e=>{setDragId(note.id);e.dataTransfer.effectAllowed='move'}}
-                    onTouchStart=${e=>onTouchStart(e,note.id)}
-                    onTouchMove=${onTouchMove}
-                    onTouchEnd=${onTouchEnd}
-                    style=${{ background:cat.bg, borderRadius:12, padding:'10px 12px', border:'1px solid '+cat.color+'15', borderLeft:mine?'3px solid '+cat.color:'1px solid '+cat.color+'15', cursor:'grab', opacity:(dragId===note.id||touchDrag?.id===note.id)?0.4:1, touchAction:'none', userSelect:'none' }}>
+                  <div key=${note.id} draggable=${true} onDragStart=${e=>{setDragId(note.id);e.dataTransfer.effectAllowed='move'}}
+                    style=${{ background:cat.bg, borderRadius:12, padding:'10px 12px', border:'1px solid '+cat.color+'15', borderLeft:mine?'3px solid '+cat.color:'1px solid '+cat.color+'15', cursor:'grab', opacity:dragId===note.id?0.4:1 }}>
                     ${eId===note.id
                       ? html`<div>
                           <textarea autofocus value=${eVal} onInput=${e=>setEVal(e.target.value)} onKeyDown=${e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveE()}if(e.key==='Escape')setEId(null)}} style=${{ ...iS, height:48, resize:'none', fontSize:12, padding:'8px 10px' }} />
@@ -1866,7 +1637,6 @@ function Board({ notes, sN, user, filter }) {
               : html`<button onClick=${()=>{setAct(cat.id);setTxt('')}} style=${{ margin:'5px 8px 8px', padding:'8px', borderRadius:9, border:'1.5px dashed '+cat.color+'30', background:'transparent', color:cat.color, fontSize:12, fontWeight:600 }}>+ Añadir nota</button>`}
           </div>`;
       })}
-    </div>
     </div>
   `;
 }
