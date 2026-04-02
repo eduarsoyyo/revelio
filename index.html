@@ -525,7 +525,9 @@ function RoomPicker() {
 
   // ─── ADMIN PANEL (autenticado) ───
   const [room, setRoom] = useState('');
+  const [slug, setSlug] = useState('');
   const [tipo, setTipo] = useState('agile');
+  const [slugTouched, setSlugTouched] = useState(false);
   const [rooms, setRooms] = useState(loadRooms);
   const [tab, setTab] = useState('dashboard');
   const [filterProject, setFilterProject] = useState('all');
@@ -542,14 +544,14 @@ function RoomPicker() {
 
   const go = (slug, t) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(slug) + '&tipo=' + (t || 'agile'); };
   const create = () => {
-    if (!room.trim()) return;
-    const slug = room.trim().toLowerCase().replace(/\s+/g, '-');
-    if (!rooms.find(r => r.slug === slug)) {
-      const u = [...rooms, { name: room.trim(), slug, tipo }];
-      setRooms(u); saveRooms(u);
-      sbSaveRoom(slug, room.trim(), tipo);
-    }
-    go(slug, tipo);
+    if (!room.trim() || !slug.trim()) return;
+    const cleanSlug = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+    if (rooms.find(r => r.slug === cleanSlug)) { alert('Ya existe una sala con ese slug.'); return; }
+    const u = [...rooms, { name: room.trim(), slug: cleanSlug, tipo }];
+    setRooms(u); saveRooms(u);
+    sbSaveRoom(cleanSlug, room.trim(), tipo);
+    setRoom(''); setSlug(''); setSlugTouched(false);
+    go(cleanSlug, tipo);
   };
   const [confirmDelete, setConfirmDelete] = useState(null); // slug to delete
   const [editRoom,      setEditRoom]      = useState(null); // {slug, name, tipo}
@@ -836,12 +838,27 @@ function RoomPicker() {
           <!-- ── SALAS ── -->
           <div style=${{ ...cS, padding:'20px', marginBottom:12 }}>
             <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>➕ Nueva sala</h3>
-            <div style=${{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-              <input value=${room} onInput=${e=>setRoom(e.target.value)} placeholder="Nombre del proyecto" style=${{ ...iS, flex:2, minWidth:160 }} />
+            <div style=${{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
+              <input value=${room} onInput=${e=>{
+                setRoom(e.target.value);
+                if (!slugTouched) setSlug(e.target.value.trim().toLowerCase().replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-'));
+              }} placeholder="Nombre del proyecto" style=${{ ...iS, flex:2, minWidth:160 }}
+              onKeyDown=${e=>e.key==='Enter'&&create()} />
               <select value=${tipo} onChange=${e=>setTipo(e.target.value)} style=${{ ...iS, flex:'none', width:160 }}>
                 ${Object.entries(TASK_TEMPLATES).map(([k,v]) => html`<option key=${k} value=${k}>${v.icon} ${v.label}</option>`)}
               </select>
-              <button onClick=${create} style=${{ ...bP }}>+ Crear sala</button>
+            </div>
+            <div style=${{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <div style=${{ flex:1, minWidth:160, position:'relative' }}>
+                <span style=${{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', fontSize:11, color:'#C7C7CC', pointerEvents:'none' }}>slug:</span>
+                <input value=${slug} onInput=${e=>{ setSlug(e.target.value); setSlugTouched(true); }}
+                  placeholder="mi-proyecto" style=${{ ...iS, paddingLeft:42 }}
+                  onKeyDown=${e=>e.key==='Enter'&&create()} />
+              </div>
+              <div style=${{ fontSize:11, color:'#86868B', flex:1, minWidth:140 }}>
+                🔗 ${window.location.host}?sala=<b>${slug||'…'}</b>
+              </div>
+              <button onClick=${create} disabled=${!room.trim()||!slug.trim()} style=${{ ...bP, opacity:(!room.trim()||!slug.trim())?.4:1 }}>+ Crear sala</button>
             </div>
           </div>
 
