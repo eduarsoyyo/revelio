@@ -128,6 +128,7 @@ const sbSignOut     = async () => { try { await supabase.auth.signOut(); } catch
 
 /* ─── Global error toast ─── */
 let _errorToast = null;
+let _timerSync  = null;
 function setGlobalError(msg) {
   if (_errorToast) { _errorToast(msg); }
 }
@@ -1230,8 +1231,8 @@ function RetroBoard({ user, onLogout, roomTipo }) {
 
   // Register timer sync receiver
   useEffect(() => {
-    window._timerSync = (secs, run) => { setTimer(secs); setRunning(run); };
-    return () => { window._timerSync = null; };
+    _timerSync = (secs, run) => { setTimer(secs); setRunning(run); };
+    return () => { _timerSync = null; };
   }, []);
 
   const syncTimer = (secs, run) => { setTimer(secs); setRunning(run); broadcastTimer(secs, run); };
