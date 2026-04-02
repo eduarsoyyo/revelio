@@ -64,6 +64,13 @@ async function sbSaveRoom(slug, name, tipo) {
 async function sbDeleteRoom(slug) {
   try { await supabase.from('rooms').delete().eq('slug', slug); } catch {}
 }
+async function sbDeleteRoomData(slug) {
+  try { await supabase.from('retros').delete().eq('sala', slug); } catch {}
+  try { localStorage.removeItem('rf-risks-'   + slug); } catch {}
+  try { localStorage.removeItem('rf-reg-'     + slug); } catch {}
+  try { localStorage.removeItem('rf-user-'    + slug); } catch {}
+  try { localStorage.removeItem('rf-metrics');          } catch {}
+}
 async function sbLoadRetros() {
   try {
     const { data } = await supabase.from('retros').select('id,sala,tipo,status,created_at,updated_at,data').order('created_at', { ascending: false });
@@ -512,67 +519,54 @@ function RoomPicker() {
     }
     go(slug, tipo);
   };
-  const remove = (slug) => {
+  const [confirmDelete, setConfirmDelete] = useState(null); // slug to delete
+
+  const remove = (slug) => setConfirmDelete(slug);
+
+  const doDelete = async () => {
+    const slug = confirmDelete;
+    setConfirmDelete(null);
     const u = rooms.filter(r => r.slug !== slug);
     setRooms(u); saveRooms(u);
-    sbDeleteRoom(slug);
+    await sbDeleteRoom(slug);
+    await sbDeleteRoomData(slug);
+    // Refresh retros list
+    sbLoadRetros().then(data => setSbRetros(data));
   };
 
-  // Build stats from Supabase retros + localStorage metrics (merged)
-  const localMetrics = loadMetrics();
-  // Build unified salaStats
+  // Build stats — Supabase ONLY (no localStorage fallback)
   const salaStats = rooms.map(r => {
-    // Supabase retros for this sala
-    const sbSala = sbRetros.filter(rt => rt.sala === r.slug);
-    // localStorage entries for this sala (legacy)
-    const lsEntries = localMetrics[r.slug] || [];
-    // Combine: Supabase-derived metrics
-    const sbNotes = sbSala.reduce((s, rt) => s + (rt.data?.notes?.length || 0), 0);
-    const sbVotes = sbSala.reduce((s, rt) => s + ((rt.data?.notes || []).reduce((a, n) => a + (n.voters?.length || 0), 0)), 0);
-    const sbActs  = sbSala.reduce((s, rt) => s + (rt.data?.actions?.length || 0), 0);
-    const sbDone  = sbSala.reduce((s, rt) => s + ((rt.data?.actions || []).filter(a => a.status === 'done').length), 0);
-    const sbParts = [...new Set(sbSala.flatMap(rt => (rt.data?.notes || []).map(n => n.userName)))];
-    // Also pick up localStorage-only data
-    const lsNotes = lsEntries.reduce((s, e) => s + (e.notes || 0), 0);
-    const lsActs  = lsEntries.reduce((s, e) => s + (e.actions || 0), 0);
-    const lsDone  = lsEntries.reduce((s, e) => s + (e.actionsDone || 0), 0);
-    const lsParts = [...new Set(lsEntries.flatMap(e => e.participantNames || []))];
-    let salaRisks = [];
-    try { const s = localStorage.getItem('rf-risks-' + r.slug); salaRisks = s ? JSON.parse(s) : []; } catch {}
-    const retrosCount = sbSala.length > 0 ? sbSala.length : lsEntries.length;
-    const last = sbSala.length > 0 ? sbSala[0] : (lsEntries.length > 0 ? lsEntries[lsEntries.length-1] : null);
-    const rTipo = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
+    const sbSala  = sbRetros.filter(rt => rt.sala === r.slug);
+    const notes   = sbSala.reduce((s, rt) => s + (rt.data?.notes?.length || 0), 0);
+    const votes   = sbSala.reduce((s, rt) => s + ((rt.data?.notes || []).reduce((a, n) => a + (n.voters?.length || 0), 0)), 0);
+    const actions = sbSala.reduce((s, rt) => s + (rt.data?.actions?.length || 0), 0);
+    const done    = sbSala.reduce((s, rt) => s + ((rt.data?.actions || []).filter(a => a.status === 'done').length), 0);
+    const parts   = [...new Set(sbSala.flatMap(rt => (rt.data?.notes || []).map(n => n.userName)))];
+    const risks   = sbSala.flatMap(rt => rt.data?.risks || []);
+    const risksOpen      = risks.filter(x => x.status !== 'mitigated').length;
+    const risksMitigated = risks.filter(x => x.status === 'mitigated').length;
+    const rTipo   = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
+    const last    = sbSala[0] || null;
     return {
-      ...r, rTipo, retros: retrosCount,
-      notes: sbNotes || lsNotes,
-      actions: sbActs || lsActs,
-      done: sbDone || lsDone,
-      votes: sbVotes,
-      risksOpen: salaRisks.filter(x => x.status !== 'mitigated').length,
-      risksMitigated: salaRisks.filter(x => x.status === 'mitigated').length,
-      risksTotal: salaRisks.length,
-      parts: sbParts.length > 0 ? sbParts : lsParts,
-      avgP: retrosCount > 0 ? ((sbParts.length || lsParts.length) / retrosCount).toFixed(1) : 0,
-      last, entries: sbSala, lsEntries,
+      ...r, rTipo,
+      retros: sbSala.length,
+      notes, votes, actions, done, parts,
+      risksOpen, risksMitigated, risksTotal: risks.length,
+      avgP: sbSala.length > 0 ? (parts.length / sbSala.length).toFixed(1) : 0,
+      last, entries: sbSala,
     };
   });
 
-  const filteredStats = filterProject === 'all' ? salaStats : salaStats.filter(s => s.slug === filterProject);
-  const allEntries2 = filteredStats.flatMap(s => [...s.entries, ...s.lsEntries]);
-  const totalRetros = filteredStats.reduce((s, x) => s + x.retros, 0);
-  const totalNotes  = filteredStats.reduce((s, x) => s + x.notes, 0);
-  const totalActions = filteredStats.reduce((s, x) => s + x.actions, 0);
+  const filteredStats    = filterProject === 'all' ? salaStats : salaStats.filter(s => s.slug === filterProject);
+  const totalRetros      = filteredStats.reduce((s, x) => s + x.retros, 0);
+  const totalNotes       = filteredStats.reduce((s, x) => s + x.notes, 0);
+  const totalActions     = filteredStats.reduce((s, x) => s + x.actions, 0);
   const totalActionsDone = filteredStats.reduce((s, x) => s + x.done, 0);
-  const totalVotes  = filteredStats.reduce((s, x) => s + x.votes, 0);
-  const allParticipants = [...new Set(filteredStats.flatMap(s => s.parts))];
-  const actionRate = totalActions > 0 ? Math.round((totalActionsDone / totalActions) * 100) : 0;
-
-  // Risk metrics
-  const filteredRooms = filterProject === 'all' ? rooms : rooms.filter(r => r.slug === filterProject);
-  const allRisks = filteredRooms.flatMap(r => {
-    try { const s = localStorage.getItem('rf-risks-' + r.slug); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
-  const totalRisksOpen = allRisks.filter(r => r.status !== 'mitigated').length;
+  const totalVotes       = filteredStats.reduce((s, x) => s + x.votes, 0);
+  const allParticipants  = [...new Set(filteredStats.flatMap(s => s.parts))];
+  const actionRate       = totalActions > 0 ? Math.round((totalActionsDone / totalActions) * 100) : 0;
+  const totalRisksOpen   = filteredStats.reduce((s, x) => s + x.risksOpen, 0);
+  const allRisks         = filteredStats.flatMap(s => s.entries.flatMap(rt => rt.data?.risks || []));
 
   // Trend: chronological retros from Supabase
   const trend = [...sbRetros].sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).slice(-12);
