@@ -424,17 +424,13 @@ function NeedLink({ onLogin, showLogin, onJoin, onCloseLogin }) {
       </p>
 
       <!-- CTA card -->
-      <div style=${{ background:'rgba(255,255,255,.12)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', border:'1px solid rgba(255,255,255,.25)', borderRadius:24, padding:'28px 36px', maxWidth:360, width:'100%', zIndex:1, boxShadow:'0 8px 48px rgba(0,0,0,.12)' }}>
-        <div style=${{ display:'flex', gap:8, justifyContent:'center', marginBottom:14 }}>
-          ${['⚡ Tiempo real','⚠️ Riesgos','🏖️ Equipo','🎯 Kanban'].map(f=>html`
-            <span style=${{ fontSize:10, color:'rgba(255,255,255,.7)', background:'rgba(255,255,255,.1)', padding:'3px 9px', borderRadius:20 }}>${f}</span>`)}
-        </div>
+      <div style=${{ zIndex:1 }}>
         <button onClick=${onLogin}
-          style=${{ width:'100%', padding:'14px 24px', borderRadius:14, border:'none',
-            background:'#FFF', color:'#007AFF', fontSize:16, fontWeight:700, cursor:'pointer',
-            boxShadow:'0 4px 20px rgba(0,0,0,.15)', transition:'transform .15s' }}
-          onMouseOver=${e=>e.currentTarget.style.transform='scale(1.03)'}
-          onMouseOut=${e=>e.currentTarget.style.transform='scale(1)'}>
+          style=${{ padding:'16px 48px', borderRadius:16, border:'none',
+            background:'#FFF', color:'#007AFF', fontSize:17, fontWeight:700, cursor:'pointer',
+            boxShadow:'0 4px 24px rgba(0,0,0,.18)', transition:'transform .15s, box-shadow .15s' }}
+          onMouseOver=${e=>{ e.currentTarget.style.transform='scale(1.04)'; e.currentTarget.style.boxShadow='0 8px 32px rgba(0,0,0,.22)'; }}
+          onMouseOut=${e=>{ e.currentTarget.style.transform='scale(1)'; e.currentTarget.style.boxShadow='0 4px 24px rgba(0,0,0,.18)'; }}>
           Acceder →
         </button>
       </div>
@@ -1529,7 +1525,16 @@ function Login({ onJoin, isModal }) {
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) { setError('Introduce usuario y contraseña'); return; }
     setLoading(true); setError('');
-    // Find member by username or email
+
+    // Try Supabase Auth first (admin path)
+    const { session } = await sbSignIn(username.trim(), password);
+    if (session) {
+      setLoading(false);
+      window.location.href = window.location.pathname + '?admin';
+      return;
+    }
+
+    // Regular team member login
     const member = members.find(m =>
       (m.username && m.username.toLowerCase() === username.trim().toLowerCase()) ||
       (m.email    && m.email.toLowerCase()    === username.trim().toLowerCase())
