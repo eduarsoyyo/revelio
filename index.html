@@ -657,6 +657,125 @@ function MemberForm({ m, setM, rooms, saving, onSave, onCancel }) {
 }
 
 
+/* ═══ ADMIN ROLES ═══ */
+function AdminRoles() {
+  const [members,  setMembers]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [roles,    setRoles]    = useState(() => { try { return JSON.parse(localStorage.getItem('rf-admin-roles')||'null')||[...ROLES]; } catch { return [...ROLES]; } });
+  const [newRole,  setNewRole]  = useState('');
+  const [expanded, setExpanded] = useState(null);
+  const [saving,   setSaving]   = useState(null);
+
+  useEffect(() => { sbLoadTeamMembers().then(data => { setMembers(data||[]); setLoading(false); }); }, []);
+
+  const saveRoles = (r) => { setRoles(r); localStorage.setItem('rf-admin-roles', JSON.stringify(r)); };
+  const addRole = () => { const t=newRole.trim(); if(!t||roles.includes(t)) return; saveRoles([...roles,t]); setNewRole(''); };
+  const delRole = (role) => { if (ROLES.includes(role)) return; saveRoles(roles.filter(r=>r!==role)); };
+
+  const assignRole = async (memberId, role) => {
+    setSaving(memberId);
+    const m=members.find(x=>x.id===memberId); if(!m){setSaving(null);return;}
+    const u={...m,role_label:role}; await sbSaveTeamMember(u);
+    setMembers(prev=>prev.map(x=>x.id===memberId?u:x)); setSaving(null);
+  };
+  const removeRole = async (memberId) => {
+    setSaving(memberId);
+    const m=members.find(x=>x.id===memberId); if(!m){setSaving(null);return;}
+    const u={...m,role_label:''}; await sbSaveTeamMember(u);
+    setMembers(prev=>prev.map(x=>x.id===memberId?u:x)); setSaving(null);
+  };
+
+  const byRole = (role) => members.filter(m=>m.role_label===role);
+  const unassigned = members.filter(m=>!m.role_label);
+  const allRoles = [...new Set([...roles, ...members.map(m=>m.role_label).filter(Boolean)])];
+  const RC = {'Scrum Master':'#007AFF','Product Owner':'#5856D6','Desarrollador/a':'#34C759','QA / Tester':'#FF9500','Diseñador/a':'#FF2D55','DevOps':'#00C7BE','Tech Lead':'#FF3B30','Analista':'#AF52DE','Project Manager':'#007AFF','Stakeholder':'#86868B','Otro':'#C7C7CC'};
+  const rc = (r) => RC[r]||'#5856D6';
+
+  return html`
+    <div>
+      <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div>
+          <h3 style=${{ fontSize:16, fontWeight:700 }}>🏷️ Gestión de roles</h3>
+          <p style=${{ fontSize:12, color:'#86868B', marginTop:2 }}>${allRoles.length} roles · ${members.length} usuarios</p>
+        </div>
+      </div>
+
+      ${loading ? html`<div style=${{ textAlign:'center', padding:40, color:'#86868B' }}>⏳ Cargando…</div>` : html`
+        <div style=${{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:10, marginBottom:20 }}>
+          ${allRoles.map(role => {
+            const mems=byRole(role); const color=rc(role); const isBuiltin=ROLES.includes(role); const isExp=expanded===role;
+            return html`
+              <div key=${role} style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid '+(isExp?color:'#E5E5EA'), overflow:'hidden' }}>
+                <div onClick=${()=>setExpanded(isExp?null:role)} style=${{ padding:'12px 14px', display:'flex', alignItems:'center', gap:10, cursor:'pointer', background:isExp?color+'08':'#FFF' }}>
+                  <div style=${{ width:36, height:36, borderRadius:10, background:color+'18', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style=${{ fontSize:18, fontWeight:800, color:color }}>${role.charAt(0)}</span>
+                  </div>
+                  <div style=${{ flex:1 }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style=${{ fontSize:13, fontWeight:700 }}>${role}</span>
+                      ${!isBuiltin && html`<span style=${{ fontSize:9, color:'#86868B', background:'#F2F2F7', padding:'1px 5px', borderRadius:4 }}>personalizado</span>`}
+                    </div>
+                    <div style=${{ fontSize:11, marginTop:1 }}>
+                      ${mems.length===0 ? html`<span style=${{ color:'#C7C7CC' }}>Sin asignar</span>` : html`<span style=${{ color:color, fontWeight:600 }}>${mems.length} ${mems.length===1?'persona':'personas'}</span>`}
+                    </div>
+                  </div>
+                  <div style=${{ display:'flex' }}>
+                    ${mems.slice(0,4).map((m,i)=>html`<div key=${m.id} title=${m.name} style=${{ width:26, height:26, borderRadius:8, background:m.color||'#E5E5EA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, marginLeft:i>0?-6:0, border:'2px solid #FFF', zIndex:4-i }}>${m.avatar||'👤'}</div>`)}
+                    ${mems.length>4 && html`<div style=${{ width:26, height:26, borderRadius:8, background:'#F2F2F7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700, color:'#86868B', marginLeft:-6, border:'2px solid #FFF' }}>+${mems.length-4}</div>`}
+                  </div>
+                  <span style=${{ fontSize:12, color:isExp?color:'#C7C7CC', display:'inline-block', transform:isExp?'rotate(180deg)':'none', transition:'transform .2s' }}>▾</span>
+                  ${!isBuiltin && html`<button onClick=${e=>{e.stopPropagation();delRole(role)}} style=${{ border:'none', background:'none', color:'#FF3B30', fontSize:14, cursor:'pointer', padding:'2px 4px' }}>✕</button>`}
+                </div>
+                ${isExp && html`
+                  <div style=${{ borderTop:'1px solid #F2F2F7', padding:'10px 14px' }}>
+                    ${mems.length===0 ? html`<p style=${{ fontSize:11, color:'#C7C7CC', marginBottom:10 }}>Nadie tiene este rol aún</p>` :
+                      html`<div style=${{ display:'flex', flexDirection:'column', gap:5, marginBottom:10 }}>
+                        ${mems.map(m=>html`
+                          <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:8, background:color+'08' }}>
+                            <div style=${{ width:28, height:28, borderRadius:8, background:m.color||'#E5E5EA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15 }}>${m.avatar||'👤'}</div>
+                            <span style=${{ flex:1, fontSize:12, fontWeight:600 }}>${m.name}</span>
+                            <button onClick=${()=>removeRole(m.id)} disabled=${saving===m.id} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:12, cursor:'pointer' }}>✕</button>
+                          </div>`)}
+                      </div>`}
+                    <p style=${{ fontSize:10, fontWeight:700, color:'#86868B', marginBottom:6, textTransform:'uppercase' }}>Asignar a…</p>
+                    <div style=${{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                      ${members.filter(m=>m.role_label!==role).map(m=>html`
+                        <button key=${m.id} onClick=${()=>assignRole(m.id,role)} disabled=${saving===m.id}
+                          style=${{ display:'flex', alignItems:'center', gap:4, padding:'3px 8px 3px 4px', borderRadius:20, border:'1.5px solid #E5E5EA', background:'#FFF', cursor:'pointer', fontSize:11, opacity:saving===m.id?.4:1 }}>
+                          <span style=${{ fontSize:14 }}>${m.avatar||'👤'}</span><span>${m.name}</span>
+                        </button>`)}
+                    </div>
+                  </div>`}
+              </div>`;
+          })}
+          ${unassigned.length>0 && html`
+            <div style=${{ background:'#F9F9FB', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'12px 14px' }}>
+              <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                <div style=${{ width:36, height:36, borderRadius:10, background:'#F2F2F7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>❓</div>
+                <div><span style=${{ fontSize:13, fontWeight:700, color:'#86868B' }}>Sin rol</span><div style=${{ fontSize:11, color:'#C7C7CC' }}>${unassigned.length} personas</div></div>
+              </div>
+              <div style=${{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                ${unassigned.map(m=>html`
+                  <span key=${m.id} style=${{ display:'flex', alignItems:'center', gap:4, padding:'3px 8px 3px 4px', borderRadius:20, background:'#FFF', border:'1px solid #E5E5EA', fontSize:11 }}>
+                    <span style=${{ fontSize:14 }}>${m.avatar||'👤'}</span><span style=${{ color:'#86868B' }}>${m.name}</span>
+                  </span>`)}
+              </div>
+            </div>`}
+        </div>
+        <div style=${{ display:'flex', gap:8, padding:'12px 14px', borderRadius:12, background:'#F9F9FB', border:'1.5px solid #E5E5EA' }}>
+          <input value=${newRole} onInput=${e=>setNewRole(e.target.value)} onKeyDown=${e=>e.key==='Enter'&&addRole()}
+            placeholder="Nombre del nuevo rol personalizado…"
+            style=${{ flex:1, border:'1.5px solid #E5E5EA', borderRadius:9, padding:'8px 12px', fontSize:13, fontFamily:'inherit', outline:'none', background:'#FFF' }} />
+          <button onClick=${addRole} disabled=${!newRole.trim()||roles.includes(newRole.trim())}
+            style=${{ padding:'8px 18px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer', opacity:(!newRole.trim()||roles.includes(newRole.trim()))?.4:1 }}>
+            + Añadir
+          </button>
+        </div>
+        <p style=${{ fontSize:11, color:'#C7C7CC', marginTop:10, textAlign:'center' }}>Los roles predefinidos no se pueden eliminar · Los roles personalizados se guardan localmente</p>
+      `}
+    </div>`;
+}
+
 /* ═══ ADMIN CALENDARIOS ═══ */
 function AdminCalendarios() {
   const [cals,    setCals]    = useState([]);
@@ -957,10 +1076,6 @@ function RoomPicker() {
   // ─── SUPABASE AUTH GATE ───
   const [authState,   setAuthState]   = useState('checking');
   const [authUser,    setAuthUser]    = useState(null);
-  const [email,       setEmail]       = useState('');
-  const [password,    setPassword]    = useState('');
-  const [authError,   setAuthError]   = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
 
   useEffect(() => {
     sbGetSession().then(session => {
@@ -974,20 +1089,6 @@ function RoomPicker() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleSignIn = async () => {
-    if (!email.trim() || !password.trim()) return;
-    setAuthLoading(true); setAuthError('');
-    const { session, error } = await sbSignIn(email.trim(), password.trim());
-    setAuthLoading(false);
-    if (!session) {
-      setAuthError(error?.message === 'Invalid login credentials'
-        ? '❌ Email o contraseña incorrectos'
-        : '❌ ' + (error?.message || 'Error de conexión'));
-    } else {
-      setAuthUser(session.user); setAuthState('signed-in');
-    }
-  };
-
   const handleSignOut = async () => { await sbSignOut(); setAuthState('signed-out'); setAuthUser(null); };
 
   if (authState === 'checking') return html`
@@ -998,33 +1099,11 @@ function RoomPicker() {
       </div>
     </div>`;
 
-  if (authState === 'signed-out') return html`
-    <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0057FF,#00C6FF)', padding:16 }}>
-      <div style=${{ background:'#FFF', borderRadius:24, padding:'44px 38px', maxWidth:400, width:'100%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,.15)' }}>
-        <h1 class="wm" style=${{ fontSize:30, marginBottom:4 }}>revelio</h1>
-        <p style=${{ color:'#86868B', fontSize:14, marginBottom:32 }}>Panel de administración</p>
-        <div style=${{ fontSize:40, marginBottom:24 }}>🏰</div>
-        <div style=${{ textAlign:'left', marginBottom:12 }}>
-          <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', display:'block', marginBottom:5 }}>Email</label>
-          <input type="email" value=${email} onInput=${e=>{setEmail(e.target.value);setAuthError('');}}
-            onKeyDown=${e=>e.key==='Enter'&&handleSignIn()} placeholder="tu@email.com" style=${{ ...iS }} />
-        </div>
-        <div style=${{ textAlign:'left', marginBottom:20 }}>
-          <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', display:'block', marginBottom:5 }}>Contraseña</label>
-          <input type="password" value=${password} onInput=${e=>{setPassword(e.target.value);setAuthError('');}}
-            onKeyDown=${e=>e.key==='Enter'&&handleSignIn()} placeholder="••••••••" style=${{ ...iS }} />
-        </div>
-        ${authError && html`
-          <div style=${{ background:'#FFF5F5', border:'1px solid #FF3B3025', borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:12, color:'#FF3B30', fontWeight:600 }}>
-            ${authError}
-          </div>`}
-        <button onClick=${handleSignIn} disabled=${authLoading}
-          style=${{ ...bP, width:'100%', padding:14, fontSize:15, opacity:authLoading?.6:1 }}>
-          ${authLoading ? '⏳ Accediendo…' : '🪄 Acceder'}
-        </button>
-        <p style=${{ marginTop:16, fontSize:11, color:'#C7C7CC' }}>Acceso restringido · Credenciales en Supabase Auth</p>
-      </div>
-    </div>`;
+  if (authState === 'signed-out') {
+    // No active session — redirect to unified login
+    window.location.href = window.location.pathname;
+    return null;
+  }
 
   // ─── ADMIN PANEL (autenticado) ───
   const [room, setRoom] = useState('');
@@ -1135,12 +1214,12 @@ function RoomPicker() {
         </div>
 
         <div style=${{ display:'flex', gap:4, marginBottom:20, justifyContent:'center' }}>
-          ${[{id:'dashboard',label:'📊 Dashboard'},{id:'salas',label:'📂 Proyectos'},{id:'usuarios',label:'👥 Usuarios'},{id:'calendarios',label:'📅 Calendarios'}].map(t => html`
+          ${[{id:'dashboard',label:'📊 Dashboard'},{id:'salas',label:'📂 Proyectos'},{id:'usuarios',label:'👥 Usuarios'},{id:'roles',label:'🏷️ Roles'},{id:'calendarios',label:'📅 Calendarios'}].map(t => html`
             <button key=${t.id} onClick=${()=>setTab(t.id)} style=${{ padding:'9px 20px', borderRadius:10, border:tab===t.id?'none':'1.5px solid #E5E5EA', background:tab===t.id?'#1D1D1F':'#FFF', color:tab===t.id?'#FFF':'#6E6E73', fontSize:13, fontWeight:600 }}>${t.label}</button>
           `)}
         </div>
 
-        ${tab === 'calendarios' ? html`<${AdminCalendarios} />` : tab === 'usuarios' ? html`<${AdminUsuarios} rooms=${rooms} sbRetros=${sbRetros} />` : tab === 'dashboard' ? html`
+        ${tab === 'roles' ? html`<${AdminRoles} />` : tab === 'calendarios' ? html`<${AdminCalendarios} />` : tab === 'usuarios' ? html`<${AdminUsuarios} rooms=${rooms} sbRetros=${sbRetros} />` : tab === 'dashboard' ? html`
           <!-- Project filter -->
           <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:16, flexWrap:'wrap' }}>
             <span style=${{ fontSize:11, color:'#86868B', fontWeight:600 }}>Filtrar:</span>
