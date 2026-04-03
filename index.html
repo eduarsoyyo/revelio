@@ -165,6 +165,14 @@ const MAIN_TABS = [
 ];
 const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
 const ROLES = ['Scrum Master','Product Owner','Desarrollador/a','QA / Tester','Diseñador/a','DevOps','Tech Lead','Analista','Project Manager','Stakeholder','Otro'];
+// Merged roles: built-in + any custom ones saved in AdminRoles
+function getAllRoles() {
+  try {
+    const custom = JSON.parse(localStorage.getItem('rf-admin-roles') || 'null');
+    if (!custom) return [...ROLES];
+    return [...new Set([...ROLES, ...custom])];
+  } catch { return [...ROLES]; }
+}
 const REACTIONS = ['🔥','💡','❤️','😂','🎯','🤯'];
 const COLRS = ['#007AFF','#FF3B30','#34C759','#FF9500','#AF52DE','#FF2D55','#5856D6','#00C7BE'];
 const BADGES = [
@@ -401,7 +409,7 @@ function App() {
           }
         : {
             id: session.user.id,
-            name: session.user.email.split('@')[0],
+            name: session.user.email,
             avatar: '🧙',
             color: '#5856D6',
             role: 'Admin',
@@ -576,6 +584,12 @@ function getHeatColor(impLvl, probLvl) {
 
 /* ═══ MEMBER FORM — top-level so Preact doesn't remount on every render ═══ */
 function MemberForm({ m, setM, rooms, saving, onSave, onCancel }) {
+  const [allRoles, setAllRoles] = useState(getAllRoles);
+  useEffect(() => {
+    const onStorage = () => setAllRoles(getAllRoles());
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const toggle = (slug) => {
     const rs = m.rooms||[];
     setM({...m, rooms: rs.includes(slug) ? rs.filter(r=>r!==slug) : [...rs,slug]});
@@ -611,7 +625,7 @@ function MemberForm({ m, setM, rooms, saving, onSave, onCancel }) {
           <select value=${m.role_label||''} onChange=${e=>setM({...m,role_label:e.target.value})}
             style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'9px 12px', fontSize:13, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
             <option value="">— Sin rol —</option>
-            ${ROLES.map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
+            ${allRoles.map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
           </select>
         </div>
         <div>
@@ -668,7 +682,12 @@ function AdminRoles() {
 
   useEffect(() => { sbLoadTeamMembers().then(data => { setMembers(data||[]); setLoading(false); }); }, []);
 
-  const saveRoles = (r) => { setRoles(r); localStorage.setItem('rf-admin-roles', JSON.stringify(r)); };
+  const saveRoles = (r) => {
+    setRoles(r);
+    localStorage.setItem('rf-admin-roles', JSON.stringify(r));
+    // Notify MemberForm in other tabs/components
+    window.dispatchEvent(new Event('storage'));
+  };
   const addRole = () => { const t=newRole.trim(); if(!t||roles.includes(t)) return; saveRoles([...roles,t]); setNewRole(''); };
   const delRole = (role) => { if (ROLES.includes(role)) return; saveRoles(roles.filter(r=>r!==role)); };
 
@@ -776,6 +795,52 @@ function AdminRoles() {
     </div>`;
 }
 
+/* ═══ CAL FORM — top-level to avoid remount on every render ═══ */
+function CalForm({ cal, setCal, saving, onSave, onCancel }) {
+  const [nh, setNh] = useState({date:'', name:''});
+  const addH = () => {
+    if (!nh.date||!nh.name.trim()) return;
+    setCal({...cal, holidays:[...(cal.holidays||[]),{...nh}].sort((a,b)=>a.date<b.date?-1:1)});
+    setNh({date:'', name:''});
+  };
+  const delH = (i) => setCal({...cal, holidays:(cal.holidays||[]).filter((_,idx)=>idx!==i)});
+  return html`
+    <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div>
+        <label style=${{ fontSize:11, color:'#86868B', fontWeight:600, display:'block', marginBottom:4 }}>Nombre del calendario</label>
+        <input value=${cal.name||''} onInput=${e=>setCal({...cal,name:e.target.value})} placeholder="Ej: España, Andalucía, Cliente Endesa…"
+          style=${{ ...iS, fontSize:14 }} />
+      </div>
+      <div>
+        <label style=${{ fontSize:11, color:'#86868B', fontWeight:600, display:'block', marginBottom:6 }}>📅 Festivos (${(cal.holidays||[]).length})</label>
+        <div style=${{ display:'flex', flexDirection:'column', gap:4, marginBottom:8, maxHeight:200, overflowY:'auto' }}>
+          ${(cal.holidays||[]).length===0 && html`<p style=${{ fontSize:11, color:'#C7C7CC' }}>Sin festivos añadidos</p>`}
+          ${(cal.holidays||[]).map((h,i) => html`
+            <div key=${i} style=${{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', borderRadius:8, background:'#F9F9FB', border:'1px solid #E5E5EA' }}>
+              <span style=${{ fontSize:11, fontWeight:700, color:'#5856D6', minWidth:80 }}>${h.date}</span>
+              <span style=${{ fontSize:12, flex:1 }}>${h.name}</span>
+              <button onClick=${()=>delH(i)} style=${{ border:'none', background:'none', color:'#FF3B30', fontSize:14, cursor:'pointer' }}>✕</button>
+            </div>`)}
+        </div>
+        <div style=${{ display:'grid', gridTemplateColumns:'120px 1fr auto', gap:6 }}>
+          <input type="date" value=${nh.date} onInput=${e=>setNh({...nh,date:e.target.value})}
+            style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
+          <input value=${nh.name} onInput=${e=>setNh({...nh,name:e.target.value})} placeholder="Nombre del festivo"
+            onKeyDown=${e=>e.key==='Enter'&&addH()}
+            style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
+          <button onClick=${addH} style=${{ padding:'7px 12px', borderRadius:8, border:'none', background:'#5856D6', color:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer' }}>+</button>
+        </div>
+      </div>
+      <div style=${{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
+        <button onClick=${onCancel} style=${{ padding:'9px 18px', borderRadius:9, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:12, cursor:'pointer' }}>Cancelar</button>
+        <button onClick=${()=>onSave(cal)} disabled=${saving||!(cal.name||'').trim()}
+          style=${{ padding:'9px 18px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer', opacity:(saving||!(cal.name||'').trim())?.5:1 }}>
+          ${saving?'Guardando…':'Guardar calendario'}
+        </button>
+      </div>
+    </div>`;
+}
+
 /* ═══ ADMIN CALENDARIOS ═══ */
 function AdminCalendarios() {
   const [cals,    setCals]    = useState([]);
@@ -811,54 +876,7 @@ function AdminCalendarios() {
     window.__calendars = cals.filter(c=>c.id!==id);
   };
 
-  const CalForm = ({cal, setCal, onSave, onCancel}) => {
-    const [nh, setNh] = useState({date:'', name:''});
-    const addH = () => {
-      if (!nh.date||!nh.name.trim()) return;
-      setCal({...cal, holidays:[...(cal.holidays||[]),{...nh}].sort((a,b)=>a.date<b.date?-1:1)});
-      setNh({date:'', name:''});
-    };
-    const delH = (i) => setCal({...cal, holidays:(cal.holidays||[]).filter((_,idx)=>idx!==i)});
-
-    return html`
-      <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
-        <div>
-          <label style=${{ fontSize:11, color:'#86868B', fontWeight:600, display:'block', marginBottom:4 }}>Nombre del calendario</label>
-          <input value=${cal.name||''} onInput=${e=>setCal({...cal,name:e.target.value})} placeholder="Ej: España, Andalucía, Cliente Endesa…"
-            style=${{ ...iS, fontSize:14 }} />
-        </div>
-
-        <div>
-          <label style=${{ fontSize:11, color:'#86868B', fontWeight:600, display:'block', marginBottom:6 }}>📅 Festivos (${(cal.holidays||[]).length})</label>
-          <div style=${{ display:'flex', flexDirection:'column', gap:4, marginBottom:8, maxHeight:200, overflowY:'auto' }}>
-            ${(cal.holidays||[]).length===0 && html`<p style=${{ fontSize:11, color:'#C7C7CC' }}>Sin festivos añadidos</p>`}
-            ${(cal.holidays||[]).map((h,i) => html`
-              <div key=${i} style=${{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', borderRadius:8, background:'#F9F9FB', border:'1px solid #E5E5EA' }}>
-                <span style=${{ fontSize:11, fontWeight:700, color:'#5856D6', minWidth:80 }}>${h.date}</span>
-                <span style=${{ fontSize:12, flex:1 }}>${h.name}</span>
-                <button onClick=${()=>delH(i)} style=${{ border:'none', background:'none', color:'#FF3B30', fontSize:14, cursor:'pointer' }}>✕</button>
-              </div>`)}
-          </div>
-          <div style=${{ display:'grid', gridTemplateColumns:'120px 1fr auto', gap:6 }}>
-            <input type="date" value=${nh.date} onInput=${e=>setNh({...nh,date:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
-            <input value=${nh.name} onInput=${e=>setNh({...nh,name:e.target.value})} placeholder="Nombre del festivo"
-              onKeyDown=${e=>e.key==='Enter'&&addH()}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
-            <button onClick=${addH} style=${{ padding:'7px 12px', borderRadius:8, border:'none', background:'#5856D6', color:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer' }}>+</button>
-          </div>
-        </div>
-
-        <div style=${{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
-          <button onClick=${onCancel} style=${{ padding:'9px 18px', borderRadius:9, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:12, cursor:'pointer' }}>Cancelar</button>
-          <button onClick=${()=>onSave(cal)} disabled=${saving||!(cal.name||'').trim()}
-            style=${{ padding:'9px 18px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer', opacity:(saving||!(cal.name||'').trim())?.5:1 }}>
-            ${saving?'Guardando…':'Guardar calendario'}
-          </button>
-        </div>
-      </div>`;
-  };
-
+  // CalForm is top-level — see above AdminCalendarios
   return html`
     <div>
       <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
@@ -1590,10 +1608,18 @@ function ProjectList({ currentSala, userId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([sbLoadRooms(), sbLoadTeamMembers()]).then(([allRooms, members]) => {
-      const me = members.find(m => m.id === userId);
-      if (!me) { setLoading(false); return; }
-      const myRooms = (allRooms||[]).filter(r => (me.rooms||[]).includes(r.slug));
+    Promise.all([sbLoadRooms(), sbLoadTeamMembers(), sbGetSession()]).then(([allRooms, members, session]) => {
+      // Match by id first, then by email (covers admin session users)
+      const me = members.find(m => m.id === userId) ||
+        (session?.user ? members.find(m => m.email && m.email.toLowerCase() === session.user.email.toLowerCase()) : null);
+      if (!me) {
+        // No team_members record — if admin session exists, show all rooms
+        if (session?.user) setRooms(allRooms||[]);
+        setLoading(false); return;
+      }
+      const myRooms = me.is_superuser
+        ? (allRooms||[])
+        : (allRooms||[]).filter(r => (me.rooms||[]).includes(r.slug));
       setRooms(myRooms); setLoading(false);
     });
   }, [userId]);
