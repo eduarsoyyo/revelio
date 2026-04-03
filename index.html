@@ -380,41 +380,39 @@ function App() {
       setSalaValid(exists);
     });
 
-    // If no user in localStorage, check if there's an active Supabase admin session
-    if (!loadUser()) {
-      sbGetSession().then(async session => {
-        if (!session?.user) return;
-        // Try to find real team_members record by email
-        const members = await sbLoadTeamMembers();
-        const realMember = members.find(m =>
-          m.email && m.email.toLowerCase() === session.user.email.toLowerCase()
-        );
-        const adminUser = realMember
-          ? {
-              id: realMember.id,
-              name: realMember.name,
-              avatar: realMember.avatar || '🧙',
-              color: realMember.color || '#5856D6',
-              role: realMember.role_label || 'Admin',
-              username: realMember.username || realMember.email,
-              sala: SALA,
-              _isAdmin: true,
-            }
-          : {
-              id: session.user.id,
-              name: session.user.email.split('@')[0],
-              avatar: '🧙',
-              color: '#5856D6',
-              role: 'Admin',
-              username: session.user.email,
-              sala: SALA,
-              _isAdmin: true,
-            };
-        saveUser(adminUser);
-        registerUser(adminUser);
-        setUser(adminUser);
-      });
-    }
+    // Always check for active Supabase session — admin should always use their real identity
+    sbGetSession().then(async session => {
+      if (!session?.user) return;
+      // Try to find real team_members record by email
+      const members = await sbLoadTeamMembers();
+      const realMember = members.find(m =>
+        m.email && m.email.toLowerCase() === session.user.email.toLowerCase()
+      );
+      const adminUser = realMember
+        ? {
+            id: realMember.id,
+            name: realMember.name,
+            avatar: realMember.avatar || '🧙',
+            color: realMember.color || '#5856D6',
+            role: realMember.role_label || 'Admin',
+            username: realMember.username || realMember.email,
+            sala: SALA,
+            _isAdmin: true,
+          }
+        : {
+            id: session.user.id,
+            name: session.user.email.split('@')[0],
+            avatar: '🧙',
+            color: '#5856D6',
+            role: 'Admin',
+            username: session.user.email,
+            sala: SALA,
+            _isAdmin: true,
+          };
+      saveUser(adminUser);
+      registerUser(adminUser);
+      setUser(adminUser);
+    });
   }, []);
 
   if (salaValid === null) return html`
@@ -890,7 +888,7 @@ function AdminUsuarios({ rooms }) {
                   <div style=${{ flex:1 }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:2, flexWrap:'wrap' }}>
                       <span style=${{ fontSize:14, fontWeight:700 }}>${m.name}</span>
-                      ${m.is_superuser && html`<span style=${{ fontSize:9, color:'#5856D6', background:'#5856D610', padding:'1px 7px', borderRadius:10, fontWeight:700 }}>🧙 Superusuario</span>`}
+                      ${!!m.is_superuser && html`<span style=${{ fontSize:9, color:'#5856D6', background:'#5856D610', padding:'1px 7px', borderRadius:10, fontWeight:700 }}>🧙 Superusuario</span>`}
                       ${m.username && html`<code style=${{ fontSize:10, color:'#86868B', background:'#F2F2F7', padding:'1px 6px', borderRadius:4 }}>${m.username}</code>`}
                       ${m.email && html`<span style=${{ fontSize:11, color:'#86868B' }}>${m.email}</span>`}
                     </div>
@@ -905,7 +903,7 @@ function AdminUsuarios({ rooms }) {
                   </div>
                   <button onClick=${()=>{ setEditId(m.id); setEditData({...m}); }}
                     style=${{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>✏️ Editar</button>
-                  ${m.is_superuser
+                  ${!!m.is_superuser
                     ? html`<span style=${{ padding:'5px 10px', borderRadius:7, background:'#5856D608', border:'1.5px solid #5856D620', color:'#5856D6', fontSize:10, fontWeight:600 }}>🔒 Protegido</span>`
                     : html`<button onClick=${()=>deleteMember(m.id)} style=${{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #FF3B3020', background:'#FFF', color:'#FF3B30', fontSize:11, cursor:'pointer' }}>✕</button>`}
                 </div>
