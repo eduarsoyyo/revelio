@@ -1742,6 +1742,67 @@ function PRiesgos({ risks, sR, notes, retroHistory }) {
           </div>`)}
       </div>
 
+      <!-- Heat map 3x3 -->
+      <div style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', padding:'16px 18px', marginBottom:16 }}>
+        <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>🗺️ Mapa de calor de riesgos</h4>
+        <div style=${{ display:'flex', gap:12, alignItems:'flex-start' }}>
+          <!-- Grid -->
+          <div style=${{ flex:1 }}>
+            <div style=${{ display:'grid', gridTemplateColumns:'32px repeat(3,1fr)', gap:3 }}>
+              <!-- Y-axis label -->
+              <div style=${{ gridColumn:'1', gridRow:'1/5', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <span style=${{ fontSize:9, color:'#86868B', writingMode:'vertical-rl', transform:'rotate(180deg)', fontWeight:600 }}>IMPACTO</span>
+              </div>
+              <!-- Column headers -->
+              ${['Baja','Media','Alta'].map(p=>html`<div style=${{ textAlign:'center', fontSize:9, fontWeight:700, color:'#86868B', paddingBottom:4 }}>${p}</div>`)}
+              <!-- Rows: alto → bajo impact -->
+              ${['alto','medio','bajo'].map(imp => html`
+                ${['baja','media','alta'].map(prob => {
+                  const hc = imp==='alto'&&prob==='alta'?'#FF3B30':
+                             imp==='alto'&&prob==='media'?'#FF3B30':
+                             imp==='medio'&&prob==='alta'?'#FF3B30':
+                             imp==='alto'&&prob==='baja'?'#FF9500':
+                             imp==='medio'&&prob==='media'?'#FF9500':
+                             imp==='bajo'&&prob==='alta'?'#FF9500':
+                             '#34C759';
+                  const cnt = allRisks.filter(r=>
+                    r.status!=='mitigated' &&
+                    (r.type||'riesgo')==='riesgo' &&
+                    (r.impact||'medio')===imp &&
+                    (r.prob||'media')===prob
+                  ).length;
+                  return html`
+                    <div style=${{ background:hc+'22', border:'1.5px solid '+hc+'44', borderRadius:8, minHeight:52,
+                      display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2,
+                      cursor:cnt>0?'pointer':'default', transition:'all .15s' }}
+                      title=${imp+' impacto · '+prob+' prob · '+cnt+' riesgo(s)'}
+                      onClick=${()=>{ if(cnt>0) setSubTab('riesgos'); }}>
+                      <span style=${{ fontSize:cnt>0?18:12, fontWeight:800, color:hc }}>${cnt>0?cnt:'·'}</span>
+                      ${cnt>0 && html`<span style=${{ fontSize:8, color:hc, fontWeight:600 }}>${cnt===1?'riesgo':'riesgos'}</span>`}
+                    </div>`;
+                })}
+              `)}
+              <!-- X-axis label -->
+              <div style=${{ gridColumn:'2/5', textAlign:'center', paddingTop:4 }}>
+                <span style=${{ fontSize:9, color:'#86868B', fontWeight:600 }}>PROBABILIDAD</span>
+              </div>
+            </div>
+          </div>
+          <!-- Legend -->
+          <div style=${{ display:'flex', flexDirection:'column', gap:6, fontSize:10, minWidth:110 }}>
+            <p style=${{ fontSize:11, fontWeight:700, marginBottom:4, color:'#1D1D1F' }}>Leyenda</p>
+            ${[['#FF3B30','Crítico (alto)'],['#FF9500','Moderado'],['#34C759','Bajo']].map(([c,l])=>html`
+              <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
+                <div style=${{ width:14, height:14, borderRadius:4, background:c+'33', border:'1.5px solid '+c }}></div>
+                <span style=${{ color:'#86868B' }}>${l}</span>
+              </div>`)}
+            <div style=${{ marginTop:8, paddingTop:8, borderTop:'1px solid #F2F2F7' }}>
+              <p style=${{ fontSize:9, color:'#C7C7CC' }}>Haz clic en una celda con riesgos para filtrar</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Sub-tabs -->
       <div style=${{ display:'flex', gap:0, borderBottom:'2px solid #F2F2F7', marginBottom:16 }}>
         ${[['riesgos','⚠️ Riesgos'],['problemas','🔴 Problemas'],['oportunidades','🌟 Oportunidades'],['mitigados','✅ Resueltos'],['historial','📚 Historial']].map(([tid,tlabel])=>html`
@@ -2861,7 +2922,30 @@ function P4({ notes, actions, risks, sA, user }) {
   const [eId, setEId] = useState(null);
   const [eF, setEF] = useState({});
   const [actFilter, setActFilter] = useState('all');
-  const [viewMode, setViewMode]   = useState('kanban'); // 'kanban' | 'list'
+  const [viewMode, setViewMode]   = useState('kanban');
+  const [dragAct,  setDragAct]    = useState(null);  // id being dragged
+  const [overCol,  setOverCol]    = useState(null);  // column id being hovered
+  const touchActRef = useRef(null);
+  const [touchPos,  setTouchPos]  = useState(null);
+
+  const onActDragStart = (id) => setDragAct(id);
+  const onActDrop = (colId) => { if(dragAct) upSt(dragAct, colId); setDragAct(null); setOverCol(null); };
+  const onActTouchStart = (e, id) => { touchActRef.current=id; setTouchPos({x:e.touches[0].clientX,y:e.touches[0].clientY}); e.stopPropagation(); };
+  const onActTouchMove = (e) => {
+    if(!touchActRef.current) return; e.preventDefault();
+    const t=e.touches[0]; setTouchPos({x:t.clientX,y:t.clientY});
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const col=el?.closest('[data-kanban-col]');
+    setOverCol(col?col.getAttribute('data-kanban-col'):null);
+  };
+  const onActTouchEnd = (e) => {
+    if(!touchActRef.current) return;
+    const t=e.changedTouches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const col=el?.closest('[data-kanban-col]');
+    if(col) upSt(touchActRef.current, col.getAttribute('data-kanban-col'));
+    touchActRef.current=null; setTouchPos(null); setOverCol(null);
+  };
   const topN = [...notes].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0)).slice(0,12);
   const openRisks = (risks||[]).filter(r => r.status !== 'mitigated');
   const addA = fn => {
@@ -2911,6 +2995,14 @@ function P4({ notes, actions, risks, sA, user }) {
 
           <!-- KANBAN VIEW -->
           ${viewMode==='kanban' && actions.length > 0 && html`
+            <div style=${{ position:'relative' }}>
+            ${touchPos && html`
+              <div style=${{ position:'fixed', left:touchPos.x-60, top:touchPos.y-30, pointerEvents:'none', zIndex:9999,
+                background:'#007AFF', color:'#FFF', borderRadius:10, padding:'6px 14px', fontSize:11, fontWeight:600,
+                boxShadow:'0 6px 20px rgba(0,122,255,.35)', transform:'rotate(-2deg) scale(1.05)' }}>
+                ✋ Moviendo…
+              </div>
+            `}
             <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, minHeight:200 }}>
               ${[
                 {id:'pending',    label:'Pendiente',  color:'#FF9500', bg:'#FFF9E6'},
@@ -2922,7 +3014,11 @@ function P4({ notes, actions, risks, sA, user }) {
                   (actFilter==='mine'?a.createdBy===user.id:true) && a.status===col.id
                 ).sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0));
                 return html`
-                  <div key=${col.id} style=${{ background:col.bg, borderRadius:14, border:'1.5px solid '+col.color+'25', display:'flex', flexDirection:'column', minHeight:120 }}>
+                  <div key=${col.id} data-kanban-col=${col.id}
+                    onDragOver=${e=>{e.preventDefault();setOverCol(col.id)}}
+                    onDragLeave=${()=>setOverCol(null)}
+                    onDrop=${()=>onActDrop(col.id)}
+                    style=${{ background:overCol===col.id?col.color+'18':col.bg, borderRadius:14, border:'1.5px solid '+(overCol===col.id?col.color:col.color+'25'), display:'flex', flexDirection:'column', minHeight:120, transition:'all .15s' }}>
                     <!-- Column header -->
                     <div style=${{ padding:'10px 12px 8px', borderBottom:'2px solid '+col.color+'20', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                       <span style=${{ fontSize:12, fontWeight:700, color:col.color }}>${col.label}</span>
@@ -2934,7 +3030,14 @@ function P4({ notes, actions, risks, sA, user }) {
                         const pr = PRIS.find(p=>p.id===a.priority)||PRIS[1];
                         const ct = a.fromCategory?CATS.find(c=>c.id===a.fromCategory):null;
                         return html`
-                          <div key=${a.id} style=${{ background:'#FFF', borderRadius:10, padding:'9px 10px', border:'1px solid '+col.color+'20', boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
+                          <div key=${a.id}
+                            draggable=${true}
+                            onDragStart=${()=>onActDragStart(a.id)}
+                            onDragEnd=${()=>{setDragAct(null);setOverCol(null)}}
+                            onTouchStart=${e=>onActTouchStart(e,a.id)}
+                            onTouchMove=${onActTouchMove}
+                            onTouchEnd=${onActTouchEnd}
+                            style=${{ background:'#FFF', borderRadius:10, padding:'9px 10px', border:'1px solid '+col.color+'20', boxShadow:'0 1px 4px rgba(0,0,0,.04)', cursor:'grab', opacity:dragAct===a.id?.4:1, touchAction:'none', userSelect:'none' }}>
                             <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:4 }}>
                               <span style=${{ fontSize:11 }}>${pr.icon}</span>
                               ${ct&&html`<span style=${{ fontSize:8, color:ct.color, background:ct.color+'10', padding:'1px 4px', borderRadius:3, fontWeight:700 }}>${ct.emoji}</span>`}
@@ -2947,17 +3050,8 @@ function P4({ notes, actions, risks, sA, user }) {
                               <span style=${{ fontSize:10, color:'#007AFF', fontWeight:600 }}>${a.owner||''}</span>
                               ${a.date&&html`<span style=${{ fontSize:9, color:'#86868B' }}>📅${fd(a.date).slice(0,5)}</span>`}
                             </div>
-                            <!-- Move buttons -->
-                            <div style=${{ display:'flex', gap:2, marginTop:6, flexWrap:'wrap' }}>
-                              ${[
-                                {id:'pending',label:'Pend.'},
-                                {id:'inprogress',label:'En proc.'},
-                                {id:'done',label:'Hecho'},
-                                {id:'discarded',label:'Desc.'},
-                              ].filter(s=>s.id!==col.id).map(s=>html`
-                                <button key=${s.id} onClick=${()=>upSt(a.id,s.id)}
-                                  style=${{ fontSize:8, padding:'2px 5px', borderRadius:4, border:'1px solid #E5E5EA', background:'#FFF', cursor:'pointer', color:'#86868B' }}>→${s.label}</button>`)}
-                            </div>
+                            <!-- drag hint -->
+                            <div style=${{ fontSize:8, color:'#C7C7CC', marginTop:4, textAlign:'center' }}>⠿ arrastra para mover</div>
                             ${eId===a.id && html`
                               <div style=${{ marginTop:6, display:'flex', flexDirection:'column', gap:4 }}>
                                 <input autofocus value=${eF.text} onInput=${e=>setEF({...eF,text:e.target.value})}
@@ -2974,6 +3068,7 @@ function P4({ notes, actions, risks, sA, user }) {
                     </div>
                   </div>`;
               })}
+            </div>
             </div>
           `}
 
