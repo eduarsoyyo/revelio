@@ -169,10 +169,9 @@ const PHASES = [
   { id:'dashboard',  label:'Dashboard',            icon:'📊' },
 ];
 const MAIN_TABS = [
-  { id:'retro',      label:'Retro',      icon:'📋' },
-  { id:'equipo',     label:'Equipo',     icon:'👥' },
-  { id:'vacaciones', label:'Vacaciones', icon:'🏖️' },
-  { id:'riesgos',    label:'Riesgos',    icon:'⚠️' },
+  { id:'retro',   label:'Retro',   icon:'📋' },
+  { id:'equipo',  label:'Equipo',  icon:'👥' },
+  { id:'riesgos', label:'Riesgos', icon:'⚠️' },
 ];
 const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
 const ROLES = ['Scrum Master','Product Owner','Desarrollador/a','QA / Tester','Diseñador/a','DevOps','Tech Lead','Analista','Project Manager','Stakeholder','Otro'];
@@ -1874,7 +1873,7 @@ function PEquipo() {
         ${orgSaving && html`<span style=${{ fontSize:11, color:'#007AFF' }}>💾 Guardando…</span>`}
       </div>
       <div style=${{ display:'flex', gap:0, borderBottom:'2px solid #F2F2F7', marginBottom:16 }}>
-        ${[['lista','👤 Lista'],['organigrama','🏢 Organigrama']].map(([tid,tl])=>html`
+        ${[['lista','👤 Lista'],['organigrama','🏢 Organigrama'],['vacaciones','🏖️ Vacaciones']].map(([tid,tl])=>html`
           <button key=${tid} onClick=${()=>setSubTab(tid)}
             style=${{ padding:'9px 20px', fontSize:12, fontWeight:subTab===tid?700:500,
               color:subTab===tid?'#007AFF':'#86868B', background:'transparent', border:'none',
@@ -1926,6 +1925,9 @@ function PEquipo() {
             <p style=${{ fontSize:11, color:'#007AFF' }}>Para añadir o quitar miembros ve a <strong>Admin → Usuarios</strong></p>
           </div>
         `}
+
+        <!-- ── VACACIONES ── -->
+        ${subTab==='vacaciones' && html`<${PVacaciones} embeddedTeam=${team} />`}
 
         <!-- ── ORGANIGRAMA ── -->
         ${subTab==='organigrama' && html`
@@ -2467,19 +2469,23 @@ function PRiesgos({ risks, sR, notes, retroHistory }) {
 }
 
 
-function PVacaciones() {
+function PVacaciones({ embeddedTeam }) {
   const [team,    setTeam]   = useState(loadTeamData);
   const [sbMembers, setSbMembers] = useState([]);
   useEffect(() => {
+    if (embeddedTeam && embeddedTeam.length > 0) {
+      setTeam(embeddedTeam);
+      const allVacs = embeddedTeam.flatMap(m=>(m.vacations||[]).map(v=>({...v,memberId:m.id,name:v.name||m.name})));
+      setVacs(allVacs); saveVacsLocal(allVacs);
+      return;
+    }
     sbLoadTeamMembers().then(data => {
       const salaMembers = data.filter(m=>(m.rooms||[]).includes(SALA));
       setSbMembers(salaMembers);
-      // Build team from Supabase members assigned to this sala
       if (salaMembers.length > 0) {
         const merged = salaMembers.map(m=>({id:m.id,name:m.name,avatar:m.avatar||'👤',role:m.role||'',color:m.color||'#007AFF'}));
         setTeam(merged); saveTeamLocal(merged);
       }
-      // Load ALL vacations from team_members (global, not sala-specific)
       const allVacs = data.flatMap(m => (m.vacations||[]).map(v=>({...v, memberId:m.id, name:v.name||m.name})));
       setVacs(allVacs); saveVacsLocal(allVacs);
     });
@@ -2939,9 +2945,8 @@ function RetroBoard({ user, onLogout }) {
       <!-- ── CONTENT ── -->
       <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>
         ${mainTab==='retro'      ? content()              : ''}
-        ${mainTab==='equipo'     ? html`<${PEquipo} />`                                  : ''}
-        ${mainTab==='vacaciones' ? html`<${PVacaciones} />`                               : ''}
-        ${mainTab==='riesgos'    ? html`<${PRiesgos} risks=${state.risks} sR=${sR} notes=${state.notes} retroHistory=${sbRetroHistory} />` : ''}
+        ${mainTab==='equipo'  ? html`<${PEquipo} />`  : ''}
+        ${mainTab==='riesgos' ? html`<${PRiesgos} risks=${state.risks} sR=${sR} notes=${state.notes} retroHistory=${sbRetroHistory} />` : ''}
       </div>
       ${toast && html`
         <div style=${{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', padding:'12px 24px', borderRadius:14, fontSize:14, fontWeight:600, boxShadow:'0 8px 30px rgba(0,0,0,0.15)', zIndex:300, animation:'fadeIn .3s', display:'flex', alignItems:'center', gap:8 }}>${toast}</div>
