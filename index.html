@@ -192,6 +192,23 @@ function getAllRoles(extraRoles) {
     return [...new Set([...ROLES, ...custom, ...(extraRoles||[])])];
   } catch { return [...ROLES, ...(extraRoles||[])]; }
 }
+const ABSENCE_TYPES = [
+  { id:'vacaciones',          label:'🏖️ Vacaciones',                group:'vacaciones' },
+  { id:'baja_medica',         label:'🏥 Baja médica (IT)',           group:'baja',  reasons:['Enfermedad común','Accidente no laboral','Accidente laboral','Enfermedad profesional'] },
+  { id:'asuntos_propios',     label:'📅 Asuntos propios',           group:'permiso' },
+  { id:'matrimonio',          label:'💍 Permiso por matrimonio',     group:'permiso', days:15 },
+  { id:'nacimiento',          label:'👶 Nacimiento/adopción',        group:'permiso' },
+  { id:'fallecimiento_1g',    label:'⚫ Fallecimiento familiar 1er grado', group:'permiso', days:3 },
+  { id:'fallecimiento_2g',    label:'⚫ Fallecimiento familiar 2do grado', group:'permiso', days:2 },
+  { id:'mudanza',             label:'🏠 Traslado de domicilio',      group:'permiso', days:1 },
+  { id:'formacion',           label:'📚 Formación/examen',           group:'formacion' },
+  { id:'lactancia',           label:'👩‍🍼 Lactancia',                 group:'permiso' },
+  { id:'reduccion_jornada',   label:'⏱️ Reducción de jornada',       group:'permiso' },
+  { id:'permiso_retribuido',  label:'✅ Permiso retribuido',         group:'permiso' },
+  { id:'otro',                label:'📝 Otro',                       group:'otro' },
+];
+const ANNUAL_VAC_DAYS = 22; // días hábiles convenio consultoría informática
+
 const REACTIONS = ['🔥','💡','❤️','😂','🎯','🤯'];
 const COLRS = ['#007AFF','#FF3B30','#34C759','#FF9500','#AF52DE','#FF2D55','#5856D6','#00C7BE'];
 const BADGES = [
@@ -1143,6 +1160,7 @@ function AdminUsuarios({ rooms }) {
                             return r ? html`<span key=${slug} style=${{ fontSize:10, color:'#007AFF', background:'#007AFF10', padding:'2px 8px', borderRadius:10, fontWeight:600 }}>${r.name}</span>` : null;
                           })}
                     </div>
+                    ${m.company&&html`<span style=${{ fontSize:10, color:'#86868B', marginTop:2, display:'block' }}>🏢 ${m.company}</span>`}
                   </div>
                   <button onClick=${()=>{ setEditId(m.id); setEditData({...m}); }}
                     style=${{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>✏️ Editar</button>
@@ -3385,7 +3403,7 @@ function PVacaciones({ embeddedTeam }) {
     });
   }, []);
   const [vacs, setVacs] = useState(loadVacsData);
-  const [newVac,  setNewVac] = useState({memberId:'', name:'', from:'', to:'', note:''});
+  const [newVac,  setNewVac] = useState({memberId:'', name:'', from:'', to:'', note:'', type:'vacaciones', reason:''});
   const [saving,  setSaving] = useState(false);
   const today = new Date();
   const [viewYear,  setViewYear]  = useState(today.getFullYear());
@@ -3438,10 +3456,10 @@ function PVacaciones({ embeddedTeam }) {
     const member = newVac.memberId ? team.find(m=>m.id===newVac.memberId) : null;
     const name = member?.name || newVac.name.trim();
     if (!name || !newVac.from) return;
-    const newEntry = {id:uid(), memberId:newVac.memberId||null, name, from:newVac.from, to:newVac.to||newVac.from, note:newVac.note};
+    const newEntry = {id:uid(), memberId:newVac.memberId||null, name, from:newVac.from, to:newVac.to||newVac.from, note:newVac.note, type:newVac.type||'vacaciones', reason:newVac.reason||''};
     const v = [...vacs, newEntry];
     setVacs(v); saveVacsLocal(v);
-    setNewVac({memberId:'',name:'',from:'',to:'',note:''});
+    setNewVac({memberId:'',name:'',from:'',to:'',note:'',type:'vacaciones',reason:''});
     // Save globally to the team_member record
     if (newVac.memberId) {
       const memberVacs = v.filter(x=>x.memberId===newVac.memberId);
@@ -3457,6 +3475,27 @@ function PVacaciones({ embeddedTeam }) {
     }
   };
 
+  // ── Vacation counters ──
+  const thisYear = today.getFullYear();
+  const lastYear = thisYear - 1;
+  const countVacDays = (memberId, year, typeFilter) => {
+    const m = team.find(x=>x.id===memberId); if(!m) return 0;
+    const mVacs = vacs.filter(v=>(v.memberId===memberId||v.name===m.name) && (!typeFilter||v.type===typeFilter||(!v.type&&typeFilter==='vacaciones')));
+    return mVacs.reduce((sum,v) => {
+      if (!v.from) return sum;
+      let d = new Date(v.from), to = new Date(v.to||v.from);
+      let cnt = 0;
+      while (d <= to) {
+        const yr = d.getFullYear(); const dow = d.getDay();
+        const mm = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+        const isH = HOLIDAYS.includes(mm+'-'+dd);
+        if (yr===year && dow!==0 && dow!==6 && !isH) cnt++;
+        d.setDate(d.getDate()+1);
+      }
+      return sum+cnt;
+    },0);
+  };
+
   // Active vacations this month
   const monthStart = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-01';
   const monthEnd   = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(daysInMonth).padStart(2,'0');
@@ -3468,6 +3507,53 @@ function PVacaciones({ embeddedTeam }) {
 
   return html`
     <div style=${{ maxWidth:960, margin:'0 auto' }}>
+
+      <!-- ── Vacation counters per member ── -->
+      ${team.length>0 && html`
+        <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+          ${team.map(m=>{
+            const vacUsed  = countVacDays(m.id, thisYear, 'vacaciones');
+            const prevPend = Math.max(0, ANNUAL_VAC_DAYS - countVacDays(m.id, lastYear, 'vacaciones'));
+            const total    = ANNUAL_VAC_DAYS + prevPend;
+            const remain   = Math.max(0, total - vacUsed);
+            const pct      = total>0?Math.min(100,Math.round((vacUsed/total)*100)):0;
+            const absTypes = [...new Set(vacs.filter(v=>(v.memberId===m.id||v.name===m.name)&&v.type&&v.type!=='vacaciones'&&new Date(v.from||'').getFullYear()===thisYear).map(v=>v.type))];
+            return html`
+              <div key=${m.id} style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
+                <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                  <div style=${{ width:36,height:36,borderRadius:10,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20 }}>${m.avatar||'👤'}</div>
+                  <span style=${{ fontSize:13, fontWeight:700, flex:1 }}>${m.name}</span>
+                  ${m.role_label&&html`<span style=${{ fontSize:9, color:'#FFF', background:'#007AFF', padding:'2px 7px', borderRadius:8 }}>${m.role_label}</span>`}
+                </div>
+                <!-- Progress bar -->
+                <div style=${{ background:'#F2F2F7', borderRadius:6, height:7, marginBottom:10, overflow:'hidden' }}>
+                  <div style=${{ width:pct+'%', height:'100%', background:pct>90?'#FF3B30':pct>70?'#FF9500':'#34C759', borderRadius:6, transition:'width .5s' }}></div>
+                </div>
+                <!-- Counters -->
+                <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6, marginBottom: absTypes.length>0?8:0 }}>
+                  ${[
+                    [ANNUAL_VAC_DAYS,'Días anuales','#1D1D1F'],
+                    [prevPend,'Año ant. pend.','#5856D6'],
+                    [total,'Total disp.','#007AFF'],
+                    [vacUsed,'Consumidos','#FF9500'],
+                    [remain,'Restantes',remain<=5?'#FF3B30':remain<=10?'#FF9500':'#34C759'],
+                  ].map(([v,l,c])=>html`
+                    <div style=${{ textAlign:'center', padding:'8px 4px', borderRadius:10, background:c+'0D', border:'1px solid '+c+'25' }}>
+                      <div style=${{ fontSize:22, fontWeight:800, color:c, lineHeight:1 }}>${v}</div>
+                      <div style=${{ fontSize:8, color:'#86868B', marginTop:3, lineHeight:1.2 }}>${l}</div>
+                    </div>`)}
+                </div>
+                ${absTypes.length>0&&html`
+                  <div style=${{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    ${absTypes.map(t=>{
+                      const info=ABSENCE_TYPES.find(x=>x.id===t)||{label:t,id:t};
+                      const cnt=vacs.filter(v=>(v.memberId===m.id||v.name===m.name)&&v.type===t&&new Date(v.from||'').getFullYear()===thisYear).length;
+                      return html`<span key=${t} style=${{ fontSize:9, background:'#F2F2F7', padding:'2px 7px', borderRadius:6, color:'#86868B' }}>${info.label} (${cnt})</span>`;
+                    })}
+                  </div>`}
+              </div>`;
+          })}
+        </div>`}
 
       <!-- Month nav -->
       <div style=${{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
@@ -3581,34 +3667,56 @@ function PVacaciones({ embeddedTeam }) {
         <div style=${{ background:'#F9F9FB', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
           <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:10 }}>➕ Registrar ausencia</h3>
           <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
-            <select value=${newVac.memberId} onChange=${e=>setNewVac({...newVac,memberId:e.target.value,name:''})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
-              <option value="">— Selecciona miembro —</option>
-              ${members.map(m=>html`<option key=${m.id} value=${m.id}>${m.avatar} ${m.name}</option>`)}
-              <option value="__other__">Otro (escribir nombre)</option>
-            </select>
-            ${newVac.memberId==='__other__' && html`
-              <input value=${newVac.name} onInput=${e=>setNewVac({...newVac,name:e.target.value})}
-                placeholder="Nombre"
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }} />`}
             <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
               <div>
-                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2 }}>Desde</label>
+                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Persona</label>
+                <select value=${newVac.memberId} onChange=${e=>setNewVac({...newVac,memberId:e.target.value,name:''})}
+                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
+                  <option value="">— Seleccionar —</option>
+                  ${members.map(m=>html`<option key=${m.id} value=${m.id}>${m.avatar} ${m.name}</option>`)}
+                  <option value="__other__">Otro…</option>
+                </select>
+              </div>
+              <div>
+                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Tipo de ausencia</label>
+                <select value=${newVac.type||'vacaciones'} onChange=${e=>setNewVac({...newVac,type:e.target.value,reason:''})}
+                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
+                  ${ABSENCE_TYPES.map(t=>html`<option key=${t.id} value=${t.id}>${t.label}</option>`)}
+                </select>
+              </div>
+            </div>
+            ${newVac.memberId==='__other__' && html`
+              <input value=${newVac.name} onInput=${e=>setNewVac({...newVac,name:e.target.value})}
+                placeholder="Nombre del miembro"
+                style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }} />`}
+            ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).length>0 && html`
+              <div>
+                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Motivo</label>
+                <select value=${newVac.reason||''} onChange=${e=>setNewVac({...newVac,reason:e.target.value})}
+                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
+                  <option value="">— Seleccionar motivo —</option>
+                  ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
+                </select>
+              </div>`}
+            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div>
+                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Desde</label>
                 <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
                   style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
               </div>
               <div>
-                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2 }}>Hasta</label>
+                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Hasta</label>
                 <input type="date" value=${newVac.to} onInput=${e=>setNewVac({...newVac,to:e.target.value})}
                   style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
               </div>
             </div>
             <input value=${newVac.note||''} onInput=${e=>setNewVac({...newVac,note:e.target.value})}
-              placeholder="Nota (opcional)"
+              placeholder="Nota / observaciones (opcional)"
               style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }} />
-            <button onClick=${addVac}
-              style=${{ padding:'9px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-              + Registrar
+            <button onClick=${addVac} disabled=${!newVac.from||(!newVac.memberId&&!newVac.name.trim())}
+              style=${{ padding:'10px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer',
+                opacity:(!newVac.from||(!newVac.memberId&&!newVac.name.trim()))?.5:1 }}>
+              ✅ Registrar ausencia
             </button>
           </div>
         </div>
@@ -3677,7 +3785,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
       display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
       onClick=${onClose}>
       <div onClick=${e=>e.stopPropagation()}
-        style=${{ background:'#FFF', borderRadius:24, maxWidth:520, width:'100%',
+        style=${{ background:'#FFF', borderRadius:24, maxWidth:660, width:'100%',
           maxHeight:'88vh', display:'flex', flexDirection:'column',
           boxShadow:'0 24px 80px rgba(0,0,0,.2)', overflow:'hidden' }}>
 
@@ -3695,13 +3803,13 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
             <button onClick=${onClose} style=${{ width:32, height:32, borderRadius:16, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer' }}>✕</button>
           </div>
           <!-- Tabs -->
-          <div style=${{ display:'flex', gap:0, borderBottom:'2px solid #F2F2F7' }}>
-            ${[['perfil','👤 Perfil'],['actividad','📊 Actividad'],['contacto','📞 Contacto']].map(([tid,tl])=>html`
+          <div style=${{ display:'flex', gap:0, borderBottom:'2px solid #F2F2F7', overflowX:'auto' }}>
+            ${[['perfil','👤 Perfil'],['vacaciones','🏖️ Vacaciones'],['actividad','📊 Actividad'],['contacto','📞 Contacto']].map(([tid,tl])=>html`
               <button key=${tid} onClick=${()=>setTab(tid)}
                 style=${{ padding:'9px 16px', fontSize:12, fontWeight:tab===tid?700:500,
                   color:tab===tid?'#007AFF':'#86868B', background:'transparent', border:'none',
                   borderBottom:tab===tid?'2px solid #007AFF':'2px solid transparent',
-                  cursor:'pointer', marginBottom:'-2px' }}>${tl}</button>`)}
+                  cursor:'pointer', marginBottom:'-2px', whiteSpace:'nowrap' }}>${tl}</button>`)}
           </div>
         </div>
 
@@ -3748,6 +3856,67 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                   style=${{ padding:'10px', borderRadius:10, border:'none', background: saved?'#34C759':'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer', marginTop:4 }}>
                   ${saving ? '💾 Guardando…' : saved ? '✅ Guardado' : 'Guardar cambios'}
                 </button>
+              </div>`}
+          `}
+
+          <!-- ── VACACIONES ── -->
+          ${tab==='vacaciones' && html`
+            ${!profile ? html`<div style=${{ textAlign:'center', padding:32, color:'#86868B' }}>⏳ Cargando…</div>` : html`
+              <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
+                ${(()=>{
+                  const myVacs = (profile.vacations||[]);
+                  const yr = new Date().getFullYear();
+                  const yrPrev = yr-1;
+                  const HOLIDAYS_FALLBACK = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
+                  const cntDays = (vList, year, type) => vList.filter(v=>(!type||v.type===type||(!v.type&&type==='vacaciones'))&&new Date(v.from||'').getFullYear()===year).reduce((sum,v)=>{
+                    if(!v.from) return sum;
+                    let d=new Date(v.from), to=new Date(v.to||v.from), cnt=0;
+                    while(d<=to){const dow=d.getDay(),mm=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(d.getFullYear()===year&&dow!==0&&dow!==6&&!HOLIDAYS_FALLBACK.includes(mm+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
+                    return sum+cnt;
+                  },0);
+                  const vacUsed  = cntDays(myVacs, yr, 'vacaciones');
+                  const prevPend = Math.max(0, ANNUAL_VAC_DAYS - cntDays(myVacs, yrPrev, 'vacaciones'));
+                  const total    = ANNUAL_VAC_DAYS + prevPend;
+                  const remain   = Math.max(0, total - vacUsed);
+                  const pct      = total>0?Math.min(100,Math.round((vacUsed/total)*100)):0;
+                  return html`
+                    <!-- Counters -->
+                    <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
+                      ${[[ANNUAL_VAC_DAYS,'Días anuales','#1D1D1F'],[prevPend,'Año ant. pend.','#5856D6'],[total,'Total disp.','#007AFF'],[vacUsed,'Consumidos','#FF9500'],[remain,'Restantes',remain<=5?'#FF3B30':remain<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
+                        <div style=${{ textAlign:'center', padding:'10px 6px', borderRadius:12, background:c+'0D', border:'1px solid '+c+'25' }}>
+                          <div style=${{ fontSize:24, fontWeight:800, color:c }}>${v}</div>
+                          <div style=${{ fontSize:9, color:'#86868B', marginTop:3, lineHeight:1.2 }}>${l}</div>
+                        </div>`)}
+                    </div>
+                    <!-- Bar -->
+                    <div>
+                      <div style=${{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#86868B', marginBottom:4 }}>
+                        <span>Consumido: ${vacUsed}d de ${total}d</span>
+                        <span style=${{ fontWeight:700 }}>${pct}%</span>
+                      </div>
+                      <div style=${{ background:'#F2F2F7', borderRadius:6, height:8, overflow:'hidden' }}>
+                        <div style=${{ width:pct+'%', height:'100%', background:pct>90?'#FF3B30':pct>70?'#FF9500':'#34C759', borderRadius:6 }}></div>
+                      </div>
+                    </div>
+                    <!-- Absence list -->
+                    ${myVacs.filter(v=>new Date(v.from||'').getFullYear()===yr).length>0&&html`
+                      <div>
+                        <h4 style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', marginBottom:8, letterSpacing:.5 }}>Registro ${yr}</h4>
+                        <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
+                          ${[...myVacs].filter(v=>new Date(v.from||'').getFullYear()===yr).sort((a,b)=>a.from>b.from?-1:1).map((v,i)=>{
+                            const info = ABSENCE_TYPES.find(t=>t.id===v.type)||{label:v.type||'Vacaciones',id:'vacaciones'};
+                            return html`
+                              <div key=${v.id||i} style=${{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:9, background:'#F9F9FB', border:'1px solid #E5E5EA' }}>
+                                <span style=${{ fontSize:14 }}>${info.label.split(' ')[0]}</span>
+                                <div style=${{ flex:1 }}>
+                                  <div style=${{ fontSize:11, fontWeight:600 }}>${info.label.split(' ').slice(1).join(' ')||info.label}</div>
+                                  <div style=${{ fontSize:10, color:'#86868B' }}>${v.from}${v.to&&v.to!==v.from?' → '+v.to:''} ${v.reason?'· '+v.reason:''}</div>
+                                </div>
+                              </div>`;
+                          })}
+                        </div>
+                      </div>`}`;
+                })()}
               </div>`}
           `}
 
