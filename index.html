@@ -193,19 +193,19 @@ function getAllRoles(extraRoles) {
   } catch { return [...ROLES, ...(extraRoles||[])]; }
 }
 const ABSENCE_TYPES = [
-  { id:'vacaciones',          label:'🏖️ Vacaciones',                group:'vacaciones' },
-  { id:'baja_medica',         label:'🏥 Baja médica (IT)',           group:'baja',  reasons:['Enfermedad común','Accidente no laboral','Accidente laboral','Enfermedad profesional'] },
-  { id:'asuntos_propios',     label:'📅 Asuntos propios',           group:'permiso' },
-  { id:'matrimonio',          label:'💍 Permiso por matrimonio',     group:'permiso', days:15 },
-  { id:'nacimiento',          label:'👶 Nacimiento/adopción',        group:'permiso' },
-  { id:'fallecimiento_1g',    label:'⚫ Fallecimiento familiar 1er grado', group:'permiso', days:3 },
-  { id:'fallecimiento_2g',    label:'⚫ Fallecimiento familiar 2do grado', group:'permiso', days:2 },
-  { id:'mudanza',             label:'🏠 Traslado de domicilio',      group:'permiso', days:1 },
-  { id:'formacion',           label:'📚 Formación/examen',           group:'formacion' },
-  { id:'lactancia',           label:'👩‍🍼 Lactancia',                 group:'permiso' },
-  { id:'reduccion_jornada',   label:'⏱️ Reducción de jornada',       group:'permiso' },
-  { id:'permiso_retribuido',  label:'✅ Permiso retribuido',         group:'permiso' },
-  { id:'otro',                label:'📝 Otro',                       group:'otro' },
+  { id:'vacaciones',          label:'🏖️ Vacaciones',                initial:'V',  color:'#FF9500', group:'vacaciones' },
+  { id:'baja_medica',         label:'🏥 Baja médica (IT)',           initial:'BM', color:'#FF3B30', group:'baja',  reasons:['Enfermedad común','Accidente no laboral','Accidente laboral','Enfermedad profesional'] },
+  { id:'asuntos_propios',     label:'📅 Asuntos propios',           initial:'AP', color:'#5856D6', group:'permiso' },
+  { id:'matrimonio',          label:'💍 Permiso por matrimonio',     initial:'PM', color:'#FF2D55', group:'permiso', days:15 },
+  { id:'nacimiento',          label:'👶 Nacimiento/adopción',        initial:'N',  color:'#34C759', group:'permiso' },
+  { id:'fallecimiento_1g',    label:'⚫ Fallecimiento fam. 1er grado',initial:'F1',color:'#1D1D1F', group:'permiso', days:3 },
+  { id:'fallecimiento_2g',    label:'⚫ Fallecimiento fam. 2do grado',initial:'F2',color:'#6E6E73', group:'permiso', days:2 },
+  { id:'mudanza',             label:'🏠 Traslado de domicilio',      initial:'T',  color:'#00C7BE', group:'permiso', days:1 },
+  { id:'formacion',           label:'📚 Formación/examen',           initial:'FO', color:'#007AFF', group:'formacion' },
+  { id:'lactancia',           label:'👩‍🍼 Lactancia',                 initial:'L',  color:'#AF52DE', group:'permiso' },
+  { id:'reduccion_jornada',   label:'⏱️ Reducción de jornada',       initial:'RJ', color:'#FF9500', group:'permiso' },
+  { id:'permiso_retribuido',  label:'✅ Permiso retribuido',         initial:'PR', color:'#34C759', group:'permiso' },
+  { id:'otro',                label:'📝 Otro',                       initial:'O',  color:'#86868B', group:'otro' },
 ];
 const ANNUAL_VAC_DAYS = 22; // días hábiles convenio consultoría informática
 
@@ -1568,22 +1568,56 @@ function RoomPicker() {
                   <div style=${{ ...cS, padding:'14px 16px' }}>
                     <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10 }}>🏖️ Vacaciones</h4>
                     ${(() => {
+                      const thisYr = new Date().getFullYear();
+                      const HOLS = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
+                      const cntD = (vList, memberId, yr) => vList.filter(v=>(v.memberId===memberId||v.name===salaMembers.find(x=>x.id===memberId)?.name)&&(v.type==='vacaciones'||!v.type)&&new Date(v.from||'').getFullYear()===yr).reduce((sum,v)=>{
+                        if(!v.from) return sum;
+                        let d=new Date(v.from),to=new Date(v.to||v.from),cnt=0;
+                        while(d<=to){const dow=d.getDay(),mm=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(d.getFullYear()===yr&&dow!==0&&dow!==6&&!HOLS.includes(mm+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
+                        return sum+cnt;
+                      },0);
+                      const totalCapacity = salaMembers.reduce((s,m)=>s+(m.annual_vac_days??ANNUAL_VAC_DAYS)+(m.prev_year_pending??0),0);
+                      const totalConsumed = salaMembers.reduce((s,m)=>s+cntD(m.vacations||[],m.id,thisYr),0);
+                      const pct = totalCapacity>0?Math.round((totalConsumed/totalCapacity)*100):0;
                       const vacToday = salaMembers.filter(m=>(m.vacations||[]).some(v=>v.from<=today&&(!v.to||v.to>=today)));
                       const nextMonth = new Date(); nextMonth.setMonth(nextMonth.getMonth()+1);
-                      const vacSoon = salaMembers.filter(m=>(m.vacations||[]).some(v=>{
-                        const d=new Date(v.from); return d>new Date()&&d<=nextMonth;
-                      }));
+                      const vacSoon = salaMembers.filter(m=>(m.vacations||[]).some(v=>{ const d=new Date(v.from); return d>new Date()&&d<=nextMonth; }));
                       return html`
-                        ${vacToday.length>0
-                          ? html`<div style=${{ marginBottom:6 }}>
-                              <span style=${{ fontSize:10, color:'#FF9500', fontWeight:700 }}>Hoy: </span>
-                              ${vacToday.map(m=>html`<span key=${m.id} style=${{ fontSize:11, marginRight:4 }}>${m.avatar||'👤'} ${m.name}</span>`)}
-                            </div>`
-                          : html`<p style=${{ fontSize:11, color:'#C7C7CC', marginBottom:6 }}>Nadie de vacaciones hoy</p>`}
-                        ${vacSoon.length>0 && html`<div>
-                          <span style=${{ fontSize:10, color:'#86868B', fontWeight:700 }}>Próximo mes: </span>
-                          ${vacSoon.slice(0,3).map(m=>html`<span key=${m.id} style=${{ fontSize:11, marginRight:4 }}>${m.avatar||'👤'} ${m.name}</span>`)}
-                        </div>`}
+                        <!-- % consumed -->
+                        <div style=${{ marginBottom:10 }}>
+                          <div style=${{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#86868B', marginBottom:4 }}>
+                            <span>Días consumidos del equipo</span>
+                            <span style=${{ fontWeight:700, color:pct>80?'#FF3B30':pct>60?'#FF9500':'#34C759' }}>${pct}%</span>
+                          </div>
+                          <div style=${{ background:'#F2F2F7', borderRadius:5, height:7, overflow:'hidden' }}>
+                            <div style=${{ width:pct+'%', height:'100%', background:pct>80?'#FF3B30':pct>60?'#FF9500':'#34C759', borderRadius:5 }}></div>
+                          </div>
+                          <div style=${{ display:'flex', justifyContent:'space-between', fontSize:9, color:'#C7C7CC', marginTop:3 }}>
+                            <span>${totalConsumed}d consumidos</span>
+                            <span>${totalCapacity}d totales</span>
+                          </div>
+                        </div>
+                        <!-- Per-member mini bars -->
+                        <div style=${{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
+                          ${salaMembers.slice(0,4).map(m=>{
+                            const cap = (m.annual_vac_days??ANNUAL_VAC_DAYS)+(m.prev_year_pending??0);
+                            const used = cntD(m.vacations||[],m.id,thisYr);
+                            const mp = cap>0?Math.min(100,Math.round((used/cap)*100)):0;
+                            return html`
+                              <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:6 }}>
+                                <span style=${{ fontSize:13 }}>${m.avatar||'👤'}</span>
+                                <div style=${{ flex:1 }}>
+                                  <div style=${{ background:'#F2F2F7', borderRadius:3, height:5, overflow:'hidden' }}>
+                                    <div style=${{ width:mp+'%', height:'100%', background:mp>90?'#FF3B30':mp>70?'#FF9500':'#34C759', borderRadius:3 }}></div>
+                                  </div>
+                                </div>
+                                <span style=${{ fontSize:9, color:'#86868B', minWidth:24, textAlign:'right' }}>${mp}%</span>
+                              </div>`;
+                          })}
+                          ${salaMembers.length>4&&html`<span style=${{ fontSize:9, color:'#C7C7CC', textAlign:'center' }}>+${salaMembers.length-4} más</span>`}
+                        </div>
+                        ${vacToday.length>0&&html`<div style=${{ fontSize:10, color:'#FF9500', fontWeight:700 }}>Hoy: ${vacToday.map(m=>m.name).join(', ')}</div>`}
+                        ${vacSoon.length>0&&html`<div style=${{ fontSize:10, color:'#86868B', marginTop:4 }}>Próx. mes: ${vacSoon.slice(0,2).map(m=>m.name).join(', ')}${vacSoon.length>2?' +'+vacSoon.length-2:''}</div>`}
                       `;
                     })()}
                   </div>
@@ -3563,6 +3597,14 @@ function PVacaciones({ embeddedTeam }) {
       (!v.to || v.to >= dateStr)
     );
   };
+  // Returns the absence entry for a given member+day (for initial/color)
+  const getVacEntry = (member, day) => {
+    const dateStr = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    return vacs.find(v =>
+      (v.memberId===member.id || v.name===member.name) &&
+      v.from <= dateStr && (!v.to || v.to >= dateStr)
+    ) || null;
+  };
   const isWeekend = (day) => { const d=new Date(viewYear,viewMonth,day).getDay(); return d===0||d===6; };
   const isToday   = (day) => todayStr === viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
   const isHoliday = (day) => { const mm=String(viewMonth+1).padStart(2,'0'); const dd=String(day).padStart(2,'0'); return HOLIDAYS.includes(mm+'-'+dd); };
@@ -3635,8 +3677,9 @@ function PVacaciones({ embeddedTeam }) {
         <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
           ${team.map(m=>{
             const vacUsed  = countVacDays(m.id, thisYear, 'vacaciones');
-            const prevPend = Math.max(0, ANNUAL_VAC_DAYS - countVacDays(m.id, lastYear, 'vacaciones'));
-            const total    = ANNUAL_VAC_DAYS + prevPend;
+            const annualDays = m.annual_vac_days ?? ANNUAL_VAC_DAYS;
+            const prevPend   = m.prev_year_pending ?? 0;
+            const total      = annualDays + prevPend;
             const remain   = Math.max(0, total - vacUsed);
             const pct      = total>0?Math.min(100,Math.round((vacUsed/total)*100)):0;
             const absTypes = [...new Set(vacs.filter(v=>(v.memberId===m.id||v.name===m.name)&&v.type&&v.type!=='vacaciones'&&new Date(v.from||'').getFullYear()===thisYear).map(v=>v.type))];
@@ -3654,7 +3697,7 @@ function PVacaciones({ embeddedTeam }) {
                 <!-- Counters -->
                 <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6, marginBottom: absTypes.length>0?8:0 }}>
                   ${[
-                    [ANNUAL_VAC_DAYS,'Días anuales','#1D1D1F'],
+                    [annualDays,'Días anuales','#1D1D1F'],
                     [prevPend,'Año ant. pend.','#5856D6'],
                     [total,'Total disp.','#007AFF'],
                     [vacUsed,'Consumidos','#FF9500'],
@@ -3746,12 +3789,14 @@ function PVacaciones({ embeddedTeam }) {
                     const wknd   = isWeekend(d);
                     const holi   = isHoliday(d);
                     const td     = isToday(d);
-                    const bg     = onVac ? '#FF9500' : wknd ? '#E0E0E0' : holi ? '#EEEEFF' : '#C8F0D0';
-                    const label  = onVac ? 'V' : wknd ? '' : holi ? 'F' : 'L';
+                    const entry  = onVac ? getVacEntry(m, d) : null;
+                    const atype  = entry ? (ABSENCE_TYPES.find(t=>t.id===entry.type)||ABSENCE_TYPES[0]) : null;
+                    const bg     = onVac ? (atype?.color||'#FF9500') : wknd ? '#E0E0E0' : holi ? '#EEEEFF' : '#C8F0D0';
+                    const label  = onVac ? (atype?.initial||'V') : wknd ? '' : holi ? 'F' : 'L';
                     const color  = onVac ? '#FFF' : wknd ? '#888' : holi ? '#5856D6' : '#2D8A4E';
                     const fw     = onVac ? 800 : 600;
                     return html`
-                      <td key=${d} title=${onVac?m.name+' - vacaciones':wknd?'Fin de semana':holi?'Festivo':'Laboral'}
+                      <td key=${d} title=${onVac?(m.name+' - '+(atype?.label||'Vacaciones')):wknd?'Fin de semana':holi?'Festivo':'Laboral'}
                         style=${{ padding:'1px', textAlign:'center', borderBottom:'1px solid #F2F2F7', borderLeft:'1px solid #F2F2F7',
                           background:td?'#007AFF20':bg, minWidth:26, outline:td?'2px solid #007AFF':'none', outlineOffset:'-2px' }}>
                         <div style=${{ fontSize:9, fontWeight:fw, color:td?'#007AFF':color, lineHeight:'18px', height:18 }}>${label}</div>
@@ -3997,14 +4042,15 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                     return sum+cnt;
                   },0);
                   const vacUsed  = cntDays(myVacs, yr, 'vacaciones');
-                  const prevPend = Math.max(0, ANNUAL_VAC_DAYS - cntDays(myVacs, yrPrev, 'vacaciones'));
-                  const total    = ANNUAL_VAC_DAYS + prevPend;
+                  const annualDays2 = profile.annual_vac_days ?? ANNUAL_VAC_DAYS;
+                  const prevPend   = profile.prev_year_pending ?? 0;
+                  const total      = annualDays2 + prevPend;
                   const remain   = Math.max(0, total - vacUsed);
                   const pct      = total>0?Math.min(100,Math.round((vacUsed/total)*100)):0;
                   return html`
                     <!-- Counters -->
                     <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
-                      ${[[ANNUAL_VAC_DAYS,'Días anuales','#1D1D1F'],[prevPend,'Año ant. pend.','#5856D6'],[total,'Total disp.','#007AFF'],[vacUsed,'Consumidos','#FF9500'],[remain,'Restantes',remain<=5?'#FF3B30':remain<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
+                      ${[[annualDays2,'Días anuales','#1D1D1F'],[prevPend,'Año ant. pend.','#5856D6'],[total,'Total disp.','#007AFF'],[vacUsed,'Consumidos','#FF9500'],[remain,'Restantes',remain<=5?'#FF3B30':remain<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
                         <div style=${{ textAlign:'center', padding:'10px 6px', borderRadius:12, background:c+'0D', border:'1px solid '+c+'25' }}>
                           <div style=${{ fontSize:24, fontWeight:800, color:c }}>${v}</div>
                           <div style=${{ fontSize:9, color:'#86868B', marginTop:3, lineHeight:1.2 }}>${l}</div>
