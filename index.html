@@ -178,9 +178,10 @@ const PHASES = [
   { id:'session',    label:'Resumen',      num:'06' },
 ];
 const MAIN_TABS = [
-  { id:'retro',   label:'Retro',   icon:'📋' },
-  { id:'equipo',  label:'Equipo',  icon:'👥' },
-  { id:'riesgos', label:'Riesgos', icon:'⚠️' },
+  { id:'retro',       label:'Retro',       icon:'📋' },
+  { id:'equipo',      label:'Equipo',      icon:'👥' },
+  { id:'accionables', label:'Accionables', icon:'🎯' },
+  { id:'riesgos',     label:'Riesgos',     icon:'⚠️' },
 ];
 const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
 const ROLES = ['Scrum Master','Product Owner','Desarrollador/a','QA / Tester','Diseñador/a','DevOps','Tech Lead','Analista','Project Manager','Stakeholder','Otro'];
@@ -1947,7 +1948,8 @@ function PEquipo() {
   useEffect(() => {
     Promise.all([sbLoadTeamMembers(), sbLoadOrgChart(SALA)]).then(([data, chart]) => {
       const salaMembers = data.filter(m => (m.rooms||[]).includes(SALA));
-      setTeam(salaMembers);
+      const salaMembersFinal = salaMembers.length > 0 ? salaMembers : data;
+      setTeam(salaMembersFinal);
       saveTeamLocal(salaMembers.map(m=>({id:m.id,name:m.name,avatar:m.avatar||'👤',role:m.role_label||'',color:m.color||'#007AFF'})));
       const orgMap = {};
       chart.forEach(n => { orgMap[n.member_id] = n.manager_id || null; });
@@ -2193,7 +2195,8 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
   useEffect(() => {
     Promise.all([sbLoadTeamMembers(), sbLoadOrgChart(SALA)]).then(([members, chart]) => {
-      setTeam(members.filter(m=>(m.rooms||[]).includes(SALA)));
+      const teamFiltered = members.filter(m=>(m.rooms||[]).includes(SALA));
+      setTeam(teamFiltered.length > 0 ? teamFiltered : members);
       const map = {};
       chart.forEach(n => { map[n.member_id] = n.manager_id || null; });
       setOrg(map);
@@ -2384,7 +2387,24 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
               const r = openRisks.find(x=>x.id===escalForm.riskId);
               if (!r) return null;
               const chain = getRiskChain(r);
-              if (chain.length<2) return html`<p style=${{ fontSize:11, color:'#FF3B30' }}>⚠️ Este riesgo no tiene manager asignado en el organigrama</p>`;
+              if (chain.length<2) return html`
+                <div style=${{ padding:'10px 12px', borderRadius:10, background:'#FFF9E6', border:'1px solid #FF950030' }}>
+                  <p style=${{ fontSize:11, color:'#FF9500', marginBottom:8 }}>⚠️ Sin jerarquía en el organigrama. Selecciona a quién escalar:</p>
+                  <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
+                    ${team.filter(m=>m.id!==ownerMember?.id).map(m=>html`
+                      <label style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:9,
+                        background:escalForm.memberId===m.id?'#007AFF10':'#F9F9FB',
+                        border:'1.5px solid '+(escalForm.memberId===m.id?'#007AFF':'#E5E5EA'), cursor:'pointer' }}
+                        onClick=${()=>setEscalForm({...escalForm,memberId:m.id})}>
+                        <span style=${{ fontSize:16 }}>${m.avatar||'👤'}</span>
+                        <div style=${{ flex:1 }}>
+                          <span style=${{ fontSize:12, fontWeight:600 }}>${m.name}</span>
+                          ${m.role_label&&html`<span style=${{ fontSize:9, color:'#86868B', marginLeft:4 }}>${m.role_label}</span>`}
+                        </div>
+                        ${escalForm.memberId===m.id&&html`<span style=${{ fontSize:9, color:'#007AFF', fontWeight:700 }}>✓</span>`}
+                      </label>`)}
+                  </div>
+                </div>`;
               return html`
                 <div>
                   <p style=${{ fontSize:10, color:'#86868B', marginBottom:6, fontWeight:600 }}>Cadena de escalado:</p>
@@ -2433,6 +2453,8 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
 /* ═══ PFTEs — dedicación y FTEs del equipo ═══ */
 function PFTEs({ team, org }) {
+  const FTE_VIEWS = ['mes', 'anual'];
+  const [fteView, setFteView] = useState('mes');
   const [orgData, setOrgData] = useState([]);
   const [loading, setLoading] = useState(true);
   const today = new Date();
@@ -2467,7 +2489,24 @@ function PFTEs({ team, org }) {
     setOrgData(prev=>prev.map(r=>r.member_id===memberId?{...r,[field]:val}:r));
   };
 
+  // Annual view: current month -3 to +12 (16 months total)
+  const annualMonths = Array.from({length:16},(_,i)=>{
+    const d=new Date(today.getFullYear(),today.getMonth()-3+i,1);
+    return {year:d.getFullYear(), month:d.getMonth()};
+  });
+
+  const fteForMonth = (memberId, yr, mo, dedication) => {
+    const daysInMo = new Date(yr,mo+1,0).getDate();
+    const ds = Array.from({length:daysInMo},(_,i)=>i+1);
+    return ds.filter(d=>!isWeekend(d)&&isOnVac(memberId,d)===false).length; // simplified
+  };
+
   return html`<div>
+    <!-- View toggle -->
+    <div style=${{ display:'flex', gap:6, marginBottom:14 }}>
+      <button onClick=${()=>setFteView('mes')} style=${{ padding:'6px 14px', borderRadius:8, border:'none', background:fteView==='mes'?'#1D1D1F':'#F2F2F7', color:fteView==='mes'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>Vista mensual</button>
+      <button onClick=${()=>setFteView('anual')} style=${{ padding:'6px 14px', borderRadius:8, border:'none', background:fteView==='anual'?'#1D1D1F':'#F2F2F7', color:fteView==='anual'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>Vista anual</button>
+    </div>
     <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
       <button onClick=${prevM} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>‹</button>
       <h3 style=${{ fontSize:16, fontWeight:700, flex:1 }}>${MONTH_NAMES[viewMonth]} ${viewYear}</h3>
@@ -2492,7 +2531,74 @@ function PFTEs({ team, org }) {
           })}
         </div>
       </div>
-      <!-- Table -->
+      <!-- Monthly view conditional -->
+      ${fteView==='mes' && html`<div><!-- Bar chart is already above --></div>`}
+
+      <!-- Annual timeline view -->
+      ${fteView==='anual' && html`
+        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', overflow:'auto', marginBottom:16 }}>
+          <table style=${{ width:'100%', borderCollapse:'collapse', minWidth:900 }}>
+            <thead><tr style=${{ background:'#F9F9FB', borderBottom:'2px solid #E5E5EA' }}>
+              <th style=${{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#86868B', minWidth:130, position:'sticky', left:0, background:'#F9F9FB', zIndex:2 }}>Miembro</th>
+              ${annualMonths.map(({year,month})=>html`
+                <th key=${year+'-'+month} style=${{ padding:'8px 6px', textAlign:'center', fontSize:10, fontWeight:700,
+                  color: year===today.getFullYear()&&month===today.getMonth()?'#007AFF':'#86868B',
+                  background: year===today.getFullYear()&&month===today.getMonth()?'#EEF5FF':'#F9F9FB',
+                  minWidth:52, borderBottom: year===today.getFullYear()&&month===today.getMonth()?'2px solid #007AFF':'none' }}>
+                  ${MONTH_NAMES[month].slice(0,3)}<br/><span style=${{ fontSize:9, fontWeight:400 }}>${year}</span>
+                </th>`)}
+            </tr></thead>
+            <tbody>
+              ${team.map((m,mi) => {
+                const row=orgData.find(r=>r.member_id===m.id)||{};
+                return html`<tr key=${m.id} style=${{ borderBottom:'1px solid #F2F2F7', background:mi%2===0?'#FFF':'#FAFAFA' }}>
+                  <td style=${{ padding:'8px 14px', position:'sticky', left:0, background:mi%2===0?'#FFF':'#FAFAFA', zIndex:1 }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style=${{ fontSize:16 }}>${m.avatar||'👤'}</span>
+                      <div><div style=${{ fontSize:11, fontWeight:600 }}>${m.name}</div>${m.role_label&&html`<div style=${{ fontSize:9, color:'#86868B' }}>${m.role_label}</div>`}</div>
+                    </div>
+                  </td>
+                  ${annualMonths.map(({year,month}) => {
+                    const start = row.start_date||'2000-01-01';
+                    const end   = row.end_date||'2099-12-31';
+                    const monthStart = year+'-'+String(month+1).padStart(2,'0')+'-01';
+                    const monthEnd   = year+'-'+String(month+1).padStart(2,'0')+'-'+String(new Date(year,month+1,0).getDate()).padStart(2,'0');
+                    const active = monthEnd >= start && monthStart <= end;
+                    const ded    = row.dedication ?? 1;
+                    const isNow  = year===today.getFullYear()&&month===today.getMonth();
+                    return html`<td key=${year+'-'+month} style=${{ padding:'6px', textAlign:'center',
+                      background:isNow?(active?'#EEF5FF':'#F8FAFF'):(active?'#FFF':'#F9F9FB') }}>
+                      ${active ? html`
+                        <div style=${{ padding:'3px 4px', borderRadius:6, background:isNow?'#007AFF':ded>=1?'#34C75920':'#FF950015',
+                          border:'1px solid '+(isNow?'transparent':ded>=1?'#34C75930':'#FF950030') }}>
+                          <div style=${{ fontSize:11, fontWeight:700, color:isNow?'#FFF':ded>=1?'#34C759':'#FF9500' }}>${ded}</div>
+                          <div style=${{ fontSize:8, color:isNow?'rgba(255,255,255,.8)':'#86868B' }}>FTE</div>
+                        </div>` : html`<span style=${{ color:'#E5E5EA', fontSize:10 }}>—</span>`}
+                    </td>`;
+                  })}
+                </tr>`;
+              })}
+              <!-- Totals row -->
+              <tr style=${{ background:'#F0F7FF', borderTop:'2px solid #007AFF20' }}>
+                <td style=${{ padding:'10px 14px', fontSize:11, fontWeight:700, color:'#007AFF', position:'sticky', left:0, background:'#F0F7FF' }}>Total FTEs</td>
+                ${annualMonths.map(({year,month}) => {
+                  const total = team.reduce((sum,m) => {
+                    const row=orgData.find(r=>r.member_id===m.id)||{};
+                    const start=row.start_date||'2000-01-01', end=row.end_date||'2099-12-31';
+                    const ms=year+'-'+String(month+1).padStart(2,'0')+'-01';
+                    const me=year+'-'+String(month+1).padStart(2,'0')+'-'+String(new Date(year,month+1,0).getDate()).padStart(2,'0');
+                    return me>=start&&ms<=end ? sum+(row.dedication??1) : sum;
+                  },0);
+                  return html`<td key=${year+'-'+month} style=${{ padding:'8px 6px', textAlign:'center' }}>
+                    <span style=${{ fontSize:12, fontWeight:800, color:total>0?'#007AFF':'#C7C7CC' }}>${total>0?total.toFixed(1):'—'}</span>
+                  </td>`;
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>`}
+
+      <!-- Table (monthly detail) -->
       <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', overflow:'auto' }}>
         <table style=${{ width:'100%', borderCollapse:'collapse', minWidth:500 }}>
           <thead><tr style=${{ background:'#F9F9FB', borderBottom:'2px solid #E5E5EA' }}>
@@ -2553,6 +2659,189 @@ function PFTEs({ team, org }) {
 
 
 /* ═══ PHASE 8 — VACACIONES (calendar view) ═══ */
+
+/* ═══ PACCIONABLES — Gestión entre retros ═══ */
+function PAccionables({ actions, sA, risks, user }) {
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [viewMode,   setViewMode]   = useState('kanban');
+  const [filterOwner, setFilterOwner] = useState('all');
+  const [dragAct,    setDragAct]    = useState(null);
+  const [overCol,    setOverCol]    = useState(null);
+  const today = new Date().toISOString().slice(0,10);
+
+  useEffect(() => {
+    sbLoadTeamMembers().then(data => {
+      const f = data.filter(m=>(m.rooms||[]).includes(SALA));
+      setTeamMembers(f.length > 0 ? f : data);
+    });
+  }, []);
+
+  const upSt = (id, st) => sA(actions.map(a=>a.id===id?{...a,status:st}:a));
+  const delA  = (id) => sA(actions.filter(a=>a.id!==id));
+  const updA  = (id, patch) => sA(actions.map(a=>a.id===id?{...a,...patch}:a));
+  const priO  = {high:3, medium:2, low:1};
+
+  const filtered = [...actions]
+    .filter(a => filterOwner==='all' ? true : filterOwner==='mine' ? (a.owner===user.name||a.createdBy===user.id) : a.owner===filterOwner)
+    .sort((a,b) => (priO[b.priority]||0)-(priO[a.priority]||0));
+
+  const STS_COLS = [
+    { id:'pending',  label:'Pendiente', color:'#FF9500', bg:'#FFF8EB' },
+    { id:'progress', label:'En progreso', color:'#007AFF', bg:'#EBF5FF' },
+    { id:'done',     label:'Completado', color:'#34C759', bg:'#F0FFF4' },
+    { id:'discarded',label:'Descartado', color:'#8E8E93', bg:'#F2F2F7' },
+  ];
+  const openRisks = (risks||[]).filter(r=>r.status!=='mitigated');
+
+  return html`
+    <div style=${{ maxWidth:'100%', padding:'0 0 20px' }}>
+      <!-- Header bar -->
+      <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+        <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
+          <h2 style=${{ fontSize:18, fontWeight:700 }}>🎯 Accionables</h2>
+          <span style=${{ fontSize:11, color:'#86868B', background:'#F2F2F7', padding:'2px 8px', borderRadius:8 }}>
+            ${actions.filter(a=>a.status!=='done'&&a.status!=='discarded').length} pendientes
+          </span>
+          ${actions.filter(a=>a.status!=='done'&&a.date&&a.date<today).length>0&&html`
+            <span style=${{ fontSize:11, color:'#FFF', background:'#FF3B30', padding:'2px 8px', borderRadius:8, fontWeight:700 }}>
+              ⚠️ ${actions.filter(a=>a.status!=='done'&&a.date&&a.date<today).length} vencidos
+            </span>`}
+        </div>
+        <div style=${{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          <!-- Owner filter -->
+          <select value=${filterOwner} onChange=${e=>setFilterOwner(e.target.value)}
+            style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'5px 10px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
+            <option value="all">Todos</option>
+            <option value="mine">👤 Míos</option>
+            ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+          </select>
+          <!-- View toggle -->
+          <button onClick=${()=>setViewMode('kanban')} style=${{ padding:'5px 12px', borderRadius:8, border:'none', background:viewMode==='kanban'?'#1D1D1F':'#F2F2F7', color:viewMode==='kanban'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>⬜ Kanban</button>
+          <button onClick=${()=>setViewMode('list')} style=${{ padding:'5px 12px', borderRadius:8, border:'none', background:viewMode==='list'?'#1D1D1F':'#F2F2F7', color:viewMode==='list'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>☰ Lista</button>
+        </div>
+      </div>
+
+      <div style=${{ display:'grid', gridTemplateColumns:'1fr 280px', gap:14, alignItems:'start' }}>
+        <!-- Main area -->
+        <div>
+          ${viewMode==='kanban' ? html`
+            <!-- KANBAN -->
+            <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+              ${STS_COLS.map(col => {
+                const colItems = filtered.filter(a=>a.status===col.id);
+                return html`
+                  <div key=${col.id}
+                    data-kanban-col=${col.id}
+                    onDragOver=${e=>{ e.preventDefault(); setOverCol(col.id); }}
+                    onDrop=${e=>{ e.preventDefault(); if(dragAct) upSt(dragAct,col.id); setDragAct(null); setOverCol(null); }}
+                    style=${{ background:overCol===col.id?col.bg:'#F9F9FB', borderRadius:14,
+                      border:'2px solid '+(overCol===col.id?col.color+'40':'#E5E5EA'),
+                      minHeight:200, padding:10, transition:'all .15s' }}>
+                    <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                      <span style=${{ fontSize:11, fontWeight:700, color:col.color }}>${col.label}</span>
+                      <span style=${{ fontSize:10, color:'#86868B', background:'#FFF', padding:'1px 7px', borderRadius:8, border:'1px solid #E5E5EA' }}>${colItems.length}</span>
+                    </div>
+                    ${colItems.map(a => {
+                      const pr = PRIS.find(p=>p.id===a.priority)||PRIS[1];
+                      const overdue = a.status!=='done'&&a.date&&a.date<today;
+                      return html`
+                        <div key=${a.id} draggable=${true}
+                          onDragStart=${()=>setDragAct(a.id)}
+                          onDragEnd=${()=>{ setDragAct(null); setOverCol(null); }}
+                          style=${{ background:'#FFF', borderRadius:10, padding:'10px 12px', marginBottom:8,
+                            border:'1px solid '+(overdue?'#FF3B3030':'#E5E5EA'),
+                            borderLeft:'3px solid '+pr.color, cursor:'grab',
+                            boxShadow:'0 1px 4px rgba(0,0,0,.04)', opacity:dragAct===a.id?.4:1 }}>
+                          <p style=${{ fontSize:12, fontWeight:600, marginBottom:6, lineHeight:1.3 }}>${a.text}</p>
+                          <div style=${{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                            <span style=${{ fontSize:10 }}>${pr.icon}</span>
+                            ${a.owner&&html`<span style=${{ fontSize:10, color:'#007AFF', fontWeight:600 }}>${a.owner}</span>`}
+                            ${a.date&&html`<span style=${{ fontSize:9, color:overdue?'#FF3B30':'#86868B', fontWeight:overdue?700:400 }}>📅 ${a.date}</span>`}
+                          </div>
+                          <!-- Quick status change -->
+                          <div style=${{ display:'flex', gap:3, marginTop:6 }}>
+                            ${STS_COLS.filter(s=>s.id!==col.id).map(s=>html`
+                              <button key=${s.id} onClick=${()=>upSt(a.id,s.id)} title=${s.label}
+                                style=${{ flex:1, padding:'2px', borderRadius:4, border:'none', background:s.bg,
+                                  color:s.color, fontSize:8, fontWeight:700, cursor:'pointer' }}>
+                                ${s.label.slice(0,3)}
+                              </button>`)}
+                            <button onClick=${()=>delA(a.id)} style=${{ width:20, border:'none', background:'#FFF5F5', color:'#FF3B30', fontSize:10, borderRadius:4, cursor:'pointer' }}>✕</button>
+                          </div>
+                        </div>`;
+                    })}
+                    ${colItems.length===0&&html`<div style=${{ textAlign:'center', padding:'20px 0', color:'#C7C7CC', fontSize:11 }}>Vacío</div>`}
+                  </div>`;
+              })}
+            </div>
+          ` : html`
+            <!-- LIST -->
+            <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+              ${filtered.length===0&&html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', fontSize:13 }}>Sin accionables</div>`}
+              ${filtered.map(a => {
+                const pr = PRIS.find(p=>p.id===a.priority)||PRIS[1];
+                const st = STS_COLS.find(s=>s.id===a.status)||STS_COLS[0];
+                const overdue = a.status!=='done'&&a.date&&a.date<today;
+                return html`
+                  <div key=${a.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
+                    borderRadius:12, background:'#FFF', border:'1.5px solid '+(overdue?'#FF3B3020':'#E5E5EA'),
+                    borderLeft:'3px solid '+pr.color }}>
+                    <span style=${{ fontSize:14 }}>${pr.icon}</span>
+                    <div style=${{ flex:1 }}>
+                      <p style=${{ fontSize:13, fontWeight:600, marginBottom:2 }}>${a.text}</p>
+                      <div style=${{ display:'flex', gap:8, fontSize:11, color:'#86868B' }}>
+                        ${a.owner&&html`<span style=${{ color:'#007AFF', fontWeight:600 }}>${a.owner}</span>`}
+                        ${a.date&&html`<span style=${{ color:overdue?'#FF3B30':'#86868B' }}>📅 ${a.date}</span>`}
+                      </div>
+                    </div>
+                    <select value=${a.status} onChange=${e=>upSt(a.id,e.target.value)}
+                      style=${{ padding:'4px 8px', borderRadius:7, border:'1px solid '+st.color+'30', background:st.bg, color:st.color, fontSize:11, fontWeight:700, outline:'none' }}>
+                      ${STS_COLS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
+                    </select>
+                    <button onClick=${()=>delA(a.id)} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:13, cursor:'pointer' }}>✕</button>
+                  </div>`;
+              })}
+            </div>
+          `}
+        </div>
+
+        <!-- Sidebar: active risks -->
+        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px', position:'sticky', top:0 }}>
+          <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10 }}>⚠️ Riesgos activos</h4>
+          ${openRisks.length===0
+            ? html`<p style=${{ fontSize:11, color:'#C7C7CC', textAlign:'center', padding:'16px 0' }}>Sin riesgos activos</p>`
+            : html`<div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+                ${openRisks.map(r => {
+                  const isEscalated = !!r.escalation;
+                  return html`
+                    <div key=${r.id} style=${{ padding:'8px 10px', borderRadius:9, background:isEscalated?'#F8F5FF':'#F9F9FB',
+                      border:'1px solid '+(isEscalated?'#5856D620':'#E5E5EA'),
+                      borderLeft:'3px solid '+(isEscalated?'#5856D6':'#FF9500') }}>
+                      <p style=${{ fontSize:11, fontWeight:600, marginBottom:2 }}>${r.text}</p>
+                      <div style=${{ display:'flex', gap:6, fontSize:9 }}>
+                        ${r.owner&&html`<span style=${{ color:'#007AFF' }}>${r.owner}</span>`}
+                        ${isEscalated&&html`<span style=${{ color:'#5856D6', fontWeight:700 }}>📈 Escalado → ${r.escalation.memberName||''}</span>`}
+                        ${!isEscalated&&html`<span style=${{ color:'#FF9500' }}>En equipo</span>`}
+                      </div>
+                    </div>`;
+                })}
+              </div>`}
+          <!-- Legend -->
+          <div style=${{ marginTop:12, display:'flex', flexDirection:'column', gap:4 }}>
+            <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
+              <div style=${{ width:8, height:8, borderRadius:2, background:'#FF9500' }}></div>
+              <span style=${{ fontSize:10, color:'#86868B' }}>En equipo</span>
+            </div>
+            <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
+              <div style=${{ width:8, height:8, borderRadius:2, background:'#5856D6' }}></div>
+              <span style=${{ fontSize:10, color:'#86868B' }}>Escalado</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
 
 /* ═══ PRIESGOS — Risk Management Dashboard ═══ */
 function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
@@ -3738,6 +4027,7 @@ function RetroBoard({ user, onLogout }) {
       <div style=${{ flex:1, overflowY:'auto', padding:'14px 18px' }}>
         ${mainTab==='retro'      ? content()              : ''}
         ${mainTab==='equipo'  ? html`<${PEquipo} />`  : ''}
+        ${mainTab==='accionables' ? html`<${PAccionables} actions=${state.actions} sA=${sA} risks=${state.risks} user=${user} />` : ''}
         ${mainTab==='riesgos' ? html`<${PRiesgos} risks=${state.risks} sR=${sR} notes=${state.notes} actions=${state.actions} retroHistory=${sbRetroHistory} />` : ''}
       </div>
       ${toast && html`
