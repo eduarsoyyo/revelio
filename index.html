@@ -2700,12 +2700,6 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
 /* ═══ PACCIONABLES — Gestión entre retros ═══ */
 function PAccionables({ actions, sA, risks, user }) {
   const [teamMembers, setTeamMembers] = useState([]);
-  const [viewMode,   setViewMode]   = useState('kanban');
-  const [filterOwner, setFilterOwner] = useState('all');
-  const [dragAct,    setDragAct]    = useState(null);
-  const [overCol,    setOverCol]    = useState(null);
-  const today = new Date().toISOString().slice(0,10);
-
   useEffect(() => {
     sbLoadTeamMembers().then(data => {
       const f = data.filter(m=>(m.rooms||[]).includes(SALA));
@@ -2713,172 +2707,272 @@ function PAccionables({ actions, sA, risks, user }) {
     });
   }, []);
 
-  const upSt = (id, st) => sA(actions.map(a=>a.id===id?{...a,status:st}:a));
-  const delA  = (id) => sA(actions.filter(a=>a.id!==id));
-  const updA  = (id, patch) => sA(actions.map(a=>a.id===id?{...a,...patch}:a));
-  const priO  = {high:3, medium:2, low:1};
+  const [form,       setForm]      = useState({text:'',owner:'',date:'',priority:'medium'});
+  const [eId,        setEId]       = useState(null);
+  const [eF,         setEF]        = useState({});
+  const [actFilter,  setActFilter] = useState('all');
+  const [viewMode,   setViewMode]  = useState('kanban');
+  const [dragAct,    setDragAct]   = useState(null);
+  const [overCol,    setOverCol]   = useState(null);
+  const touchActRef = useRef(null);
+  const [touchPos,   setTouchPos]  = useState(null);
 
-  const filtered = [...actions]
-    .filter(a => filterOwner==='all' ? true : filterOwner==='mine' ? (a.owner===user.name||a.createdBy===user.id) : a.owner===filterOwner)
-    .sort((a,b) => (priO[b.priority]||0)-(priO[a.priority]||0));
+  const upSt = (id,st) => sA(actions.map(a=>a.id===id?{...a,status:st}:a));
+  const delA  = id => sA(actions.filter(a=>a.id!==id));
+  const saveEA = () => { sA(actions.map(a=>a.id===eId?{...a,...eF}:a)); setEId(null); };
+  const addA  = () => {
+    if (!form.text.trim()) return;
+    sA([...actions,{id:uid(),text:form.text.trim(),owner:form.owner||'Sin asignar',date:form.date||'',status:'pending',priority:form.priority,voteScore:0,createdBy:user.id,fromCategory:null,noteId:null,riskId:null}]);
+    setForm({text:'',owner:'',date:'',priority:'medium'});
+  };
+  const priO = {high:3,medium:2,low:1};
 
-  const STS_COLS = [
-    { id:'pending',  label:'Pendiente', color:'#FF9500', bg:'#FFF8EB' },
-    { id:'progress', label:'En progreso', color:'#007AFF', bg:'#EBF5FF' },
-    { id:'done',     label:'Completado', color:'#34C759', bg:'#F0FFF4' },
-    { id:'discarded',label:'Descartado', color:'#8E8E93', bg:'#F2F2F7' },
-  ];
+  const onActDragStart = id => setDragAct(id);
+  const onActDrop = colId => { if(dragAct) upSt(dragAct,colId); setDragAct(null); setOverCol(null); };
+  const onActTouchStart = (e,id) => { touchActRef.current=id; setTouchPos({x:e.touches[0].clientX,y:e.touches[0].clientY}); e.stopPropagation(); };
+  const onActTouchMove = (e) => {
+    if(!touchActRef.current) return; e.preventDefault();
+    const t=e.touches[0]; setTouchPos({x:t.clientX,y:t.clientY});
+    const col=document.elementFromPoint(t.clientX,t.clientY)?.closest('[data-kanban-col]');
+    setOverCol(col?col.getAttribute('data-kanban-col'):null);
+  };
+  const onActTouchEnd = (e) => {
+    if(!touchActRef.current) return;
+    const t=e.changedTouches[0];
+    const col=document.elementFromPoint(t.clientX,t.clientY)?.closest('[data-kanban-col]');
+    if(col) upSt(touchActRef.current, col.getAttribute('data-kanban-col'));
+    touchActRef.current=null; setTouchPos(null); setOverCol(null);
+  };
+
+  const today = new Date().toISOString().slice(0,10);
   const openRisks = (risks||[]).filter(r=>r.status!=='mitigated');
+  const overdueCount = actions.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.date&&a.date<today).length;
+
+  const KAN_COLS = [
+    {id:'pending',    label:'Pendiente',  color:'#FF9500', bg:'#FFF9E6'},
+    {id:'inprogress', label:'En proceso', color:'#007AFF', bg:'#EEF5FF'},
+    {id:'done',       label:'Completado', color:'#34C759', bg:'#F0FFF4'},
+    {id:'discarded',  label:'Descartado', color:'#C7C7CC', bg:'#F9F9F9'},
+  ];
 
   return html`
-    <div style=${{ maxWidth:'100%', padding:'0 0 20px' }}>
-      <!-- Header bar -->
-      <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, flexWrap:'wrap', gap:8 }}>
-        <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
-          <h2 style=${{ fontSize:18, fontWeight:700 }}>🎯 Accionables</h2>
-          <span style=${{ fontSize:11, color:'#86868B', background:'#F2F2F7', padding:'2px 8px', borderRadius:8 }}>
-            ${actions.filter(a=>a.status!=='done'&&a.status!=='discarded').length} pendientes
-          </span>
-          ${actions.filter(a=>a.status!=='done'&&a.date&&a.date<today).length>0&&html`
-            <span style=${{ fontSize:11, color:'#FFF', background:'#FF3B30', padding:'2px 8px', borderRadius:8, fontWeight:700 }}>
-              ⚠️ ${actions.filter(a=>a.status!=='done'&&a.date&&a.date<today).length} vencidos
-            </span>`}
-        </div>
-        <div style=${{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          <!-- Owner filter -->
-          <select value=${filterOwner} onChange=${e=>setFilterOwner(e.target.value)}
-            style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'5px 10px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
-            <option value="all">Todos</option>
-            <option value="mine">👤 Míos</option>
-            ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-          </select>
-          <!-- View toggle -->
-          <button onClick=${()=>setViewMode('kanban')} style=${{ padding:'5px 12px', borderRadius:8, border:'none', background:viewMode==='kanban'?'#1D1D1F':'#F2F2F7', color:viewMode==='kanban'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>⬜ Kanban</button>
-          <button onClick=${()=>setViewMode('list')} style=${{ padding:'5px 12px', borderRadius:8, border:'none', background:viewMode==='list'?'#1D1D1F':'#F2F2F7', color:viewMode==='list'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>☰ Lista</button>
-        </div>
+    <div style=${{ maxWidth:'100%' }}>
+      <!-- Header -->
+      <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:14, flexWrap:'wrap' }}>
+        <h2 style=${{ fontSize:18, fontWeight:700 }}>🎯 Accionables</h2>
+        <span style=${{ fontSize:11, background:'#F2F2F7', color:'#86868B', padding:'2px 8px', borderRadius:8 }}>
+          ${actions.filter(a=>a.status!=='done'&&a.status!=='discarded').length} abiertos
+        </span>
+        ${overdueCount>0&&html`<span style=${{ fontSize:11, background:'#FF3B30', color:'#FFF', fontWeight:700, padding:'2px 8px', borderRadius:8 }}>⚠️ ${overdueCount} vencidos</span>`}
+        <div style=${{ flex:1 }}/>
+        <!-- Filters -->
+        ${[{id:'all',label:'Todos'},{id:'mine',label:'👤 Míos'},{id:'done',label:'✅ Hechos'}].map(f=>html`
+          <button key=${f.id} onClick=${()=>setActFilter(f.id)}
+            style=${{ padding:'4px 10px', borderRadius:7, border:actFilter===f.id?'none':'1px solid #E5E5EA', background:actFilter===f.id?'#1D1D1F':'#FFF', color:actFilter===f.id?'#FFF':'#6E6E73', fontSize:10, fontWeight:600, cursor:'pointer' }}>${f.label}</button>`)}
+        <button onClick=${()=>setViewMode('kanban')} style=${{ padding:'4px 10px', borderRadius:7, border:viewMode==='kanban'?'none':'1px solid #E5E5EA', background:viewMode==='kanban'?'#1D1D1F':'#FFF', color:viewMode==='kanban'?'#FFF':'#6E6E73', fontSize:10, fontWeight:600, cursor:'pointer' }}>⬜ Kanban</button>
+        <button onClick=${()=>setViewMode('list')} style=${{ padding:'4px 10px', borderRadius:7, border:viewMode==='list'?'none':'1px solid #E5E5EA', background:viewMode==='list'?'#1D1D1F':'#FFF', color:viewMode==='list'?'#FFF':'#6E6E73', fontSize:10, fontWeight:600, cursor:'pointer' }}>☰ Lista</button>
       </div>
 
-      <div style=${{ display:'grid', gridTemplateColumns:'1fr 280px', gap:14, alignItems:'start' }}>
-        <!-- Main area -->
+      <!-- Add form -->
+      <div style=${{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap', padding:'12px 14px', borderRadius:12, background:'#FFF', border:'1.5px solid #E5E5EA' }}>
+        <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} onKeyDown=${e=>e.key==='Enter'&&addA()}
+          placeholder="Nueva acción…" style=${{ ...iS, flex:2, minWidth:160 }} />
+        <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})} style=${{ ...iS, flex:1, minWidth:120 }}>
+          <option value="">— Responsable —</option>
+          ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+        </select>
         <div>
-          ${viewMode==='kanban' ? html`
-            <!-- KANBAN -->
-            <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
-              ${STS_COLS.map(col => {
-                const colItems = filtered.filter(a=>a.status===col.id);
-                return html`
-                  <div key=${col.id}
-                    data-kanban-col=${col.id}
-                    onDragOver=${e=>{ e.preventDefault(); setOverCol(col.id); }}
-                    onDrop=${e=>{ e.preventDefault(); if(dragAct) upSt(dragAct,col.id); setDragAct(null); setOverCol(null); }}
-                    style=${{ background:overCol===col.id?col.bg:'#F9F9FB', borderRadius:14,
-                      border:'2px solid '+(overCol===col.id?col.color+'40':'#E5E5EA'),
-                      minHeight:200, padding:10, transition:'all .15s' }}>
-                    <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-                      <span style=${{ fontSize:11, fontWeight:700, color:col.color }}>${col.label}</span>
-                      <span style=${{ fontSize:10, color:'#86868B', background:'#FFF', padding:'1px 7px', borderRadius:8, border:'1px solid #E5E5EA' }}>${colItems.length}</span>
-                    </div>
-                    ${colItems.map(a => {
-                      const pr = PRIS.find(p=>p.id===a.priority)||PRIS[1];
-                      const overdue = a.status!=='done'&&a.date&&a.date<today;
-                      return html`
-                        <div key=${a.id} draggable=${true}
-                          onDragStart=${()=>setDragAct(a.id)}
-                          onDragEnd=${()=>{ setDragAct(null); setOverCol(null); }}
-                          style=${{ background:'#FFF', borderRadius:10, padding:'10px 12px', marginBottom:8,
-                            border:'1px solid '+(overdue?'#FF3B3030':'#E5E5EA'),
-                            borderLeft:'3px solid '+pr.color, cursor:'grab',
-                            boxShadow:'0 1px 4px rgba(0,0,0,.04)', opacity:dragAct===a.id?.4:1 }}>
-                          <p style=${{ fontSize:12, fontWeight:600, marginBottom:6, lineHeight:1.3 }}>${a.text}</p>
-                          <div style=${{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                            <span style=${{ fontSize:10 }}>${pr.icon}</span>
-                            ${a.owner&&html`<span style=${{ fontSize:10, color:'#007AFF', fontWeight:600 }}>${a.owner}</span>`}
-                            ${a.date&&html`<span style=${{ fontSize:9, color:overdue?'#FF3B30':'#86868B', fontWeight:overdue?700:400 }}>📅 ${a.date}</span>`}
-                          </div>
-                          <!-- Quick status change -->
-                          <div style=${{ display:'flex', gap:3, marginTop:6 }}>
-                            ${STS_COLS.filter(s=>s.id!==col.id).map(s=>html`
-                              <button key=${s.id} onClick=${()=>upSt(a.id,s.id)} title=${s.label}
-                                style=${{ flex:1, padding:'2px', borderRadius:4, border:'none', background:s.bg,
-                                  color:s.color, fontSize:8, fontWeight:700, cursor:'pointer' }}>
-                                ${s.label.slice(0,3)}
-                              </button>`)}
-                            <button onClick=${()=>delA(a.id)} style=${{ width:20, border:'none', background:'#FFF5F5', color:'#FF3B30', fontSize:10, borderRadius:4, cursor:'pointer' }}>✕</button>
-                          </div>
-                        </div>`;
-                    })}
-                    ${colItems.length===0&&html`<div style=${{ textAlign:'center', padding:'20px 0', color:'#C7C7CC', fontSize:11 }}>Vacío</div>`}
-                  </div>`;
-              })}
-            </div>
-          ` : html`
-            <!-- LIST -->
-            <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-              ${filtered.length===0&&html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', fontSize:13 }}>Sin accionables</div>`}
-              ${filtered.map(a => {
-                const pr = PRIS.find(p=>p.id===a.priority)||PRIS[1];
-                const st = STS_COLS.find(s=>s.id===a.status)||STS_COLS[0];
-                const overdue = a.status!=='done'&&a.date&&a.date<today;
-                return html`
-                  <div key=${a.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
-                    borderRadius:12, background:'#FFF', border:'1.5px solid '+(overdue?'#FF3B3020':'#E5E5EA'),
-                    borderLeft:'3px solid '+pr.color }}>
-                    <span style=${{ fontSize:14 }}>${pr.icon}</span>
-                    <div style=${{ flex:1 }}>
-                      <p style=${{ fontSize:13, fontWeight:600, marginBottom:2 }}>${a.text}</p>
-                      <div style=${{ display:'flex', gap:8, fontSize:11, color:'#86868B' }}>
-                        ${a.owner&&html`<span style=${{ color:'#007AFF', fontWeight:600 }}>${a.owner}</span>`}
-                        ${a.date&&html`<span style=${{ color:overdue?'#FF3B30':'#86868B' }}>📅 ${a.date}</span>`}
-                      </div>
-                    </div>
-                    <select value=${a.status} onChange=${e=>upSt(a.id,e.target.value)}
-                      style=${{ padding:'4px 8px', borderRadius:7, border:'1px solid '+st.color+'30', background:st.bg, color:st.color, fontSize:11, fontWeight:700, outline:'none' }}>
-                      ${STS_COLS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
-                    </select>
-                    <button onClick=${()=>delA(a.id)} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:13, cursor:'pointer' }}>✕</button>
-                  </div>`;
-              })}
-            </div>
-          `}
+          <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600 }}>Fecha resolución</label>
+          <input type="date" value=${form.date} onInput=${e=>setForm({...form,date:e.target.value})} style=${{ ...iS, width:130, flex:'none' }} />
         </div>
+        <select value=${form.priority} onChange=${e=>setForm({...form,priority:e.target.value})} style=${{ ...iS, width:100, flex:'none' }}>
+          ${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}
+        </select>
+        <button onClick=${addA} style=${{ ...bP, alignSelf:'flex-end' }}>+ Añadir</button>
+      </div>
 
-        <!-- Sidebar: active risks -->
-        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px', position:'sticky', top:0 }}>
-          <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10 }}>⚠️ Riesgos activos</h4>
-          ${openRisks.length===0
-            ? html`<p style=${{ fontSize:11, color:'#C7C7CC', textAlign:'center', padding:'16px 0' }}>Sin riesgos activos</p>`
-            : html`<div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-                ${openRisks.map(r => {
-                  const isEscalated = !!r.escalation;
+      <div style=${{ display:'grid', gridTemplateColumns:'1fr 260px', gap:14, alignItems:'start' }}>
+        <div>
+          ${actions.length===0&&html`
+            <div style=${{ textAlign:'center', padding:'40px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
+              <p style=${{ fontSize:32, marginBottom:8 }}>🎯</p>
+              <p style=${{ fontSize:13 }}>Sin accionables. Añade el primero arriba o crea uno desde la retro.</p>
+            </div>`}
+
+          <!-- ── KANBAN ── -->
+          ${viewMode==='kanban' && actions.length>0 && html`
+            <div style=${{ position:'relative' }}>
+              ${touchPos&&html`<div style=${{ position:'fixed', left:touchPos.x-60, top:touchPos.y-30, pointerEvents:'none', zIndex:9999, background:'#007AFF', color:'#FFF', borderRadius:10, padding:'6px 14px', fontSize:11, fontWeight:600, boxShadow:'0 6px 20px rgba(0,122,255,.35)', transform:'rotate(-2deg) scale(1.05)' }}>✋ Moviendo…</div>`}
+              <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, minHeight:200 }}>
+                ${KAN_COLS.map(col => {
+                  const colActs = [...actions].filter(a=>{
+                    if(actFilter==='mine') return (a.createdBy===user.id||a.owner===user.name)&&a.status===col.id;
+                    if(actFilter==='done') return a.status==='done';
+                    return a.status===col.id;
+                  }).sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0));
                   return html`
-                    <div key=${r.id} style=${{ padding:'8px 10px', borderRadius:9, background:isEscalated?'#F8F5FF':'#F9F9FB',
-                      border:'1px solid '+(isEscalated?'#5856D620':'#E5E5EA'),
-                      borderLeft:'3px solid '+(isEscalated?'#5856D6':'#FF9500') }}>
-                      <p style=${{ fontSize:11, fontWeight:600, marginBottom:2 }}>${r.text}</p>
-                      <div style=${{ display:'flex', gap:6, fontSize:9 }}>
-                        ${r.owner&&html`<span style=${{ color:'#007AFF' }}>${r.owner}</span>`}
-                        ${isEscalated&&html`<span style=${{ color:'#5856D6', fontWeight:700 }}>📈 Escalado → ${r.escalation.memberName||''}</span>`}
-                        ${!isEscalated&&html`<span style=${{ color:'#FF9500' }}>En equipo</span>`}
+                    <div key=${col.id} data-kanban-col=${col.id}
+                      onDragOver=${e=>{e.preventDefault();setOverCol(col.id)}}
+                      onDragLeave=${()=>setOverCol(null)}
+                      onDrop=${()=>onActDrop(col.id)}
+                      style=${{ background:overCol===col.id?col.color+'18':col.bg, borderRadius:14,
+                        border:'1.5px solid '+(overCol===col.id?col.color:col.color+'25'),
+                        display:'flex', flexDirection:'column', minHeight:120, transition:'all .15s' }}>
+                      <div style=${{ padding:'10px 12px 8px', borderBottom:'2px solid '+col.color+'20', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <span style=${{ fontSize:12, fontWeight:700, color:col.color }}>${col.label}</span>
+                        <span style=${{ fontSize:11, fontWeight:700, background:col.color+'20', color:col.color, padding:'1px 7px', borderRadius:10 }}>${colActs.length}</span>
+                      </div>
+                      <div style=${{ flex:1, padding:'6px', display:'flex', flexDirection:'column', gap:5, overflowY:'auto', maxHeight:420 }}>
+                        ${colActs.map(a => {
+                          const pr = PRIS.find(p=>p.id===a.priority)||PRIS[1];
+                          const overdue = a.status!=='done'&&a.status!=='discarded'&&a.date&&a.date<today;
+                          const memberAvatar = teamMembers.find(m=>m.name===a.owner)?.avatar||'👤';
+                          return html`
+                            <div key=${a.id}
+                              draggable=${true}
+                              onDragStart=${()=>onActDragStart(a.id)}
+                              onDragEnd=${()=>{setDragAct(null);setOverCol(null)}}
+                              onTouchStart=${e=>onActTouchStart(e,a.id)}
+                              onTouchMove=${onActTouchMove}
+                              onTouchEnd=${onActTouchEnd}
+                              style=${{ background:'#FFF', borderRadius:10, padding:'9px 10px',
+                                border:'1px solid '+(overdue?'#FF3B3030':col.color+'20'),
+                                borderLeft:overdue?'3px solid #FF3B30':'3px solid '+pr.color,
+                                boxShadow:'0 1px 4px rgba(0,0,0,.04)', cursor:'grab',
+                                opacity:dragAct===a.id?.4:1, touchAction:'none', userSelect:'none' }}>
+                              <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:4 }}>
+                                <span style=${{ fontSize:11 }}>${pr.icon}</span>
+                                ${overdue&&html`<span style=${{ fontSize:8, color:'#FF3B30', fontWeight:700, background:'#FF3B3010', padding:'1px 4px', borderRadius:3 }}>VENCIDO</span>`}
+                                <div style=${{ flex:1 }}/>
+                                <button onClick=${()=>{setEId(a.id);setEF({text:a.text,owner:a.owner||'',date:a.date||'',priority:a.priority})}}
+                                  style=${{ border:'none', background:'none', fontSize:11, color:'#C7C7CC', cursor:'pointer', padding:'1px' }}>✏️</button>
+                                <button onClick=${()=>delA(a.id)}
+                                  style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer', padding:'1px' }}>✕</button>
+                              </div>
+                              <p style=${{ fontSize:12, fontWeight:600, lineHeight:1.3, marginBottom:5 }}>${a.text}</p>
+                              <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:4 }}>
+                                ${a.owner ? html`
+                                  <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                                    <span style=${{ fontSize:13 }}>${memberAvatar}</span>
+                                    <span style=${{ fontSize:10, color:'#007AFF', fontWeight:600 }}>${a.owner}</span>
+                                  </div>` : html`<span style=${{ fontSize:10, color:'#C7C7CC' }}>Sin asignar</span>`}
+                                ${a.date&&html`<span style=${{ fontSize:9, color:overdue?'#FF3B30':'#86868B', fontWeight:overdue?700:400 }}>📅 ${a.date}</span>`}
+                              </div>
+                              ${eId===a.id && html`
+                                <div style=${{ marginTop:8, display:'flex', flexDirection:'column', gap:5, borderTop:'1px solid #F2F2F7', paddingTop:8 }}>
+                                  <input autofocus value=${eF.text} onInput=${e=>setEF({...eF,text:e.target.value})}
+                                    style=${{ border:'1.5px solid #007AFF40', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }} />
+                                  <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})}
+                                    style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
+                                    <option value="">— Responsable —</option>
+                                    ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+                                  </select>
+                                  <input type="date" value=${eF.date||''} onInput=${e=>setEF({...eF,date:e.target.value})}
+                                    style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }} />
+                                  <select value=${eF.priority||'medium'} onChange=${e=>setEF({...eF,priority:e.target.value})}
+                                    style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
+                                    ${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}
+                                  </select>
+                                  <div style=${{ display:'flex', gap:4 }}>
+                                    <button onClick=${saveEA} style=${{ flex:1, padding:'5px', borderRadius:7, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>Guardar</button>
+                                    <button onClick=${()=>setEId(null)} style=${{ padding:'5px 8px', borderRadius:7, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>✕</button>
+                                  </div>
+                                </div>`}
+                            </div>`;
+                        })}
                       </div>
                     </div>`;
                 })}
-              </div>`}
-          <!-- Legend -->
-          <div style=${{ marginTop:12, display:'flex', flexDirection:'column', gap:4 }}>
-            <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
-              <div style=${{ width:8, height:8, borderRadius:2, background:'#FF9500' }}></div>
-              <span style=${{ fontSize:10, color:'#86868B' }}>En equipo</span>
-            </div>
-            <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
-              <div style=${{ width:8, height:8, borderRadius:2, background:'#5856D6' }}></div>
-              <span style=${{ fontSize:10, color:'#86868B' }}>Escalado</span>
-            </div>
+              </div>
+            </div>`}
+
+          <!-- ── LISTA ── -->
+          ${viewMode==='list' && html`
+            <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+              ${[...actions].filter(a=>{
+                if(actFilter==='mine') return a.createdBy===user.id||a.owner===user.name;
+                if(actFilter==='done') return a.status==='done';
+                return true;
+              }).sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0)).map(a=>{
+                const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];
+                const colInfo=KAN_COLS.find(c=>c.id===a.status)||KAN_COLS[0];
+                const overdue=a.status!=='done'&&a.status!=='discarded'&&a.date&&a.date<today;
+                const memberAvatar=teamMembers.find(m=>m.name===a.owner)?.avatar||'👤';
+                if(eId===a.id) return html`
+                  <div key=${a.id} style=${{ padding:'12px 14px', borderRadius:13, background:'#F9F9FB', border:'2px solid #007AFF30' }}>
+                    <div style=${{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                      <input autofocus value=${eF.text} onInput=${e=>setEF({...eF,text:e.target.value})} style=${{ ...iS, flex:2, minWidth:140, fontSize:13 }} />
+                      <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})} style=${{ ...iS, flex:1, minWidth:120, fontSize:13 }}>
+                        <option value="">— Responsable —</option>
+                        ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+                      </select>
+                      <input type="date" value=${eF.date||''} onInput=${e=>setEF({...eF,date:e.target.value})} style=${{ ...iS, width:130, flex:'none', fontSize:13 }} />
+                      <select value=${eF.priority||'medium'} onChange=${e=>setEF({...eF,priority:e.target.value})} style=${{ ...iS, width:95, flex:'none', fontSize:13 }}>
+                        ${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}
+                      </select>
+                    </div>
+                    <div style=${{ display:'flex', gap:6 }}>
+                      <button onClick=${saveEA} style=${{ ...bP, padding:'8px 16px', fontSize:12 }}>Guardar</button>
+                      <button onClick=${()=>setEId(null)} style=${{ ...bS, padding:'8px 14px', fontSize:12 }}>Cancelar</button>
+                    </div>
+                  </div>`;
+                return html`
+                  <div key=${a.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
+                    borderRadius:12, background:'#FFF', border:'1.5px solid '+(overdue?'#FF3B3020':'#E5E5EA'),
+                    borderLeft:'3px solid '+(overdue?'#FF3B30':pr.color) }}>
+                    <span style=${{ fontSize:14 }}>${pr.icon}</span>
+                    <div style=${{ flex:1 }}>
+                      <p style=${{ fontSize:13, fontWeight:600, marginBottom:2 }}>${a.text}</p>
+                      <div style=${{ display:'flex', gap:8, alignItems:'center', fontSize:11 }}>
+                        ${a.owner&&html`<div style=${{ display:'flex', alignItems:'center', gap:3 }}><span>${memberAvatar}</span><span style=${{ color:'#007AFF', fontWeight:600 }}>${a.owner}</span></div>`}
+                        ${a.date&&html`<span style=${{ color:overdue?'#FF3B30':'#86868B', fontWeight:overdue?700:400 }}>📅 ${a.date}</span>`}
+                        ${overdue&&html`<span style=${{ color:'#FF3B30', fontWeight:700, fontSize:9, background:'#FF3B3010', padding:'1px 5px', borderRadius:4 }}>VENCIDO</span>`}
+                      </div>
+                    </div>
+                    <select value=${a.status} onChange=${e=>upSt(a.id,e.target.value)}
+                      style=${{ padding:'4px 8px', borderRadius:7, border:'1px solid '+colInfo.color+'30', background:colInfo.bg, color:colInfo.color, fontSize:11, fontWeight:700, outline:'none' }}>
+                      ${KAN_COLS.map(c=>html`<option key=${c.id} value=${c.id}>${c.label}</option>`)}
+                    </select>
+                    <button onClick=${()=>{setEId(a.id);setEF({text:a.text,owner:a.owner||'',date:a.date||'',priority:a.priority})}}
+                      style=${{ border:'none', background:'none', fontSize:14, color:'#86868B', cursor:'pointer' }}>✏️</button>
+                    <button onClick=${()=>delA(a.id)} style=${{ border:'none', background:'none', fontSize:14, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
+                  </div>`;
+              })}
+            </div>`}
+        </div>
+
+        <!-- Sidebar: risks -->
+        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px', position:'sticky', top:0 }}>
+          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+            <h4 style=${{ fontSize:12, fontWeight:700 }}>⚠️ Riesgos activos</h4>
+            <span style=${{ fontSize:10, color:'#86868B' }}>${openRisks.length}</span>
+          </div>
+          ${openRisks.length===0
+            ? html`<p style=${{ fontSize:11, color:'#C7C7CC', textAlign:'center', padding:'16px 0' }}>Sin riesgos activos</p>`
+            : openRisks.map(r => {
+                const isEsc = !!r.escalation;
+                return html`
+                  <div key=${r.id} style=${{ padding:'7px 9px', borderRadius:8, marginBottom:5,
+                    background:isEsc?'#F8F5FF':'#FFFBF0',
+                    border:'1px solid '+(isEsc?'#5856D620':'#FF950020'),
+                    borderLeft:'3px solid '+(isEsc?'#5856D6':'#FF9500') }}>
+                    <p style=${{ fontSize:11, fontWeight:600, marginBottom:2, lineHeight:1.3 }}>${r.text}</p>
+                    <div style=${{ fontSize:9, display:'flex', gap:6 }}>
+                      ${r.owner&&html`<span style=${{ color:'#007AFF' }}>${r.owner}</span>`}
+                      ${isEsc
+                        ? html`<span style=${{ color:'#5856D6', fontWeight:700 }}>📈 → ${r.escalation.memberName||''}</span>`
+                        : html`<span style=${{ color:'#FF9500' }}>En equipo</span>`}
+                    </div>
+                  </div>`;
+              })}
+          <div style=${{ marginTop:12, padding:'8px', borderRadius:8, background:'#F9F9FB', fontSize:10 }}>
+            <div style=${{ display:'flex', gap:6, marginBottom:3 }}><div style=${{ width:8,height:8,borderRadius:2,background:'#FF9500',marginTop:1 }}></div><span style=${{ color:'#86868B' }}>En equipo</span></div>
+            <div style=${{ display:'flex', gap:6 }}><div style=${{ width:8,height:8,borderRadius:2,background:'#5856D6',marginTop:1 }}></div><span style=${{ color:'#86868B' }}>Escalado</span></div>
           </div>
         </div>
       </div>
     </div>`;
 }
-
 
 /* ═══ PRIESGOS — Risk Management Dashboard ═══ */
 function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
