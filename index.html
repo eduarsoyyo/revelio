@@ -21,6 +21,11 @@
     0%, 100% { opacity: 1; }
     50% { opacity: .5; }
   }
+  @keyframes shimmer {
+    0% { opacity: .3; }
+    50% { opacity: .7; }
+    100% { opacity: .3; }
+  }
 </style>
 <script type="importmap">
 {
@@ -1701,13 +1706,18 @@ function Login({ onJoin, isModal }) {
       return;
     }
 
-    // Regular team member login
+    // Regular team member login — search by username, email prefix, or name
+    const uq = username.trim().toLowerCase();
     const member = members.find(m =>
-      (m.username && m.username.toLowerCase() === username.trim().toLowerCase()) ||
-      (m.email    && m.email.toLowerCase()    === username.trim().toLowerCase())
+      (m.username && m.username.toLowerCase() === uq) ||
+      (m.email    && m.email.toLowerCase()    === uq) ||
+      (m.email    && m.email.split('@')[0].toLowerCase() === uq) ||
+      (m.name     && m.name.toLowerCase()     === uq)
     );
     if (!member) { setLoading(false); setError('❌ Usuario no encontrado'); return; }
-    if (!member.pin || member.pin !== password) { setLoading(false); setError('❌ Contraseña incorrecta'); return; }
+    // Support both pin and password fields
+    const storedPw = member.pin || member.password || '';
+    if (!storedPw || storedPw !== password) { setLoading(false); setError('❌ Contraseña incorrecta'); return; }
 
     // Superuser → admin panel directly, no sala needed
     if (member.is_superuser) {
@@ -1735,10 +1745,16 @@ function Login({ onJoin, isModal }) {
 
   // Rooms this member has access to (shown after typing username)
   const memberRooms = username.trim()
-    ? (members.find(m=>
-        (m.username||'').toLowerCase()===username.trim().toLowerCase()||
-        (m.email||'').toLowerCase()===username.trim().toLowerCase()
-      )?.rooms || []).map(slug => rooms.find(r=>r.slug===slug)).filter(Boolean)
+    ? (() => {
+        const uq2 = username.trim().toLowerCase();
+        const m = members.find(x=>
+          (x.username||'').toLowerCase()===uq2 ||
+          (x.email||'').toLowerCase()===uq2 ||
+          ((x.email||'').split('@')[0].toLowerCase())===uq2 ||
+          (x.name||'').toLowerCase()===uq2
+        );
+        return (m?.rooms||[]).map(slug=>rooms.find(r=>r.slug===slug)).filter(Boolean);
+      })()
     : [];
 
   return html`
@@ -2328,6 +2344,10 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
 /* ═══ PRIESGOS — Risk Management Dashboard ═══ */
 function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
+  const [teamMembers, setTeamMembers] = useState([]);
+  useEffect(() => {
+    sbLoadTeamMembers().then(data => setTeamMembers(data.filter(m=>(m.rooms||[]).includes(SALA))));
+  }, []);
   const [subTab,    setSubTab]    = useState('riesgos');
   const [escalForm, setEscalForm] = useState({riskId:'', level:'alto_mando', responsible:'', deadline:'', note:'', status:'pendiente'});
   const [form,   setForm]   = useState({type:'riesgo', text:'', impact:'medio', prob:'media', owner:'', mitigation:'', status:'open', opportunity:''});
@@ -2677,8 +2697,11 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
                   </select>
                 </div>
               `}
-              <input value=${form.owner} onInput=${e=>setForm({...form,owner:e.target.value})} placeholder="Responsable"
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 12px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
+              <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})}
+                style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }}>
+                <option value="">— Responsable —</option>
+                ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+              </select>
               <input value=${form.mitigation||''} onInput=${e=>setForm({...form,mitigation:e.target.value})}
                 placeholder=${subTab==='oportunidades'?'¿Cómo aprovecharla?':'Plan de mitigación'}
                 style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 12px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
@@ -2948,6 +2971,224 @@ function PVacaciones({ embeddedTeam }) {
 }
 
 
+/* ═══ USER PROFILE MODAL ═══ */
+function UserProfileModal({ user, onClose, state, sA, sR }) {
+  const [tab,      setTab]      = useState('perfil');
+  const [profile,  setProfile]  = useState(null);
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+
+  useEffect(() => {
+    sbLoadTeamMembers().then(members => {
+      const me = members.find(m =>
+        m.id === user.id ||
+        (m.email && m.email.toLowerCase() === (user.username||'').toLowerCase()) ||
+        (m.username && m.username.toLowerCase() === (user.username||'').toLowerCase())
+      );
+      setProfile(me || null);
+    });
+  }, []);
+
+  const saveProfile = async () => {
+    if (!profile) return;
+    setSaving(true);
+    await sbSaveTeamMember(profile);
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const today = new Date().toISOString().slice(0,10);
+  const myActions = (state.actions||[]).filter(a => a.owner === user.name || a.createdBy === user.id);
+  const myRisks   = (state.risks||[]).filter(r =>
+    r.owner === user.name ||
+    (r.escalation?.memberId === user.id) ||
+    (r.escalation?.memberName === user.name)
+  );
+  const pendingActions = myActions.filter(a => a.status !== 'done' && a.status !== 'discarded');
+  const overdueActions = myActions.filter(a => a.status !== 'done' && a.status !== 'discarded' && a.date && a.date < today);
+  const escalatedToMe  = myRisks.filter(r => r.escalation?.memberId === user.id || r.escalation?.memberName === user.name);
+
+  const PRIS_MAP = {high:'#FF3B30', medium:'#FF9500', low:'#34C759'};
+
+  return html`
+    <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:9100,
+      display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+      onClick=${onClose}>
+      <div onClick=${e=>e.stopPropagation()}
+        style=${{ background:'#FFF', borderRadius:24, maxWidth:520, width:'100%',
+          maxHeight:'88vh', display:'flex', flexDirection:'column',
+          boxShadow:'0 24px 80px rgba(0,0,0,.2)', overflow:'hidden' }}>
+
+        <!-- Header -->
+        <div style=${{ padding:'20px 24px 0', flexShrink:0 }}>
+          <div style=${{ display:'flex', alignItems:'center', gap:14, marginBottom:16 }}>
+            <div style=${{ width:56, height:56, borderRadius:16, background:user.color||'#007AFF',
+              display:'flex', alignItems:'center', justifyContent:'center', fontSize:30, flexShrink:0 }}>
+              ${user.avatar}
+            </div>
+            <div style=${{ flex:1 }}>
+              <h2 style=${{ fontSize:18, fontWeight:700 }}>${user.name}</h2>
+              <p style=${{ fontSize:13, color:'#86868B' }}>${user.role||'Sin rol'} ${profile?.company ? '· '+profile.company : ''}</p>
+            </div>
+            <button onClick=${onClose} style=${{ width:32, height:32, borderRadius:16, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer' }}>✕</button>
+          </div>
+          <!-- Tabs -->
+          <div style=${{ display:'flex', gap:0, borderBottom:'2px solid #F2F2F7' }}>
+            ${[['perfil','👤 Perfil'],['actividad','📊 Actividad'],['contacto','📞 Contacto']].map(([tid,tl])=>html`
+              <button key=${tid} onClick=${()=>setTab(tid)}
+                style=${{ padding:'9px 16px', fontSize:12, fontWeight:tab===tid?700:500,
+                  color:tab===tid?'#007AFF':'#86868B', background:'transparent', border:'none',
+                  borderBottom:tab===tid?'2px solid #007AFF':'2px solid transparent',
+                  cursor:'pointer', marginBottom:'-2px' }}>${tl}</button>`)}
+          </div>
+        </div>
+
+        <!-- Tab content -->
+        <div style=${{ flex:1, overflowY:'auto', padding:'18px 24px 24px' }}>
+
+          <!-- ── PERFIL ── -->
+          ${tab==='perfil' && html`
+            ${!profile ? html`<div style=${{ textAlign:'center', padding:32, color:'#86868B' }}>⏳ Cargando…</div>` : html`
+              <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
+                <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <div>
+                    <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Nombre</label>
+                    <input value=${profile.name||''} onInput=${e=>setProfile({...profile,name:e.target.value})}
+                      style=${{ ...iS, fontSize:13 }} />
+                  </div>
+                  <div>
+                    <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Usuario</label>
+                    <input value=${profile.username||''} onInput=${e=>setProfile({...profile,username:e.target.value})}
+                      style=${{ ...iS, fontSize:13 }} />
+                  </div>
+                </div>
+                <div>
+                  <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Email</label>
+                  <input value=${profile.email||''} onInput=${e=>setProfile({...profile,email:e.target.value})}
+                    style=${{ ...iS, fontSize:13 }} />
+                </div>
+                <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <div>
+                    <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Empresa</label>
+                    <input value=${profile.company||''} onInput=${e=>setProfile({...profile,company:e.target.value})}
+                      style=${{ ...iS, fontSize:13 }} placeholder="Empresa / Organización" />
+                  </div>
+                  <div>
+                    <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Rol</label>
+                    <select value=${profile.role_label||''} onChange=${e=>setProfile({...profile,role_label:e.target.value})}
+                      style=${{ ...iS, fontSize:13 }}>
+                      <option value="">— Sin rol —</option>
+                      ${getAllRoles().map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
+                    </select>
+                  </div>
+                </div>
+                <button onClick=${saveProfile} disabled=${saving}
+                  style=${{ padding:'10px', borderRadius:10, border:'none', background: saved?'#34C759':'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer', marginTop:4 }}>
+                  ${saving ? '💾 Guardando…' : saved ? '✅ Guardado' : 'Guardar cambios'}
+                </button>
+              </div>`}
+          `}
+
+          <!-- ── ACTIVIDAD ── -->
+          ${tab==='actividad' && html`
+            <div style=${{ display:'flex', flexDirection:'column', gap:16 }}>
+              <!-- KPIs -->
+              <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+                ${[
+                  ['🎯', pendingActions.length, 'Pendientes', '#FF9500'],
+                  ['⚠️', overdueActions.length, 'Vencidos',   '#FF3B30'],
+                  ['📈', escalatedToMe.length,  'Escalados',  '#5856D6'],
+                ].map(([ic,v,l,c])=>html`
+                  <div style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', padding:'12px 10px', textAlign:'center' }}>
+                    <div style=${{ fontSize:18, marginBottom:4 }}>${ic}</div>
+                    <div style=${{ fontSize:22, fontWeight:800, color:c }}>${v}</div>
+                    <div style=${{ fontSize:9, color:'#86868B' }}>${l}</div>
+                  </div>`)}
+              </div>
+
+              <!-- My actions -->
+              ${myActions.length > 0 && html`
+                <div>
+                  <h4 style=${{ fontSize:12, fontWeight:700, color:'#86868B', textTransform:'uppercase', marginBottom:8, letterSpacing:.5 }}>Mis accionables</h4>
+                  <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+                    ${myActions.slice(0,8).map(a => {
+                      const overdue = a.status!=='done' && a.date && a.date < today;
+                      const PRIS_LOCAL = {high:'#FF3B30', medium:'#FF9500', low:'#34C759'};
+                      return html`
+                        <div style=${{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:10,
+                          background:overdue?'#FFF5F5':'#F9F9FB', border:'1px solid '+(overdue?'#FF3B3020':'#E5E5EA') }}>
+                          <div style=${{ width:8, height:8, borderRadius:4, background:PRIS_LOCAL[a.priority]||'#86868B', flexShrink:0 }}></div>
+                          <span style=${{ flex:1, fontSize:12, fontWeight:500 }}>${a.text}</span>
+                          ${a.date && html`<span style=${{ fontSize:10, color:overdue?'#FF3B30':'#86868B' }}>📅 ${a.date}</span>`}
+                          <span style=${{ fontSize:9, fontWeight:700, color:a.status==='done'?'#34C759':a.status==='inprogress'?'#007AFF':'#FF9500',
+                            background:a.status==='done'?'#F0FFF4':a.status==='inprogress'?'#EEF5FF':'#FFF9E6', padding:'2px 7px', borderRadius:8 }}>
+                            ${a.status==='done'?'Hecho':a.status==='inprogress'?'En proceso':'Pendiente'}
+                          </span>
+                        </div>`;
+                    })}
+                  </div>
+                </div>`}
+
+              <!-- Escalated to me -->
+              ${escalatedToMe.length > 0 && html`
+                <div>
+                  <h4 style=${{ fontSize:12, fontWeight:700, color:'#5856D6', textTransform:'uppercase', marginBottom:8, letterSpacing:.5 }}>📈 Riesgos escalados a mí</h4>
+                  <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+                    ${escalatedToMe.map(r => html`
+                      <div style=${{ padding:'8px 12px', borderRadius:10, background:'#F8F5FF', border:'1px solid #5856D620', borderLeft:'3px solid #5856D6' }}>
+                        <p style=${{ fontSize:12, fontWeight:600 }}>${r.text}</p>
+                        <p style=${{ fontSize:10, color:'#86868B', marginTop:2 }}>Estado: ${r.escalation?.status||'pendiente'}</p>
+                      </div>`)}
+                  </div>
+                </div>`}
+            </div>
+          `}
+
+          <!-- ── CONTACTO ── -->
+          ${tab==='contacto' && html`
+            ${!profile ? html`<div style=${{ textAlign:'center', padding:32, color:'#86868B' }}>⏳ Cargando…</div>` : html`
+              <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
+                <p style=${{ fontSize:12, color:'#86868B', marginBottom:4 }}>Configura cómo quieres recibir notificaciones y cómo contactarte</p>
+                <div>
+                  <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Teams / Slack handle</label>
+                  <input value=${profile.teams_handle||''} onInput=${e=>setProfile({...profile,teams_handle:e.target.value})}
+                    placeholder="@usuario o canal" style=${{ ...iS, fontSize:13 }} />
+                </div>
+                <div>
+                  <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Teléfono</label>
+                  <input value=${profile.phone||''} onInput=${e=>setProfile({...profile,phone:e.target.value})}
+                    placeholder="+34 6XX XXX XXX" style=${{ ...iS, fontSize:13 }} />
+                </div>
+                <div style=${{ background:'#F9F9FB', borderRadius:12, padding:'14px', border:'1.5px solid #E5E5EA' }}>
+                  <p style=${{ fontSize:12, fontWeight:700, marginBottom:10 }}>🔔 Preferencias de notificación</p>
+                  ${[
+                    ['notif_escalado',  'Riesgo escalado a mí'],
+                    ['notif_accionable','Accionable vencido'],
+                    ['notif_mencion',   'Mención en retro'],
+                    ['notif_resumen',   'Resumen de sesión'],
+                  ].map(([key,label]) => html`
+                    <div key=${key} style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+                      <span style=${{ fontSize:13 }}>${label}</span>
+                      <button onClick=${()=>setProfile({...profile,[key]:!profile[key]})}
+                        style=${{ width:44, height:24, borderRadius:12, border:'none', cursor:'pointer', position:'relative', flexShrink:0,
+                          background:profile[key]?'#34C759':'#E5E5EA', transition:'background .2s' }}>
+                        <div style=${{ position:'absolute', top:2, left:profile[key]?22:2, width:20, height:20, borderRadius:10, background:'#FFF',
+                          transition:'left .2s', boxShadow:'0 1px 3px rgba(0,0,0,.2)' }}></div>
+                      </button>
+                    </div>`)}
+                </div>
+                <button onClick=${saveProfile} disabled=${saving}
+                  style=${{ padding:'10px', borderRadius:10, border:'none', background:saved?'#34C759':'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                  ${saving ? '💾 Guardando…' : saved ? '✅ Guardado' : 'Guardar preferencias'}
+                </button>
+              </div>`}
+          `}
+        </div>
+      </div>
+    </div>`;
+}
+
+
 function RetroBoard({ user, onLogout }) {
   const { state, upd, online, cursors, moveCursor, reset, broadcastTimer } = useRealtime(user);
   const [mainTab, setMainTab] = useState('retro');
@@ -2990,6 +3231,28 @@ function RetroBoard({ user, onLogout }) {
   const [showGuide,         setShowGuide]         = useState(false);
   const [showHistorial,     setShowHistorial]     = useState(false);
   const [showProjectSwitch, setShowProjectSwitch] = useState(false);
+  const [showProfile,       setShowProfile]       = useState(false);
+  const [profileTab,        setProfileTab]        = useState('perfil');
+  const [notifications,     setNotifications]     = useState([]);
+  const [showNotifs,        setShowNotifs]        = useState(false);
+  const addNotif = useCallback((msg, type='info') => {
+    const n = {id:uid(), msg, type, ts:Date.now()};
+    setNotifications(prev=>[n,...prev.slice(0,19)]);
+    setTimeout(()=>setNotifications(prev=>prev.filter(x=>x.id!==n.id)), 6000);
+  }, []);
+  useEffect(() => {
+    if (!state.risks) return;
+    const today = new Date().toISOString().slice(0,10);
+    state.risks.forEach(r => {
+      if (r.escalation?.memberName && r.escalation?.status==='pendiente') {
+        if (r.escalation.memberName === user.name || r.escalation.memberId === user.id)
+          addNotif('📈 Riesgo escalado a ti: '+r.text.slice(0,50), 'escalado');
+      }
+    });
+    (state.actions||[]).filter(a=>a.owner===user.name&&a.status!=='done'&&a.date&&a.date<today).forEach(a=>{
+      addNotif('🎯 Accionable vencido: '+a.text.slice(0,50), 'overdue');
+    });
+  }, []);
   const [sbRetroHistory, setSbRetroHistory] = useState([]);
   useEffect(() => {
     sbLoadRetros().then(all => setSbRetroHistory((all||[]).filter(r=>r.sala===SALA)));
@@ -3071,7 +3334,7 @@ function RetroBoard({ user, onLogout }) {
 
   const content = () => {
     if (phase===0) return html`<${P1} tasks=${state.tasks} sT=${sT} obj=${state.obj} sO=${sO} user=${user} />`;
-    if (phase===1) return html`<${Board} notes=${state.notes} sN=${sN} user=${user} filter="all" />`;
+    if (phase===1) return html`<${Board} notes=${state.notes} sN=${sN} user=${user} filter="all" hideOthers=${true} />`;
     if (phase===2) return html`<${P3} notes=${state.notes} sN=${sN} user=${user} />`;
     if (phase===3) return html`<${P5Risks} risks=${state.risks} sR=${sR} notes=${state.notes} user=${user} />`;
     if (phase===4) return html`<${P4} notes=${state.notes} actions=${state.actions} risks=${state.risks} sA=${sA} user=${user} />`;
@@ -3101,10 +3364,39 @@ function RetroBoard({ user, onLogout }) {
 
         </div>
 
-        <div style=${{ display:'flex', alignItems:'center' }}>
+        <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
           ${uList.slice(0,8).map(([id,u],i)=>html`<div key=${id} title=${u.name} style=${{ width:52, height:52, borderRadius:26, background:u.color, border:'3px solid #FFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, marginLeft:i>0?-12:0, zIndex:10-i, boxShadow:'0 2px 10px rgba(0,0,0,.18)' }}>${u.avatar}</div>`)}
-          ${uList.length>0 && html`<span style=${{ fontSize:11, color:'#86868B', marginLeft:8 }}>${uList.length} online</span>`}
-          <button onClick=${()=>setShowProjectSwitch(true)} style=${{ marginLeft:6, padding:'4px 10px', borderRadius:7, border:'1px solid #E5E5EA', background:'#FFF', fontSize:11, color:'#86868B', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }} title="Cambiar proyecto">
+          ${uList.length>0 && html`<span style=${{ fontSize:11, color:'#86868B', marginLeft:4 }}>${uList.length} online</span>`}
+          <!-- Notification bell -->
+          <div style=${{ position:'relative' }}>
+            <button onClick=${()=>setShowNotifs(v=>!v)}
+              style=${{ width:36, height:36, borderRadius:10, border:'1px solid #E5E5EA', background:'#FFF', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:16, position:'relative' }}>
+              🔔
+              ${notifications.length>0 && html`<div style=${{ position:'absolute', top:-3, right:-3, width:16, height:16, borderRadius:8, background:'#FF3B30', color:'#FFF', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>${notifications.length}</div>`}
+            </button>
+            ${showNotifs && html`
+              <div style=${{ position:'absolute', right:0, top:44, width:320, background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', boxShadow:'0 8px 32px rgba(0,0,0,.12)', zIndex:9999, overflow:'hidden' }}>
+                <div style=${{ padding:'12px 16px', borderBottom:'1px solid #F2F2F7', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style=${{ fontSize:13, fontWeight:700 }}>Notificaciones</span>
+                  <button onClick=${()=>{ setNotifications([]); setShowNotifs(false); }} style=${{ border:'none', background:'none', fontSize:11, color:'#86868B', cursor:'pointer' }}>Limpiar</button>
+                </div>
+                ${notifications.length===0
+                  ? html`<div style=${{ padding:'24px 16px', textAlign:'center', color:'#C7C7CC', fontSize:12 }}>Sin notificaciones</div>`
+                  : html`<div style=${{ maxHeight:300, overflowY:'auto' }}>
+                      ${notifications.map(n=>html`
+                        <div key=${n.id} style=${{ padding:'10px 16px', borderBottom:'1px solid #F9F9FB', background:n.type==='escalado'?'#FFF9E6':n.type==='overdue'?'#FFF5F5':'#FFF' }}>
+                          <p style=${{ fontSize:12, lineHeight:1.4 }}>${n.msg}</p>
+                          <p style=${{ fontSize:10, color:'#C7C7CC', marginTop:2 }}>${new Date(n.ts).toLocaleTimeString()}</p>
+                        </div>`)}
+                    </div>`}
+              </div>`}
+          </div>
+          ${user._isAdmin && html`
+            <a href=${window.location.pathname+'?admin'} style=${{ padding:'4px 10px', borderRadius:7, border:'1px solid #5856D620', background:'#5856D608', fontSize:11, color:'#5856D6', cursor:'pointer', display:'flex', alignItems:'center', gap:4, textDecoration:'none', fontWeight:600 }}>
+              ⚙️ Admin
+            </a>`}
+          <button onClick=${()=>setShowProjectSwitch(true)}
+            style=${{ padding:'4px 10px', borderRadius:7, border:'1px solid #E5E5EA', background:'#FFF', fontSize:11, color:'#86868B', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
             <span style=${{ fontSize:13 }}>${user.avatar}</span>
             <span style=${{ fontWeight:600 }}>${user.name}</span>
             <span style=${{ fontSize:9, color:'#C7C7CC' }}>▾</span>
@@ -3128,13 +3420,24 @@ function RetroBoard({ user, onLogout }) {
       ${mainTab==='retro' && html`
         <div style=${{ padding:'6px 14px', display:'flex', gap:4, flexShrink:0, background:'#FAFAFA', borderBottom:'1px solid #E5E5EA', overflowX:'auto', alignItems:'center' }}>
           ${PHASES.map((p,i)=>html`
-            <button key=${p.id} onClick=${()=>setPhase(i)}
-              style=${{ padding:'6px 12px', borderRadius:8, border:phase===i?'none':'1.5px solid #E5E5EA',
-                background:phase===i?'#1D1D1F':'#FFF', color:phase===i?'#FFF':'#6E6E73',
+            <button key=${p.id}
+              onClick=${()=>{ if(i<=phase+1) setPhase(i); }}
+              title=${i>phase+1?'Completa la fase actual primero':''}
+              style=${{ padding:'6px 12px', borderRadius:8,
+                border:phase===i?'none':i<phase?'1.5px solid #34C75940':'1.5px solid #E5E5EA',
+                background:phase===i?'#1D1D1F':i<phase?'#F0FFF4':'#FFF',
+                color:phase===i?'#FFF':i<phase?'#34C759':i>phase+1?'#C7C7CC':'#6E6E73',
                 fontSize:11, fontWeight:600, whiteSpace:'nowrap', display:'flex',
-                alignItems:'center', gap:3, flexShrink:0, cursor:'pointer' }}>
-              ${p.icon} ${p.label}
+                alignItems:'center', gap:3, flexShrink:0,
+                cursor:i<=phase+1?'pointer':'not-allowed', opacity:i>phase+1?.5:1 }}>
+              ${i<phase?'✓ ':''}${p.label}
             </button>`)}
+          ${phase < PHASES.length-1 && html`
+            <button onClick=${()=>setPhase(phase+1)}
+              style=${{ padding:'6px 14px', borderRadius:8, border:'none', background:'#007AFF',
+                color:'#FFF', fontSize:11, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+              Siguiente → ${PHASES[phase+1]?.label}
+            </button>`}
           <div style=${{ flex:1 }} />
 
           <!-- Timer (inside Retro tab) -->
@@ -3187,17 +3490,31 @@ function RetroBoard({ user, onLogout }) {
       ${showProjectSwitch && html`
         <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
           onClick=${()=>setShowProjectSwitch(false)}>
-          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, padding:'24px 28px', maxWidth:380, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,.2)' }}>
-            <div style=${{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
-              <div style=${{ width:44, height:44, borderRadius:14, background:user.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24 }}>${user.avatar}</div>
-              <div>
-                <p style=${{ fontSize:15, fontWeight:700 }}>${user.name}</p>
-                ${user.role && html`<p style=${{ fontSize:12, color:'#86868B' }}>${user.role}</p>`}
+          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:400, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,.2)', overflow:'hidden' }}>
+            <!-- Header -->
+            <div style=${{ padding:'20px 24px 0' }}>
+              <div style=${{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+                <div style=${{ width:48, height:48, borderRadius:14, background:user.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26 }}>${user.avatar}</div>
+                <div style=${{ flex:1 }}>
+                  <p style=${{ fontSize:15, fontWeight:700 }}>${user.name}</p>
+                  <p style=${{ fontSize:12, color:'#86868B' }}>${user.role||'Sin rol'}</p>
+                </div>
+                <button onClick=${()=>{ setShowProjectSwitch(false); setShowProfile(true); }}
+                  style=${{ padding:'6px 12px', borderRadius:8, border:'1.5px solid #007AFF20', background:'#007AFF10', color:'#007AFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                  ✏️ Mi perfil
+                </button>
+              </div>
+              <div style=${{ display:'flex', borderBottom:'2px solid #F2F2F7' }}>
+                ${[['proyectos','📂 Proyectos']].map(([tid,tl])=>html`
+                  <button key=${tid}
+                    style=${{ padding:'9px 16px', fontSize:12, fontWeight:700, color:'#007AFF', background:'transparent', border:'none',
+                      borderBottom:'2px solid #007AFF', cursor:'pointer', marginBottom:'-2px' }}>${tl}</button>`)}
               </div>
             </div>
-            <p style=${{ fontSize:12, fontWeight:700, color:'#86868B', marginBottom:10, textTransform:'uppercase', letterSpacing:.5 }}>Mis proyectos</p>
-            <${ProjectList} currentSala=${SALA} userId=${user.id} />
-            <div style=${{ borderTop:'1px solid #F2F2F7', marginTop:16, paddingTop:14 }}>
+            <div style=${{ padding:'14px 24px 20px', maxHeight:320, overflowY:'auto' }}>
+              <${ProjectList} currentSala=${SALA} userId=${user.id} />
+            </div>
+            <div style=${{ borderTop:'1px solid #F2F2F7', padding:'14px 24px' }}>
               <button onClick=${()=>{ onLogout(); setShowProjectSwitch(false); }}
                 style=${{ width:'100%', padding:'10px', borderRadius:10, border:'1.5px solid #FF3B3030', background:'#FFF', color:'#FF3B30', fontSize:13, fontWeight:600, cursor:'pointer' }}>
                 🚪 Cerrar sesión
@@ -3206,6 +3523,7 @@ function RetroBoard({ user, onLogout }) {
           </div>
         </div>
       `}
+      ${showProfile && html`<${UserProfileModal} user=${user} onClose=${()=>setShowProfile(false)} state=${state} sA=${sA} sR=${sR} />`}
 
       ${showReset && html`<${NewRetroModal}
         user=${user} state=${state}
@@ -3621,7 +3939,7 @@ function P1({ tasks, sT, obj, sO, user }) {
 }
 
 /* ═══ BOARD ═══ */
-function Board({ notes, sN, user, filter }) {
+function Board({ notes, sN, user, filter, hideOthers }) {
   const [act,      setAct]      = useState(null);
   const [txt,      setTxt]      = useState('');
   const [eId,      setEId]      = useState(null);
@@ -3694,6 +4012,18 @@ function Board({ notes, sN, user, filter }) {
             <div style=${{ flex:1, padding:'7px 8px', overflowY:'auto', display:'flex', flexDirection:'column', gap:6, minHeight:60 }}>
               ${cn.map(note => {
                 const voted=note.voters?.includes(user.id); const mine=note.userId===user.id;
+                const hidden = hideOthers && !mine;
+                if (hidden) return html`
+                  <div key=${note.id} style=${{ background:cat.color+'08', borderRadius:12, padding:'10px 12px', border:'1px solid '+cat.color+'15' }}>
+                    <div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
+                      <div style=${{ height:10, background:cat.color+'25', borderRadius:4, width:'85%', animation:'shimmer 1.5s infinite' }}></div>
+                      <div style=${{ height:10, background:cat.color+'20', borderRadius:4, width:'60%', animation:'shimmer 1.5s infinite' }}></div>
+                      <div style=${{ display:'flex', alignItems:'center', gap:4, marginTop:2 }}>
+                        <div style=${{ width:16, height:16, borderRadius:8, background:cat.color+'30' }}></div>
+                        <div style=${{ height:8, background:cat.color+'20', borderRadius:4, width:'40%' }}></div>
+                      </div>
+                    </div>
+                  </div>`;
                 return html`
                   <div key=${note.id}
                     draggable=${true}
@@ -3762,6 +4092,10 @@ function P3({ notes, sN, user }) {
 
 /* ═══ PHASE 4: ACTIONS ═══ */
 function P4({ notes, actions, risks, sA, user }) {
+  const [teamMembers, setTeamMembers] = useState([]);
+  useEffect(() => {
+    sbLoadTeamMembers().then(data => setTeamMembers(data.filter(m=>(m.rooms||[]).includes(SALA))));
+  }, []);
   const [form, setForm] = useState({text:'',owner:'',date:'',priority:'medium'});
   const [eId, setEId] = useState(null);
   const [eF, setEF] = useState({});
@@ -3824,7 +4158,10 @@ function P4({ notes, actions, risks, sA, user }) {
           </div>
           <div style=${{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
             <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Acción concreta..." style=${{ ...iS, flex:2, minWidth:150 }} />
-            <input value=${form.owner} onInput=${e=>setForm({...form,owner:e.target.value})} placeholder="Responsable" style=${{ ...iS, flex:1, minWidth:80 }} />
+            <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})} style=${{ ...iS, flex:1, minWidth:100 }}>
+              <option value="">— Responsable —</option>
+              ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+            </select>
             <input type="date" value=${form.date} onInput=${e=>setForm({...form,date:e.target.value})} style=${{ ...iS, width:120, flex:'none' }} />
             <select value=${form.priority} onChange=${e=>setForm({...form,priority:e.target.value})} style=${{ ...iS, width:100, flex:'none' }}>${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}</select>
             <button onClick=${()=>addA(null)} style=${bP}>+ Añadir</button>
@@ -3983,6 +4320,10 @@ function P4({ notes, actions, risks, sA, user }) {
 
 /* ═══ PHASE 5: RISKS ═══ */
 function P5Risks({ risks, sR, notes, user }) {
+  const [teamMembers, setTeamMembers] = useState([]);
+  useEffect(() => {
+    sbLoadTeamMembers().then(data => setTeamMembers(data.filter(m=>(m.rooms||[]).includes(SALA))));
+  }, []);
   const [form, setForm] = useState({ text:'', mitigation:'', owner:'' });
   const [eId, setEId] = useState(null);
   const [eF, setEF] = useState({});
@@ -4121,7 +4462,10 @@ function P5Risks({ risks, sR, notes, user }) {
           <div style=${{ display:'flex', gap:5, marginBottom:14, flexWrap:'wrap' }}>
             <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Descripción del riesgo..." style=${{ ...iS, flex:2, minWidth:140, fontSize:13 }} />
             <input value=${form.mitigation} onInput=${e=>setForm({...form,mitigation:e.target.value})} placeholder="Mitigación" style=${{ ...iS, flex:1, minWidth:100, fontSize:13 }} />
-            <input value=${form.owner} onInput=${e=>setForm({...form,owner:e.target.value})} placeholder="Owner" style=${{ ...iS, width:80, flex:'none', fontSize:13 }} />
+            <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})} style=${{ ...iS, width:120, flex:'none', fontSize:12 }}>
+              <option value="">— Owner —</option>
+              ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+            </select>
             <button onClick=${()=>addRisk(null)} style=${bP}>+ Riesgo</button>
           </div>
           <!-- Risk items -->
