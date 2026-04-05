@@ -186,12 +186,11 @@ const MAIN_TABS = [
 const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
 const ROLES = ['Scrum Master','Product Owner','Desarrollador/a','QA / Tester','Diseñador/a','DevOps','Tech Lead','Analista','Project Manager','Stakeholder','Otro'];
 // Merged roles: built-in + any custom ones saved in AdminRoles
-function getAllRoles() {
+function getAllRoles(extraRoles) {
   try {
-    const custom = JSON.parse(localStorage.getItem('rf-admin-roles') || 'null');
-    if (!custom) return [...ROLES];
-    return [...new Set([...ROLES, ...custom])];
-  } catch { return [...ROLES]; }
+    const custom = JSON.parse(localStorage.getItem('rf-admin-roles') || 'null') || [];
+    return [...new Set([...ROLES, ...custom, ...(extraRoles||[])])];
+  } catch { return [...ROLES, ...(extraRoles||[])]; }
 }
 const REACTIONS = ['🔥','💡','❤️','😂','🎯','🤯'];
 const COLRS = ['#007AFF','#FF3B30','#34C759','#FF9500','#AF52DE','#FF2D55','#5856D6','#00C7BE'];
@@ -1943,6 +1942,7 @@ function PEquipo() {
   const [loading, setLoading]= useState(true);
   const [subTab,  setSubTab] = useState('lista');
   const [org,     setOrg]    = useState({}); // { memberId: managerId }
+  const [orgData, setOrgData]= useState([]); // full org_chart rows
   const [orgSaving, setOrgSaving] = useState(false);
 
   useEffect(() => {
@@ -1954,6 +1954,7 @@ function PEquipo() {
       const orgMap = {};
       chart.forEach(n => { orgMap[n.member_id] = n.manager_id || null; });
       setOrg(orgMap);
+      setOrgData(chart);
       setLoading(false);
     });
   }, []);
@@ -1963,6 +1964,21 @@ function PEquipo() {
     const newOrg = {...org, [memberId]: managerId || null};
     setOrg(newOrg);
     await sbSaveOrgNode(SALA, memberId, managerId || null);
+    setOrgSaving(false);
+  };
+
+  const updateOrgField = async (memberId, field, val) => {
+    setOrgSaving(true);
+    const managerId = org[memberId] || null;
+    await supabase.from('org_chart').upsert(
+      { sala:SALA, member_id:memberId, manager_id:managerId, [field]:val||null },
+      { onConflict:'sala,member_id' }
+    );
+    setOrgData(prev => {
+      const existing = prev.find(r=>r.member_id===memberId);
+      if (existing) return prev.map(r=>r.member_id===memberId?{...r,[field]:val}:r);
+      return [...prev, {sala:SALA, member_id:memberId, manager_id:managerId, [field]:val}];
+    });
     setOrgSaving(false);
   };
 
@@ -2007,28 +2023,51 @@ function PEquipo() {
               team.map(m => {
                 const onVac = (m.vacations||[]).some(v=>v.from<=today&&(!v.to||v.to>=today));
                 const color = rc(m.role_label||'');
-                const managerName = m.manager_id ? (team.find(x=>x.id===org[m.id])?.name || '') : '';
+                const row = orgData.find(r=>r.member_id===m.id)||{};
                 return html`
-                  <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderRadius:14,
-                    background:onVac?'#FFF9E6':'#FFF', border:'1.5px solid '+(onVac?'#FF9500':'#E5E5EA') }}>
-                    <div style=${{ width:48, height:48, borderRadius:14, background:m.color||'#E5E5EA',
-                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, flexShrink:0 }}>
-                      ${m.avatar||'👤'}
-                    </div>
-                    <div style=${{ flex:1 }}>
-                      <div style=${{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                        <span style=${{ fontSize:14, fontWeight:700 }}>${m.name}</span>
-                        ${m.role_label && html`
-                          <span style=${{ fontSize:10, fontWeight:700, color:'#FFF', background:color, padding:'2px 8px', borderRadius:10 }}>${m.role_label}</span>`}
-                        ${m.company && html`
-                          <span style=${{ fontSize:10, color:'#86868B', background:'#F2F2F7', padding:'2px 8px', borderRadius:10 }}>🏢 ${m.company}</span>`}
-                        ${onVac && html`<span style=${{ fontSize:10, color:'#FF9500', fontWeight:700, background:'#FF950015', padding:'2px 8px', borderRadius:10 }}>🏖️ Vacaciones</span>`}
+                  <div key=${m.id} style=${{ borderRadius:14, background:onVac?'#FFF9E6':'#FFF',
+                    border:'1.5px solid '+(onVac?'#FF9500':'#E5E5EA'), overflow:'hidden' }}>
+                    <!-- Header row -->
+                    <div style=${{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px' }}>
+                      <div style=${{ width:44, height:44, borderRadius:12, background:m.color||'#E5E5EA',
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0 }}>
+                        ${m.avatar||'👤'}
                       </div>
-                      ${org[m.id] && html`
-                        <div style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>
-                          Reporta a: <strong>${team.find(x=>x.id===org[m.id])?.name || '—'}</strong>
-                        </div>`}
-                      ${m.email && html`<div style=${{ fontSize:11, color:'#C7C7CC', marginTop:1 }}>${m.email}</div>`}
+                      <div style=${{ flex:1 }}>
+                        <div style=${{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                          <span style=${{ fontSize:14, fontWeight:700 }}>${m.name}</span>
+                          ${m.company && html`<span style=${{ fontSize:10, color:'#86868B', background:'#F2F2F7', padding:'2px 7px', borderRadius:8 }}>🏢 ${m.company}</span>`}
+                          ${onVac && html`<span style=${{ fontSize:10, color:'#FF9500', fontWeight:700, background:'#FF950015', padding:'2px 7px', borderRadius:8 }}>🏖️ Vacaciones</span>`}
+                        </div>
+                        ${org[m.id] && html`<div style=${{ fontSize:11, color:'#86868B', marginTop:1 }}>Reporta a: <strong>${team.find(x=>x.id===org[m.id])?.name||'—'}</strong></div>`}
+                      </div>
+                    </div>
+                    <!-- Project config row -->
+                    <div style=${{ padding:'8px 16px 12px', display:'grid', gridTemplateColumns:'1fr 120px 120px 80px', gap:8, borderTop:'1px solid #F2F2F7', background:'#FAFAFA' }}>
+                      <div>
+                        <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>Rol en proyecto</label>
+                        <select value=${row.role_in_project||m.role_label||''} onChange=${e=>updateOrgField(m.id,'role_in_project',e.target.value)}
+                          style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
+                          <option value="">— Sin rol —</option>
+                          ${getAllRoles([m.role_label]).map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>Inicio</label>
+                        <input type="date" value=${row.start_date||''} onInput=${e=>updateOrgField(m.id,'start_date',e.target.value)}
+                          style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 6px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#FFF' }} />
+                      </div>
+                      <div>
+                        <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>Fin</label>
+                        <input type="date" value=${row.end_date||''} onInput=${e=>updateOrgField(m.id,'end_date',e.target.value)}
+                          style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 6px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#FFF' }} />
+                      </div>
+                      <div>
+                        <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>FTE</label>
+                        <input type="number" min="0.1" max="1" step="0.1" value=${row.dedication??1}
+                          onInput=${e=>updateOrgField(m.id,'dedication',parseFloat(e.target.value)||1)}
+                          style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 6px', fontSize:12, fontWeight:700, textAlign:'center', fontFamily:'inherit', outline:'none', background:'#FFF' }} />
+                      </div>
                     </div>
                   </div>`;
               })}
@@ -2040,7 +2079,7 @@ function PEquipo() {
 
         <!-- ── VACACIONES ── -->
         ${subTab==='vacaciones' && html`<${PVacaciones} embeddedTeam=${team} />`}
-        ${subTab==='ftes' && html`<${PFTEs} team=${team} org=${org} />`}
+        ${subTab==='ftes' && html`<${PFTEs} team=${team} org=${org} orgData=${orgData} />`}
 
         <!-- ── ORGANIGRAMA ── -->
         ${subTab==='organigrama' && html`
@@ -2452,11 +2491,12 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
 
 /* ═══ PFTEs — dedicación y FTEs del equipo ═══ */
-function PFTEs({ team, org }) {
+function PFTEs({ team, org, orgData: orgDataProp }) {
   const FTE_VIEWS = ['mes', 'anual'];
   const [fteView, setFteView] = useState('mes');
-  const [orgData, setOrgData] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orgDataLocal, setOrgDataLocal] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const orgData = orgDataProp && orgDataProp.length > 0 ? orgDataProp : orgDataLocal;
   const today = new Date();
   const [viewYear,  setViewYear]  = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -2465,7 +2505,12 @@ function PFTEs({ team, org }) {
   const days = Array.from({length:daysInMonth},(_,i)=>i+1);
   const todayStr = today.toISOString().slice(0,10);
 
-  useEffect(() => { sbLoadOrgChart(SALA).then(rows => { setOrgData(rows); setLoading(false); }); }, []);
+  useEffect(() => {
+    if (!orgDataProp || orgDataProp.length === 0) {
+      setLoading(true);
+      sbLoadOrgChart(SALA).then(rows => { setOrgDataLocal(rows); setLoading(false); });
+    }
+  }, [orgDataProp]);
 
   const isWeekend = (d) => { const w=new Date(viewYear,viewMonth,d).getDay(); return w===0||w===6; };
   const isOnVac = (memberId, d) => {
@@ -2502,15 +2547,10 @@ function PFTEs({ team, org }) {
   };
 
   return html`<div>
-    <!-- View toggle -->
-    <div style=${{ display:'flex', gap:6, marginBottom:14 }}>
-      <button onClick=${()=>setFteView('mes')} style=${{ padding:'6px 14px', borderRadius:8, border:'none', background:fteView==='mes'?'#1D1D1F':'#F2F2F7', color:fteView==='mes'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>Vista mensual</button>
-      <button onClick=${()=>setFteView('anual')} style=${{ padding:'6px 14px', borderRadius:8, border:'none', background:fteView==='anual'?'#1D1D1F':'#F2F2F7', color:fteView==='anual'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>Vista anual</button>
-    </div>
-    <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
-      <button onClick=${prevM} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>‹</button>
-      <h3 style=${{ fontSize:16, fontWeight:700, flex:1 }}>${MONTH_NAMES[viewMonth]} ${viewYear}</h3>
-      <button onClick=${nextM} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>›</button>
+
+    <div style=${{ marginBottom:12 }}>
+      <h3 style=${{ fontSize:15, fontWeight:700 }}>📊 FTEs del proyecto — Vista anual</h3>
+      <p style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>Mes actual + 12 meses. Configura fechas y dedicación en la pestaña Lista.</p>
     </div>
     ${loading ? html`<div style=${{ textAlign:'center',padding:40,color:'#86868B' }}>⏳</div>` : html`
       <!-- Bar chart -->
@@ -2532,10 +2572,7 @@ function PFTEs({ team, org }) {
         </div>
       </div>
       <!-- Monthly view conditional -->
-      ${fteView==='mes' && html`<div><!-- Bar chart is already above --></div>`}
-
-      <!-- Annual timeline view -->
-      ${fteView==='anual' && html`
+      <!-- Annual timeline -->
         <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', overflow:'auto', marginBottom:16 }}>
           <table style=${{ width:'100%', borderCollapse:'collapse', minWidth:900 }}>
             <thead><tr style=${{ background:'#F9F9FB', borderBottom:'2px solid #E5E5EA' }}>
@@ -2596,9 +2633,9 @@ function PFTEs({ team, org }) {
               </tr>
             </tbody>
           </table>
-        </div>`}
+        </div>
 
-      <!-- Table (monthly detail) -->
+      <!-- Table (monthly detail) — summary -->
       <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', overflow:'auto' }}>
         <table style=${{ width:'100%', borderCollapse:'collapse', minWidth:500 }}>
           <thead><tr style=${{ background:'#F9F9FB', borderBottom:'2px solid #E5E5EA' }}>
@@ -3494,10 +3531,12 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
   const [saved,    setSaved]    = useState(false);
   const [rolesList, setRolesList] = useState(getAllRoles);
   useEffect(() => {
-    const onStorage = () => setRolesList(getAllRoles());
+    // Include the member's current role even if custom/not-in-localStorage
+    if (profile?.role_label) setRolesList(getAllRoles([profile.role_label]));
+    const onStorage = () => setRolesList(getAllRoles(profile?.role_label ? [profile.role_label] : []));
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [profile?.role_label]);
 
   useEffect(() => {
     sbLoadTeamMembers().then(members => {
