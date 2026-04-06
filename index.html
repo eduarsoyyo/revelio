@@ -769,14 +769,14 @@ function HomeVacaciones({ profile, user }) {
                 const wk=isWknd(viewYear,mo,d), hl=isHol(mo,d), isT=ds===today;
                 const bg=isT?'#007AFF':info?info.color:wk?'#EFEFEF':hl?'#E8E7F8':'transparent';
                 const fc=isT?'#FFF':info?'#FFF':wk?'#BBBBBB':hl?'#5856D6':'#333';
-                const lbl = e?.label || (info?.initial) || '';
+                const acronym = info?.initial || '';
                 const tip = e
                   ? (e.label||info?.label||'Ausencia')+(e.from?' | '+e.from:'')+(e.to&&e.to!==e.from?' → '+e.to:'')+(e.reason?' | '+e.reason:'')
                   : wk?'Fin de semana':hl?'Festivo':String(d);
                 return html`<div title=${tip}
                   style=${{height:26,borderRadius:4,background:bg,display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:9,fontWeight:info||isT?800:500,color:fc}}>
-                  ${info?(lbl||info.initial):d}
+                    fontSize:9,fontWeight:info||isT?800:500,color:fc,lineHeight:1}}>
+                  ${info?acronym:d}
                 </div>`;
               })}
             </div>
@@ -796,43 +796,46 @@ function HomeVacaciones({ profile, user }) {
     <!-- Register form -->
     <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px'}}>
       <h4 style=${{fontSize:13,fontWeight:700,marginBottom:12}}>Registrar ausencia</h4>
-      <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+      <h4 style=${{fontSize:13,fontWeight:700,marginBottom:14}}>Registrar ausencia</h4>
+      <!-- Row 1: Tipo + Nombre/referencia -->
+      <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
         <div>
-          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Tipo</label>
+          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>Tipo</label>
           <select value=${newVac.type} onChange=${e=>setNewVac({...newVac,type:e.target.value,reason:''})}
-            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}}>
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'9px 10px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}}>
             ${ABSENCE_TYPES.map(t=>html`<option key=${t.id} value=${t.id}>${t.label}</option>`)}
           </select>
         </div>
         <div>
-          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Nombre / referencia</label>
+          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>Nombre / referencia</label>
           <input value=${newVac.label} onInput=${e=>setNewVac({...newVac,label:e.target.value})}
             placeholder="Ej: Semana Santa, Verano…"
-            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
-        </div>
-        ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).length>0?html`
-          <div>
-            <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Motivo</label>
-            <select value=${newVac.reason||''} onChange=${e=>setNewVac({...newVac,reason:e.target.value})}
-              style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}}>
-              <option value="">— Seleccionar —</option>
-              ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
-            </select>
-          </div>`:html`<div></div>`}
-        <div>
-          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Desde</label>
-          <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
-            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
-        </div>
-        <div>
-          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Hasta</label>
-          <input type="date" value=${newVac.to} min=${newVac.from}
-            onInput=${e=>setNewVac({...newVac,to:e.target.value})}
-            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'9px 10px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
         </div>
       </div>
-      <button onClick=${addVac} disabled=${!newVac.from||saving}
-        style=${{width:'100%',padding:'10px',borderRadius:10,border:'none',background:newVac.from?'#1D1D1F':'#E5E5EA',color:newVac.from?'#FFF':'#86868B',fontSize:13,fontWeight:600,cursor:newVac.from?'pointer':'default',transition:'all .15s'}}>
+      <!-- Row 2: Desde + Hasta + (optional Motivo) -->
+      <div style=${{display:'flex',gap:10,marginBottom:12,alignItems:'flex-end',flexWrap:'wrap'}}>
+        <div style=${{flex:'1 1 130px'}}>
+          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>Desde</label>
+          <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'9px 10px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
+        </div>
+        <div style=${{flex:'1 1 130px'}}>
+          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>Hasta</label>
+          <input type="date" value=${newVac.to} min=${newVac.from}
+            onInput=${e=>setNewVac({...newVac,to:e.target.value})}
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'9px 10px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
+        </div>
+        ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).length>0?html`
+          <div style=${{flex:'1 1 150px'}}>
+            <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>Motivo</label>
+            <select value=${newVac.reason||''} onChange=${e=>setNewVac({...newVac,reason:e.target.value})}
+              style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'9px 10px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}}>
+              <option value="">Seleccionar…</option>
+              ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
+            </select>
+          </div>`:html``}
+      </div>
         ${saving?'Guardando…':'+ Registrar ausencia'}
       </button>
     </div>
