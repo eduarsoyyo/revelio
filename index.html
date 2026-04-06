@@ -529,12 +529,13 @@ function App() {
   // No sala param → admin, homepage, or landing
   if (!params.has('sala')) {
     if (IS_ADMIN) return html`<${RoomPicker} />`;
-    if (user && !user._isAdmin) {
+    // Any logged-in user (including superusers) gets homepage first
+    if (user) {
       return html`<${UserHomePage} user=${user}
         onLogout=${()=>{ clearUser(); setUser(null); }}
         onSelectProject=${(sala,tipo)=>{ window.location.href=window.location.pathname+'?sala='+encodeURIComponent(sala)+'&tipo='+(tipo||'agile'); }} />`;
     }
-    // Not logged in — show login inline (no NeedLink)
+    // Not logged in — show login
     return html`<${Login} onJoin=${handleJoin} />`;
   }
 
@@ -633,172 +634,209 @@ function Icon({ name, size=18, color='currentColor', strokeWidth=1.75 }) {
 
 /* ═══ HOME VACACIONES ═══ */
 function HomeVacaciones({ profile, user }) {
-  const [vacs,   setVacs]   = useState(() => {
+  const [vacs,    setVacs]   = useState(() => {
     const v = profile?.vacations;
     if (!v) return [];
     if (Array.isArray(v)) return v;
-    try { return JSON.parse(v) || []; } catch { return []; }
+    try { return JSON.parse(v)||[]; } catch { return []; }
   });
-  const [newVac, setNewVac] = useState({from:'', to:'', type:'vacaciones', reason:'', note:''});
-  const [saving, setSaving] = useState(false);
-  const [viewYear, setViewYear] = useState(new Date().getFullYear());
+  const [newVac,  setNewVac] = useState({from:'', to:'', type:'vacaciones', reason:'', note:'', label:''});
+  const [saving,  setSaving] = useState(false);
+  const [viewYear,setViewYear]=useState(new Date().getFullYear());
   const today = new Date().toISOString().slice(0,10);
   const thisYear = new Date().getFullYear();
   const HOLS = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
+
   const annualDays = profile?.annual_vac_days ?? 22;
   const prevPend   = profile?.prev_year_pending ?? 0;
   const totalVac   = annualDays + prevPend;
-  const vacUsed = vacs.filter(v=>v.type==='vacaciones'||!v.type).reduce((sum,v)=>{
-    if(!v.from) return sum;
-    let d=new Date(v.from),to=new Date(v.to||v.from),cnt=0;
-    while(d<=to){const yr=d.getFullYear(),dow=d.getDay(),mm=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(yr===thisYear&&dow!==0&&dow!==6&&!HOLS.includes(mm+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
-    return sum+cnt;
+  const countDays  = (from, to) => {
+    if (!from) return 0;
+    let d=new Date(from), end=new Date(to||from), cnt=0;
+    while(d<=end){
+      const dow=d.getDay(), mm=String(d.getMonth()+1).padStart(2,'0'), dd2=String(d.getDate()).padStart(2,'0');
+      if(dow!==0&&dow!==6&&!HOLS.includes(mm+'-'+dd2)) cnt++;
+      d.setDate(d.getDate()+1);
+    }
+    return cnt;
+  };
+  const vacUsed = vacs.filter(v=>v.type==='vacaciones'||!v.type).reduce((s,v)=>{
+    const yr=new Date(v.from||'').getFullYear();
+    return yr===thisYear ? s+countDays(v.from,v.to) : s;
   },0);
-  const remainVac = Math.max(0, totalVac - vacUsed);
-  const vacPct    = totalVac>0?Math.min(100,Math.round((vacUsed/totalVac)*100)):0;
+  const remainVac = Math.max(0,totalVac-vacUsed);
+  const vacPct = totalVac>0?Math.min(100,Math.round((vacUsed/totalVac)*100)):0;
 
   const addVac = async () => {
     if (!newVac.from) return;
     setSaving(true);
-    const entry = {id:uid(), memberId:profile?.id||user.id, name:user.name,
-      from:newVac.from, to:newVac.to||newVac.from,
-      type:newVac.type, reason:newVac.reason||'', note:newVac.note||''};
+    const entry = {
+      id: Math.random().toString(36).slice(2),
+      memberId: profile?.id||user?.id,
+      name: user?.name,
+      from: newVac.from,
+      to: newVac.to||newVac.from,
+      type: newVac.type,
+      reason: newVac.reason||'',
+      label: newVac.label||'',
+      note: newVac.note||'',
+    };
     const updated = [...vacs, entry];
     setVacs(updated);
-    setNewVac({from:'', to:'', type:'vacaciones', reason:'', note:''});
+    setNewVac({from:'',to:'',type:'vacaciones',reason:'',note:'',label:''});
     if (profile?.id) await sbSaveMemberVacs(profile.id, updated);
     setSaving(false);
   };
+
   const delVac = async (id) => {
     const updated = vacs.filter(v=>v.id!==id);
     setVacs(updated);
     if (profile?.id) await sbSaveMemberVacs(profile.id, updated);
   };
 
-  // Annual calendar — 12 months compact
-  const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  // Only show legend for types actually used
+  const usedTypes = [...new Set(vacs.map(v=>v.type||'vacaciones'))];
+  const legendItems = ABSENCE_TYPES.filter(t=>usedTypes.includes(t.id));
+  const MONTHS_S = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const getEntry = (yr,mo,d) => {
     const ds=yr+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     return vacs.find(v=>v.from<=ds&&(!v.to||v.to>=ds));
   };
   const isWknd = (yr,mo,d) => { const dow=new Date(yr,mo,d).getDay(); return dow===0||dow===6; };
   const isHol  = (mo,d) => HOLS.includes(String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'));
+  const infoFor = (e) => e ? (ABSENCE_TYPES.find(t=>t.id===e.type)||ABSENCE_TYPES[0]) : null;
 
-  return html`
-    <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
-      <!-- Counters -->
-      <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px' }}>
-        <div style=${{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#86868B', marginBottom:5 }}>
-          <span>${vacUsed}d consumidos de ${totalVac}d</span>
-          <span style=${{ fontWeight:700, color:vacPct>80?'#FF3B30':vacPct>60?'#FF9500':'#34C759' }}>${vacPct}%</span>
-        </div>
-        <div style=${{ background:'#F2F2F7', borderRadius:5, height:6, overflow:'hidden', marginBottom:10 }}>
-          <div style=${{ width:vacPct+'%', height:'100%', background:vacPct>80?'#FF3B30':vacPct>60?'#FF9500':'#34C759', borderRadius:5 }}></div>
-        </div>
-        <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:5 }}>
-          ${[[annualDays,'Días/año','#1D1D1F'],[prevPend,'Año ant.','#5856D6'],[totalVac,'Total','#007AFF'],[remainVac,'Rest.',remainVac<=5?'#FF3B30':remainVac<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
-            <div style=${{ textAlign:'center', padding:'6px 2px', borderRadius:8, background:c+'0D', border:'1px solid '+c+'20' }}>
-              <div style=${{ fontSize:16, fontWeight:800, color:c }}>${v}</div>
-              <div style=${{ fontSize:8, color:'#86868B' }}>${l}</div>
-            </div>`)}
+  return html`<div style=${{display:'flex',flexDirection:'column',gap:14}}>
+    <!-- Counters -->
+    <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+      ${[[annualDays,'Días/año','#1D1D1F'],[prevPend,'Año anterior','#5856D6'],[totalVac,'Total disp.','#007AFF'],[remainVac,'Restantes',remainVac<=5?'#FF3B30':remainVac<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
+        <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px 12px',textAlign:'center'}}>
+          <div style=${{fontSize:26,fontWeight:800,color:c,lineHeight:1}}>${v}</div>
+          <div style=${{fontSize:10,color:'#86868B',marginTop:4}}>${l}</div>
+        </div>`)}
+    </div>
+    <!-- Progress bar -->
+    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px 16px'}}>
+      <div style=${{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:6}}>
+        <span style=${{color:'#86868B'}}>${vacUsed} días consumidos de ${totalVac}</span>
+        <span style=${{fontWeight:700,color:vacPct>80?'#FF3B30':vacPct>60?'#FF9500':'#34C759'}}>${vacPct}%</span>
+      </div>
+      <div style=${{background:'#F2F2F7',borderRadius:6,height:10,overflow:'hidden'}}>
+        <div style=${{width:vacPct+'%',height:'100%',borderRadius:6,transition:'width .5s',background:vacPct>80?'linear-gradient(90deg,#FF9500,#FF3B30)':vacPct>60?'linear-gradient(90deg,#FF9500,#FF6B00)':'linear-gradient(90deg,#34C759,#00C7BE)'}}></div>
+      </div>
+    </div>
+    <!-- Calendar -->
+    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px'}}>
+      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+        <h4 style=${{fontSize:13,fontWeight:700}}>Calendario ${viewYear}</h4>
+        <div style=${{display:'flex',gap:4}}>
+          <button onClick=${()=>setViewYear(y=>y-1)} style=${{border:'none',background:'#F2F2F7',borderRadius:8,width:28,height:28,cursor:'pointer',color:'#86868B',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+          <button onClick=${()=>setViewYear(y=>y+1)} style=${{border:'none',background:'#F2F2F7',borderRadius:8,width:28,height:28,cursor:'pointer',color:'#86868B',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
         </div>
       </div>
-
-      <!-- Compact annual calendar (12 months) -->
-      <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px' }}>
-        <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-          <button onClick=${()=>setViewYear(y=>y-1)} style=${{ border:'none',background:'#F2F2F7',borderRadius:7,width:28,height:28,fontSize:14,cursor:'pointer',color:'#86868B' }}>‹</button>
-          <span style=${{ fontSize:13, fontWeight:700 }}>${viewYear}</span>
-          <button onClick=${()=>setViewYear(y=>y+1)} style=${{ border:'none',background:'#F2F2F7',borderRadius:7,width:28,height:28,fontSize:14,cursor:'pointer',color:'#86868B' }}>›</button>
-        </div>
-        <div style=${{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12 }}>
-          ${MONTHS.map((mName,mo)=>{
-            const daysInMo = new Date(viewYear,mo+1,0).getDate();
-            return html`
-              <div key=${mo}>
-                <div style=${{ fontSize:10, fontWeight:700, color:'#86868B', marginBottom:5, textAlign:'center', textTransform:'uppercase', letterSpacing:.5 }}>${mName}</div>
-                <div style=${{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2 }}>
-                  ${Array.from({length:daysInMo},(_,i)=>i+1).map(d=>{
-                    const entry = getEntry(viewYear,mo,d);
-                    const info  = entry ? (ABSENCE_TYPES.find(t=>t.id===entry.type)||ABSENCE_TYPES[0]) : null;
-                    const wknd  = isWknd(viewYear,mo,d);
-                    const hol   = isHol(mo,d);
-                    const isT   = viewYear+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')===today;
-                    const bg    = info?(info.color||'#FF9500'):wknd?'#EBEBEB':hol?'#E8E8F8':'#F0FFF4';
-                    const fc    = info?'#FFF':wknd?'#C7C7CC':hol?'#5856D6':'#4CAF50';
-                    return html`
-                      <div key=${d} title=${entry?(info?.label+': '+v.from):wknd?'Finde':hol?'Festivo':String(d)}
-                        style=${{ height:20, borderRadius:3, background:isT?'#007AFF':bg,
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          fontSize:8, fontWeight:info||isT?800:400, color:isT?'#FFF':fc,
-                          outline:isT?'2px solid #007AFF':'none', outlineOffset:1 }}>
-                        ${info?(info.initial||'V'):wknd?'':hol?'F':d}
-                      </div>`;
-                  })}
-                </div>
-              </div>`;
-          })}
-        </div>
-        <!-- Legend -->
-        <div style=${{ display:'flex', gap:10, flexWrap:'wrap', marginTop:10, padding:'8px', background:'#F9F9FB', borderRadius:8 }}>
-          ${ABSENCE_TYPES.slice(0,4).map(t=>html`
-            <span key=${t.id} style=${{ display:'flex', alignItems:'center', gap:4, fontSize:9, color:'#86868B' }}>
-              <div style=${{ width:12,height:12,borderRadius:2,background:t.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,fontWeight:800,color:'#FFF' }}>${t.initial}</div>
-              ${t.label.split(' ').slice(1).join(' ')||t.label}
-            </span>`)}
-        </div>
-      </div>
-
-      <!-- Register absence -->
-      <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'12px' }}>
-        <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:8 }}>➕ Registrar ausencia</h4>
-        <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-          <select value=${newVac.type} onChange=${e=>setNewVac({...newVac,type:e.target.value,reason:''})}
-            style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'6px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
-            ${ABSENCE_TYPES.map(t=>html`<option key=${t.id} value=${t.id}>${t.label}</option>`)}
-          </select>
-          ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).length>0&&html`
-            <select value=${newVac.reason||''} onChange=${e=>setNewVac({...newVac,reason:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'6px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
-              <option value="">— Motivo —</option>
-              ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
-            </select>`}
-          <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-            <div>
-              <label style=${{ fontSize:8, color:'#86868B', display:'block', marginBottom:2, fontWeight:700, textTransform:'uppercase' }}>Desde</label>
-              <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
-                style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'5px 6px', fontSize:11, fontFamily:'inherit', outline:'none' }} />
+      <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+        ${MONTHS_S.map((mName,mo)=>{
+          const dim=new Date(viewYear,mo+1,0).getDate();
+          const firstDow=(new Date(viewYear,mo,1).getDay()+6)%7;
+          return html`<div key=${mo}>
+            <div style=${{fontSize:10,fontWeight:700,color:'#86868B',marginBottom:4,textTransform:'uppercase',letterSpacing:.6}}>${mName}</div>
+            <div style=${{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:1}}>
+              ${['L','M','X','J','V','S','D'].map(d=>html`<div style=${{fontSize:7,color:'#C7C7CC',textAlign:'center',marginBottom:2}}>${d}</div>`)}
+              ${Array.from({length:firstDow},(_,i)=>html`<div key=${'e'+i}></div>`)}
+              ${Array.from({length:dim},(_,i)=>i+1).map(d=>{
+                const e=getEntry(viewYear,mo,d), info=infoFor(e);
+                const ds=viewYear+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+                const wk=isWknd(viewYear,mo,d), hl=isHol(mo,d), isT=ds===today;
+                const bg=isT?'#007AFF':info?info.color:wk?'transparent':hl?'#E8E7F8':'transparent';
+                const fc=isT?'#FFF':info?'#FFF':wk?'#DADADA':hl?'#5856D6':'#1D1D1F';
+                const lbl = e?.label || (info?.initial) || '';
+                return html`<div title=${e?((e.label||info?.label||'')+(e.from?' '+e.from:'')+(e.to&&e.to!==e.from?' → '+e.to:'')):wk?'Fin de semana':hl?'Festivo':d}
+                  style=${{height:20,borderRadius:3,background:bg,display:'flex',alignItems:'center',justifyContent:'center',
+                    fontSize:6,fontWeight:info||isT?800:400,color:fc}}>
+                  ${info?lbl||info.initial:wk?'':hl?'F':d}
+                </div>`;
+              })}
             </div>
-            <div>
-              <label style=${{ fontSize:8, color:'#86868B', display:'block', marginBottom:2, fontWeight:700, textTransform:'uppercase' }}>Hasta</label>
-              <input type="date" value=${newVac.to} onInput=${e=>setNewVac({...newVac,to:e.target.value})}
-                style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'5px 6px', fontSize:11, fontFamily:'inherit', outline:'none' }} />
-            </div>
-          </div>
-          <button onClick=${addVac} disabled=${!newVac.from||saving}
-            style=${{ padding:'7px', borderRadius:8, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer', opacity:!newVac.from?.5:1 }}>
-            ${saving?'Guardando…':'✅ Registrar'}
-          </button>
-        </div>
-        <!-- List this year -->
-        ${vacs.filter(v=>new Date(v.from||'').getFullYear()===new Date().getFullYear()).slice(0,5).map((v,i)=>{
-          const info=ABSENCE_TYPES.find(t=>t.id===v.type)||ABSENCE_TYPES[0];
-          return html`
-            <div key=${v.id||i} style=${{ display:'flex', alignItems:'center', gap:6, padding:'4px 0', borderTop:'1px solid #F2F2F7', marginTop:4 }}>
-              <div style=${{ width:16,height:16,borderRadius:3,background:info.color||'#FF9500',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,fontWeight:800,color:'#FFF',flexShrink:0 }}>${info.initial||'V'}</div>
-              <div style=${{ flex:1, fontSize:10 }}>
-                <span style=${{ fontWeight:600 }}>${info.label.split(' ').slice(1).join(' ')||info.label}</span>
-                <span style=${{ color:'#86868B', marginLeft:4 }}>${v.from}${v.to&&v.to!==v.from?' → '+v.to:''}</span>
-              </div>
-              <button onClick=${()=>delVac(v.id)} style=${{ border:'none',background:'none',fontSize:11,color:'#C7C7CC',cursor:'pointer' }}>✕</button>
-            </div>`;
+          </div>`;
         })}
       </div>
-    </div>`;
+      <!-- Legend: only used types -->
+      ${legendItems.length>0&&html`
+        <div style=${{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
+          ${legendItems.map(t=>html`
+            <span key=${t.id} style=${{display:'flex',alignItems:'center',gap:4,fontSize:9,color:'#86868B'}}>
+              <div style=${{width:12,height:12,borderRadius:2,background:t.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,fontWeight:800,color:'#FFF'}}>${t.initial}</div>
+              ${t.label}
+            </span>`)}
+        </div>`}
+    </div>
+    <!-- Register form -->
+    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px'}}>
+      <h4 style=${{fontSize:13,fontWeight:700,marginBottom:12}}>Registrar ausencia</h4>
+      <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+        <div>
+          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Tipo</label>
+          <select value=${newVac.type} onChange=${e=>setNewVac({...newVac,type:e.target.value,reason:''})}
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}}>
+            ${ABSENCE_TYPES.map(t=>html`<option key=${t.id} value=${t.id}>${t.label}</option>`)}
+          </select>
+        </div>
+        <div>
+          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Nombre / referencia</label>
+          <input value=${newVac.label} onInput=${e=>setNewVac({...newVac,label:e.target.value})}
+            placeholder="Ej: Semana Santa, Verano…"
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
+        </div>
+        ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).length>0?html`
+          <div>
+            <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Motivo</label>
+            <select value=${newVac.reason||''} onChange=${e=>setNewVac({...newVac,reason:e.target.value})}
+              style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}}>
+              <option value="">— Seleccionar —</option>
+              ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
+            </select>
+          </div>`:html`<div></div>`}
+        <div>
+          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Desde</label>
+          <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
+        </div>
+        <div>
+          <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:600,textTransform:'uppercase'}}>Hasta</label>
+          <input type="date" value=${newVac.to} min=${newVac.from}
+            onInput=${e=>setNewVac({...newVac,to:e.target.value})}
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
+        </div>
+      </div>
+      <button onClick=${addVac} disabled=${!newVac.from||saving}
+        style=${{width:'100%',padding:'10px',borderRadius:10,border:'none',background:newVac.from?'#1D1D1F':'#E5E5EA',color:newVac.from?'#FFF':'#86868B',fontSize:13,fontWeight:600,cursor:newVac.from?'pointer':'default',transition:'all .15s'}}>
+        ${saving?'Guardando…':'+ Registrar ausencia'}
+      </button>
+    </div>
+    <!-- List of absences this year -->
+    ${vacs.filter(v=>new Date(v.from||'').getFullYear()===thisYear).length>0&&html`
+      <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px'}}>
+        <h4 style=${{fontSize:13,fontWeight:700,marginBottom:10}}>Ausencias ${thisYear}</h4>
+        <div style=${{display:'flex',flexDirection:'column',gap:5}}>
+          ${vacs.filter(v=>new Date(v.from||'').getFullYear()===thisYear).sort((a,b)=>b.from>a.from?1:-1).map((v,i)=>{
+            const info=ABSENCE_TYPES.find(t=>t.id===v.type)||ABSENCE_TYPES[0];
+            const days=countDays(v.from,v.to);
+            return html`<div key=${v.id||i} style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#F9F9FB'}}>
+              <div style=${{width:28,height:28,borderRadius:8,background:info.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#FFF',flexShrink:0}}>${info.initial}</div>
+              <div style=${{flex:1}}>
+                <div style=${{fontSize:12,fontWeight:600}}>${v.label||info.label}</div>
+                <div style=${{fontSize:10,color:'#86868B'}}>${v.from}${v.to&&v.to!==v.from?' → '+v.to:''} · ${days} día${days!==1?'s':''}</div>
+              </div>
+              <button onClick=${()=>delVac(v.id)} style=${{border:'none',background:'none',color:'#C7C7CC',cursor:'pointer',fontSize:16,padding:'2px 5px',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center'}} title="Eliminar">✕</button>
+            </div>`;
+          })}
+        </div>
+      </div>`}
+  </div>`;
 }
 
 
-/* ╣═══ USER HOMEPAGE ╣═══ */
+
 function UserHomePage({ user, onLogout, onSelectProject }) {
   const [section, setSection] = useState('dashboard');
   const [rooms,   setRooms]   = useState([]);
@@ -836,6 +874,25 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
     }).catch(()=>{ setAllData(data); });
   }, [roomsLoaded, rooms.length]);
 
+  // Build notifications whenever allData changes
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0,10);
+    const notifs = [];
+    // Overdue actions
+    Object.entries(allData).forEach(([slug,d]) => {
+      const roomName = rooms.find(r=>r.slug===slug)?.name||slug;
+      (d.actions||[]).filter(a=>
+        (a.owner===user.name||a.createdBy===user.id) &&
+        a.status!=='done' && a.status!=='discarded' && a.date && a.date<today
+      ).forEach(a => notifs.push({id:'adl-'+a.id,msg:'🎯 Vencido en '+roomName+': '+a.text.slice(0,50),type:'overdue',ts:Date.now()}));
+      // Escalated risks
+      (d.risks||[]).filter(r=>r.escalation&&(r.escalation.memberName===user.name||r.escalation.memberId===user.id||r.owner===user.name)).forEach(r =>
+        notifs.push({id:'esc-'+r.id,msg:'📈 Riesgo escalado en '+roomName+': '+r.text.slice(0,50),type:'escalado',ts:Date.now()})
+      );
+    });
+    if (notifs.length>0) setHomeNotifs(notifs);
+  }, [allData]);
+
   // Superusers see all rooms; regular users only their assigned rooms
   const isSuperUser = user?.isSuperuser || user?._isAdmin;
   const myRooms = isSuperUser
@@ -869,7 +926,35 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
       <!-- Top bar -->
       <div style=${{background:'rgba(255,255,255,.9)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',borderBottom:'1px solid rgba(0,0,0,.06)',padding:'0 24px',display:'flex',alignItems:'center',justifyContent:'space-between',height:56,position:'sticky',top:0,zIndex:50}}>
         <span style=${{fontFamily:"'Comfortaa',sans-serif",fontSize:20,fontWeight:400,letterSpacing:2,background:'linear-gradient(90deg,#007AFF,#5856D6)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>revelio</span>
-        <div style=${{display:'flex',alignItems:'center',gap:12}}>
+        <div style=${{display:'flex',alignItems:'center',gap:8}}>
+          ${(user.isSuperuser||user._isAdmin)&&html`
+            <a href="/?admin" style=${{display:'flex',alignItems:'center',gap:4,padding:'6px 12px',borderRadius:9,border:'1.5px solid #5856D630',background:'#5856D608',color:'#5856D6',fontSize:12,fontWeight:700,textDecoration:'none'}}>
+              ← Admin
+            </a>`}
+          <!-- Notification bell -->
+          <div style=${{position:'relative'}}>
+            <button onClick=${()=>setShowNotifs(v=>!v)}
+              style=${{width:36,height:36,borderRadius:10,border:'1px solid #E5E5EA',background:'#FFF',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:15,position:'relative'}}>
+              🔔
+              ${homeNotifs.length>0&&html`<div style=${{position:'absolute',top:-3,right:-3,width:16,height:16,borderRadius:8,background:'#FF3B30',color:'#FFF',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>${homeNotifs.length}</div>`}
+            </button>
+            ${showNotifs&&html`
+              <div style=${{position:'absolute',right:0,top:44,width:300,background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',boxShadow:'0 8px 32px rgba(0,0,0,.12)',zIndex:9999}}>
+                <div style=${{padding:'12px 16px',borderBottom:'1px solid #F2F2F7',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span style=${{fontSize:13,fontWeight:700}}>Notificaciones</span>
+                  <button onClick=${()=>{setHomeNotifs([]);setShowNotifs(false);}} style=${{border:'none',background:'none',fontSize:11,color:'#86868B',cursor:'pointer'}}>Limpiar</button>
+                </div>
+                ${homeNotifs.length===0
+                  ?html`<div style=${{padding:'24px 16px',textAlign:'center',color:'#C7C7CC',fontSize:12}}>Sin notificaciones</div>`
+                  :html`<div style=${{maxHeight:280,overflowY:'auto'}}>
+                    ${homeNotifs.map(n=>html`
+                      <div key=${n.id} style=${{padding:'10px 16px',borderBottom:'1px solid #F9F9FB',background:n.type==='overdue'?'#FFF5F5':'#FFF'}}>
+                        <p style=${{fontSize:12,lineHeight:1.4}}>${n.msg}</p>
+                        <p style=${{fontSize:10,color:'#C7C7CC',marginTop:2}}>${new Date(n.ts).toLocaleDateString('es-ES')}</p>
+                      </div>`)}
+                  </div>`}
+              </div>`}
+          </div>
           <div style=${{width:32,height:32,borderRadius:10,background:user.color||'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17}}>${user.avatar||'👤'}</div>
           <div style=${{lineHeight:1.2}}>
             <div style=${{fontSize:13,fontWeight:700}}>${user.name}</div>
@@ -986,45 +1071,80 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             </div>`}
           </div>`}
 
-          ${section==='perfil'&&html`<div style=${{maxWidth:700}}>
+          ${section==='perfil'&&html`<div style=${{maxWidth:640}}>
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Mi perfil</h1>
-            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Información personal y vacaciones</p>
-            <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-            ${!profileLoaded?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:
-            (!editProfile && !profileLoaded)?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:
-            (!editProfile)?html`
-              ${(()=>{ const fp={id:user.id,name:user.name,company:'',teams_handle:'',phone:'',vacations:[]}; if(!editProfile) setTimeout(()=>setEditProfile(fp),0); return null; })()}
-              <div style=${{textAlign:'center',padding:20,color:'#86868B',fontSize:12}}>Cargando perfil…</div>
-            `:html`
-              <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'24px',display:'flex',flexDirection:'column',gap:14}}>
-                <div style=${{display:'flex',alignItems:'center',gap:14,paddingBottom:16,borderBottom:'1px solid #F2F2F7'}}>
-                  <div style=${{width:60,height:60,borderRadius:16,background:editProfile.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32}}>${editProfile.avatar||'👤'}</div>
-                  <div>
-                    <div style=${{fontSize:17,fontWeight:700}}>${editProfile.name}</div>
-                    <div style=${{fontSize:12,color:'#86868B',marginTop:2}}>${editProfile.role_label||'Sin rol'}${editProfile.company?' · '+editProfile.company:''}</div>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Información personal, contacto y preferencias</p>
+            ${!profileLoaded?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:html`
+              <div style=${{display:'flex',flexDirection:'column',gap:14}}>
+                <!-- Profile card -->
+                <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'24px',display:'flex',flexDirection:'column',gap:12}}>
+                  <div style=${{display:'flex',alignItems:'center',gap:14,paddingBottom:14,borderBottom:'1px solid #F2F2F7'}}>
+                    <div style=${{width:60,height:60,borderRadius:16,background:editProfile?.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32}}>${editProfile?.avatar||'👤'}</div>
+                    <div>
+                      <div style=${{fontSize:17,fontWeight:700}}>${editProfile?.name||user.name}</div>
+                      <div style=${{fontSize:12,color:'#86868B',marginTop:2}}>${editProfile?.role_label||'Sin rol'}${editProfile?.company?' · '+editProfile.company:''}</div>
+                    </div>
+                  </div>
+                  <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                    ${[
+                      ['Nombre',        'name',         editProfile?.name||''],
+                      ['Usuario',       'username',     editProfile?.username||''],
+                      ['Email',         'email',        editProfile?.email||''],
+                      ['Empresa',       'company',      editProfile?.company||''],
+                      ['Rol',           'role_label',   editProfile?.role_label||''],
+                      ['Microsoft Teams','teams_handle', editProfile?.teams_handle||''],
+                      ['Teléfono',      'phone',        editProfile?.phone||''],
+                      ['Slack handle',  'slack_handle', editProfile?.slack_handle||''],
+                    ].map(([label,field,val])=>html`
+                      <div key=${field}>
+                        <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>${label}</label>
+                        <input value=${val} onInput=${e=>setEditProfile({...editProfile,[field]:e.target.value})}
+                          style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 12px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB',boxSizing:'border-box'}}
+                          onFocus=${e=>e.target.style.borderColor='#007AFF'} onBlur=${e=>e.target.style.borderColor='#E5E5EA'} />
+                      </div>`)}
+                  </div>
+                  <button onClick=${async()=>{ setSavingProfile(true); await sbSaveTeamMember(editProfile); setProfile(editProfile); setSavingProfile(false); }}
+                    style=${{padding:'11px',borderRadius:11,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                    ${savingProfile?'Guardando…':'Guardar cambios'}
+                  </button>
+                </div>
+                <!-- Notification preferences -->
+                <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px'}}>
+                  <h3 style=${{fontSize:13,fontWeight:700,marginBottom:3,color:'#86868B',textTransform:'uppercase',letterSpacing:.5}}>Preferencias de notificación</h3>
+                  <p style=${{fontSize:11,color:'#C7C7CC',marginBottom:14}}>¿Cómo y cuándo quieres recibir avisos?</p>
+                  <div style=${{display:'flex',flexDirection:'column',gap:0}}>
+                    ${[
+                      {icon:'Bell',          label:'Notif. in-app',       field:'notif_inapp',      desc:'Campana en el proyecto'},
+                      {icon:'MessageSquare', label:'Microsoft Teams',      field:'notif_teams',      desc:'Mensajes directos'},
+                      {icon:'Mail',          label:'Email',                field:'notif_email',      desc:'Correo electrónico'},
+                      {icon:'Send',          label:'Slack',                field:'notif_slack',      desc:'Canal de Slack'},
+                      {icon:'AlertTriangle', label:'Riesgos escalados',    field:'notif_escalado',   desc:'Cuando un riesgo se escala a ti'},
+                      {icon:'CheckSquare',   label:'Accionables vencidos', field:'notif_accionable', desc:'Tareas que pasan su fecha'},
+                      {icon:'FileText',      label:'Resumen semanal',      field:'notif_resumen',    desc:'Digest de actividad'},
+                    ].map((row,i)=>html`
+                      <div key=${row.field} style=${{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:i<6?'1px solid #F9F9FB':'none'}}>
+                        <div style=${{width:34,height:34,borderRadius:9,background:'#F2F2F7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          <${Icon} name=${row.icon} size=${15} color="#86868B" />
+                        </div>
+                        <div style=${{flex:1}}>
+                          <div style=${{fontSize:12,fontWeight:600}}>${row.label}</div>
+                          <div style=${{fontSize:10,color:'#C7C7CC'}}>${row.desc}</div>
+                        </div>
+                        <div onClick=${()=>{
+                          if(!editProfile) return;
+                          const v=!(editProfile[row.field]??true);
+                          const u={...editProfile,[row.field]:v};
+                          setEditProfile(u); sbSaveTeamMember(u).then(()=>setProfile(u));
+                        }} style=${{width:44,height:24,borderRadius:12,background:((editProfile?.[row.field])??true)?'#34C759':'#E5E5EA',position:'relative',cursor:'pointer',transition:'background .2s',flexShrink:0}}>
+                          <div style=${{width:20,height:20,borderRadius:10,background:'#FFF',position:'absolute',top:2,left:((editProfile?.[row.field])??true)?22:2,transition:'left .2s',boxShadow:'0 1px 3px rgba(0,0,0,.2)'}}></div>
+                        </div>
+                      </div>`)}
                   </div>
                 </div>
-                ${[['Nombre','name',editProfile.name],['Empresa','company',editProfile.company||''],['Teams Handle','teams_handle',editProfile.teams_handle||''],['Teléfono','phone',editProfile.phone||'']].map(([label,field,val])=>html`
-                  <div key=${field}>
-                    <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:4,fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>${label}</label>
-                    <input value=${val} onInput=${e=>setEditProfile({...editProfile,[field]:e.target.value})}
-                      style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'9px 12px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}}
-                      onFocus=${e=>e.target.style.borderColor='#007AFF'} onBlur=${e=>e.target.style.borderColor='#E5E5EA'} />
-                  </div>`)}
-                <button onClick=${async()=>{ setSavingProfile(true); await sbSaveTeamMember(editProfile); setProfile(editProfile); setSavingProfile(false); }}
-                  style=${{padding:'11px',borderRadius:11,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                  ${savingProfile?'Guardando…':'Guardar cambios'}
-                </button>
               </div>`}
-            <!-- Vacaciones column -->
-            <div>
-              <${HomeVacaciones} profile=${profile||{id:user.id,name:user.name,annual_vac_days:22,prev_year_pending:0,vacations:[]}} user=${user} />
-            </div>
-            </div>
           </div>`}
 
-
-          ${section==='vacaciones'&&html`<div>
+          section==='vacaciones'&&html`<div>
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Vacaciones y ausencias</h1>
             <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Registro y calendario de ausencias</p>
             <${HomeVacaciones} profile=${profile||{id:user.id,name:user.name,annual_vac_days:22,prev_year_pending:0,vacations:[]}} user=${user} />
@@ -1040,12 +1160,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                 <p style=${{fontSize:12,marginTop:4}}>Tus accionables aparecerán aquí al visitar los proyectos</p>
               </div>`:
             html`<div style=${{display:'flex',flexDirection:'column',gap:7}}>
-              ${myActions.slice().sort((a,b)=>{
-                if(a.status==='done'&&b.status!=='done') return 1;
-                if(a.status!=='done'&&b.status==='done') return -1;
-                if(a.date&&b.date) return a.date>b.date?1:-1;
-                return 0;
-              }).map(a=>{
+              ${myActions.map(a=>{
                 const ov=a.date&&a.date<today&&a.status!=='done'&&a.status!=='discarded';
                 const STS={pending:{c:'#FF9500',bg:'#FFF9E6',l:'Pendiente'},inprogress:{c:'#007AFF',bg:'#EEF5FF',l:'En progreso'},done:{c:'#34C759',bg:'#F0FFF4',l:'Completado'},discarded:{c:'#C7C7CC',bg:'#F9F9F9',l:'Desc.'}};
                 const st=STS[a.status||'pending']||STS.pending;
@@ -1064,93 +1179,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             </div>`}
           </div>`}
 
-          ${section==='contacto'&&html`<div style=${{maxWidth:560}}>
-            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Contacto y notificaciones</h1>
-            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Datos de contacto y preferencias de notificación</p>
-            ${!profileLoaded?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:html`
-              <div style=${{display:'flex',flexDirection:'column',gap:14}}>
-                <!-- Contact info -->
-                <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px',display:'flex',flexDirection:'column',gap:0}}>
-                  <h3 style=${{fontSize:13,fontWeight:700,marginBottom:14,color:'#86868B',textTransform:'uppercase',letterSpacing:.5}}>Datos de contacto</h3>
-                  ${[
-                    {icon:'Mail',         label:'Email',         field:'email',         val:profile?.email||'—'},
-                    {icon:'Phone',        label:'Teléfono',      field:'phone',         val:profile?.phone||'—'},
-                    {icon:'Building2',    label:'Empresa',       field:'company',       val:profile?.company||'—'},
-                    {icon:'MessageSquare',label:'Microsoft Teams',field:'teams_handle', val:profile?.teams_handle||'—'},
-                    {icon:'Briefcase',    label:'Rol',           field:null,            val:profile?.role_label||'—'},
-                  ].map((row,i)=>html`
-                    <div key=${row.label} style=${{display:'flex',alignItems:'center',gap:14,padding:'12px 0',borderBottom:i<4?'1px solid #F2F2F7':'none'}}>
-                      <div style=${{width:36,height:36,borderRadius:10,background:'#F2F2F7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        <${Icon} name=${row.icon} size=${16} color="#86868B" />
-                      </div>
-                      <div style=${{flex:1}}>
-                        <div style=${{fontSize:10,color:'#86868B',fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>${row.label}</div>
-                        <div style=${{fontSize:13,fontWeight:600,marginTop:1}}>${row.val}</div>
-                      </div>
-                    </div>`)}
-                </div>
-                <!-- Notification preferences -->
-                <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px'}}>
-                  <h3 style=${{fontSize:13,fontWeight:700,marginBottom:4,color:'#86868B',textTransform:'uppercase',letterSpacing:.5}}>Preferencias de notificación</h3>
-                  <p style=${{fontSize:11,color:'#C7C7CC',marginBottom:14}}>Configura cómo y dónde quieres recibir notificaciones</p>
-                  ${[
-                    {icon:'Bell',         label:'Notif. in-app',      field:'notif_inapp',     desc:'Campana en el proyecto'},
-                    {icon:'MessageSquare',label:'Microsoft Teams',     field:'notif_teams',     desc:'Mensajes directos via Teams'},
-                    {icon:'Mail',         label:'Email',               field:'notif_email',     desc:'Correo electrónico'},
-                    {icon:'Send',         label:'Slack',               field:'notif_slack',     desc:'Canal de Slack'},
-                  ].map(row=>html`
-                    <div key=${row.field} style=${{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #F9F9FB'}}>
-                      <div style=${{width:34,height:34,borderRadius:9,background:'#F2F2F7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        <${Icon} name=${row.icon} size=${15} color="#86868B" />
-                      </div>
-                      <div style=${{flex:1}}>
-                        <div style=${{fontSize:12,fontWeight:600}}>${row.label}</div>
-                        <div style=${{fontSize:10,color:'#C7C7CC'}}>${row.desc}</div>
-                      </div>
-                      <div onClick=${()=>{
-                        if(!editProfile) return;
-                        const val = !(editProfile[row.field]??false);
-                        const upd = {...editProfile,[row.field]:val};
-                        setEditProfile(upd);
-                        sbSaveTeamMember(upd).then(()=>setProfile(upd));
-                      }}
-                        style=${{width:44,height:24,borderRadius:12,background:(editProfile?.[row.field])? '#34C759':'#E5E5EA',
-                          position:'relative',cursor:'pointer',transition:'background .2s',flexShrink:0}}>
-                        <div style=${{width:20,height:20,borderRadius:10,background:'#FFF',position:'absolute',
-                          top:2,left:(editProfile?.[row.field])?22:2,transition:'left .2s',
-                          boxShadow:'0 1px 3px rgba(0,0,0,.2)'}}></div>
-                      </div>
-                    </div>`)}
-                  ${[
-                    {icon:'Bell',         label:'Riesgos escalados a mí', field:'notif_escalado'},
-                    {icon:'CheckSquare',  label:'Accionables vencidos',   field:'notif_accionable'},
-                    {icon:'AtSign',       label:'Menciones',              field:'notif_mencion'},
-                    {icon:'FileText',     label:'Resumen semanal',        field:'notif_resumen'},
-                  ].map(row=>html`
-                    <div key=${row.field} style=${{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #F9F9FB'}}>
-                      <div style=${{width:34,height:34,borderRadius:9,background:'#F2F2F7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        <${Icon} name=${row.icon} size=${15} color="#86868B" />
-                      </div>
-                      <div style=${{flex:1}}>
-                        <div style=${{fontSize:12,fontWeight:600}}>${row.label}</div>
-                      </div>
-                      <div onClick=${()=>{
-                        if(!editProfile) return;
-                        const val = !(editProfile[row.field]??true);
-                        const upd = {...editProfile,[row.field]:val};
-                        setEditProfile(upd);
-                        sbSaveTeamMember(upd).then(()=>setProfile(upd));
-                      }}
-                        style=${{width:44,height:24,borderRadius:12,background:((editProfile?.[row.field])??true)?'#34C759':'#E5E5EA',
-                          position:'relative',cursor:'pointer',transition:'background .2s',flexShrink:0}}>
-                        <div style=${{width:20,height:20,borderRadius:10,background:'#FFF',position:'absolute',
-                          top:2,left:((editProfile?.[row.field])??true)?22:2,transition:'left .2s',
-                          boxShadow:'0 1px 3px rgba(0,0,0,.2)'}}></div>
-                      </div>
-                    </div>`)}
-                </div>
-              </div>`}
-          </div>`}
+
 
         </main>
       </div>
@@ -5662,10 +5691,7 @@ function RetroBoard({ user, onLogout }) {
                   <p style=${{ fontSize:15, fontWeight:700 }}>${user.name}</p>
                   <p style=${{ fontSize:12, color:'#86868B' }}>${user.role||'Sin rol'}</p>
                 </div>
-                <button onClick=${()=>{ setShowProjectSwitch(false); setShowProfile(true); }}
-                  style=${{ padding:'6px 12px', borderRadius:8, border:'1.5px solid #007AFF20', background:'#007AFF10', color:'#007AFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>
-                  ✏️ Mi perfil
-                </button>
+
               </div>
               <div style=${{ display:'flex', borderBottom:'2px solid #F2F2F7' }}>
                 ${[['proyectos','📂 Proyectos']].map(([tid,tl])=>html`
