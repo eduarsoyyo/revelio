@@ -2494,13 +2494,17 @@ function RoomPicker() {
 
   // Build stats — Supabase ONLY (no localStorage fallback)
   const salaStats = rooms.map(r => {
-    const sbSala  = sbRetros.filter(rt => rt.sala === r.slug);
+    const sbSala  = sbRetros.filter(rt => rt.sala === r.slug)
+      .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    // Use LATEST snapshot for current state (actions/risks), all snapshots for history
+    const latest  = sbSala[0];
     const notes   = sbSala.reduce((s, rt) => s + (rt.data?.notes?.length || 0), 0);
     const votes   = sbSala.reduce((s, rt) => s + ((rt.data?.notes || []).reduce((a, n) => a + (n.voters?.length || 0), 0)), 0);
-    const actions = sbSala.reduce((s, rt) => s + (rt.data?.actions?.length || 0), 0);
-    const done    = sbSala.reduce((s, rt) => s + ((rt.data?.actions || []).filter(a => a.status === 'done').length), 0);
+    // Actions and risks from LATEST snapshot only (not cumulative across retros)
+    const actions = latest?.data?.actions?.length || 0;
+    const done    = (latest?.data?.actions || []).filter(a => a.status === 'done').length;
     const parts   = [...new Set(sbSala.flatMap(rt => (rt.data?.notes || []).map(n => n.userName)))];
-    const risks   = sbSala.flatMap(rt => rt.data?.risks || []);
+    const risks   = latest?.data?.risks || [];
     const risksOpen      = risks.filter(x => x.status !== 'mitigated').length;
     const risksMitigated = risks.filter(x => x.status === 'mitigated').length;
     const rTipo   = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
@@ -4348,6 +4352,98 @@ function PTags({ teamMembers, risks, actions }) {
 }
 
 /* ═══ PRIESGOS — Risk Management Dashboard ═══ */
+function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMembers, getAlerts, tags, hasTag, entityTagList, quickToggleTag, IMPACT_BTNS, allRisks, riskNum}) {
+    const typeKey = r.type||'riesgo';
+    const prefix = typeKey==='problema'?'P':typeKey==='oportunidad'?'O':'R';
+    const hc = typeKey==='problema' ? '#FF3B30' : heatColor(r.impact||'medio', r.prob||'media');
+    const idx = riskNum(r);
+    return html`
+      <div style=${{ borderRadius:14, background:'#FFF', border:'1.5px solid #E5E5EA',
+        borderLeft:'4px solid '+hc, padding:'12px 14px', position:'relative', opacity:fromHist?.7:1 }}>
+        ${fromHist && html`<div style=${{ position:'absolute', top:8, right:8, fontSize:9, color:'#86868B', background:'#F2F2F7', padding:'1px 6px', borderRadius:4 }}>📚 ${r._fromRetro}</div>`}
+        ${eId===r.id ? html`
+          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+            <textarea value=${eF.text} onInput=${e=>setEF({...eF,text:e.target.value})}
+              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px', fontSize:12, resize:'vertical', fontFamily:'inherit', outline:'none', minHeight:60 }} />
+            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+              <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})}
+                style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
+                <option value="">— Responsable —</option>
+                ${(teamMembers||[]).map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+              </select>
+              <input value=${eF.mitigation||''} onInput=${e=>setEF({...eF,mitigation:e.target.value})} placeholder="Mitigación"
+                style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }} />
+            </div>
+            <div style=${{ display:'flex', gap:6 }}>
+              <button onClick=${saveE} style=${{ padding:'6px 14px', borderRadius:7, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>Guardar</button>
+              <button onClick=${()=>setEId(null)} style=${{ padding:'6px 12px', borderRadius:7, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>Cancelar</button>
+            </div>
+          </div>
+        ` : html`
+          <div>
+            <div style=${{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
+              <span style=${{ fontSize:13, fontWeight:800, color:hc, minWidth:30 }}>${prefix}${idx}</span>
+              <div style=${{ flex:1 }}>
+                <p style=${{ fontSize:13, fontWeight:600, margin:'0 0 3px' }}>${r.text}</p>
+                ${r.mitigation && html`<p style=${{ fontSize:11, color:'#86868B', margin:0 }}>🛡️ ${r.mitigation}</p>`}
+                ${r.opportunity && html`<p style=${{ fontSize:11, color:'#34C759', margin:0 }}>🌟 ${r.opportunity}</p>`}
+                ${!fromHist && html`
+                  <div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6 }}>
+                    ${getAlerts(r).map(a => html`
+                      <span key=${a.type} style=${{ fontSize:9, fontWeight:700, color:'#FFF', background:a.color,
+                        padding:'2px 7px', borderRadius:10,
+                        animation: a.type==='overdue' ? 'pulse 1.5s infinite' : 'none' }}>
+                        ${a.type==='stale'?'⏱':a.type==='retros'?'🔁':'⚠️'} ${a.label}
+                      </span>`)}
+                  </div>`}
+              </div>
+              ${r.owner && html`<span style=${{ fontSize:11, fontWeight:600, color:'#007AFF', flexShrink:0 }}>${r.owner}</span>`}
+            </div>
+            <!-- Impact + Prob vote buttons -->
+            <div style=${{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:50 }}>Impacto:</span>
+                ${IMPACT_BTNS.map(l => html`
+                  <button key=${l.id} onClick=${()=>!fromHist&&upd(r.id,{impact:l.id})}
+                    style=${{ padding:'2px 8px', borderRadius:5,
+                      border:(r.impact||'medio')===l.id?'2px solid '+l.color:'1px solid #E5E5EA',
+                      background:(r.impact||'medio')===l.id?l.color+'18':'#FFF',
+                      fontSize:9, fontWeight:700, color:l.color, cursor:fromHist?'default':'pointer' }}>
+                    ${l.label}
+                  </button>`)}
+              </div>
+              ${(r.type||'riesgo')!=='problema'&&html`
+              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:35 }}>Prob:</span>
+                ${[{id:'alta',label:'Alta',color:'#FF3B30'},{id:'media',label:'Media',color:'#FF9500'},{id:'baja',label:'Baja',color:'#34C759'}].map(l => html`
+                  <button key=${l.id} onClick=${()=>!fromHist&&upd(r.id,{prob:l.id})}
+                    style=${{ padding:'2px 8px', borderRadius:5,
+                      border:(r.prob||'media')===l.id?'2px solid '+l.color:'1px solid #E5E5EA',
+                      background:(r.prob||'media')===l.id?l.color+'18':'#FFF',
+                      fontSize:9, fontWeight:700, color:l.color, cursor:fromHist?'default':'pointer' }}>
+                    ${l.label}
+                  </button>`)}
+              </div>`}
+              ${!fromHist && html`
+                <div style=${{ display:'flex', gap:3, marginLeft:'auto' }}>
+                  <select value=${r.status||'open'} onChange=${e=>upd(r.id,{status:e.target.value})}
+                    style=${{ fontSize:9, padding:'3px 6px', borderRadius:5, border:'1px solid #E5E5EA', outline:'none', background:'#FFF', cursor:'pointer' }}>
+                    <option value="open">Abierto</option>
+                    <option value="mitigated">Mitigado</option>
+                    <option value="accepted">Aceptado</option>
+                  </select>
+                  <button onClick=${()=>{setEId(r.id);setEF({text:r.text,owner:r.owner||'',mitigation:r.mitigation||'',opportunity:r.opportunity||''})}}
+                    style=${{ border:'none', background:'none', fontSize:12, color:'#86868B', cursor:'pointer' }}>✏️</button>
+                  <button onClick=${()=>del(r.id)}
+                    style=${{ border:'none', background:'none', fontSize:12, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
+                </div>
+              `}
+            </div>
+          </div>
+        `}
+      </div>`;
+  }
+
 function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
   const [teamMembers, setTeamMembers] = useState([]);
   const [tags, setTags] = useState([]);
@@ -4369,7 +4465,7 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
     else setTagAssignments(prev=>prev.filter(a=>!(a.tag_id===tagId&&a.entity_type===type&&a.entity_id===entityId)));
   };
   const [subTab,    setSubTab]    = useState('resumen');
-  const [escalForm, setEscalForm] = useState({riskId:'', level:'alto_mando', responsible:'', deadline:'', note:'', status:'pendiente'});
+  const [escalForm, setEscalForm] = useState({riskId:'', level:'jp', responsible:'', deadline:'', note:'', status:'pendiente'});
   const [form,   setForm]   = useState({type:'riesgo', text:'', impact:'medio', prob:'media', owner:'', mitigation:'', status:'open', opportunity:'', deadline:''});
   const [eId,    setEId]    = useState(null);
   const [eF,     setEF]     = useState({});
@@ -4477,93 +4573,7 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
 
   const IMPACT_BTNS = [{id:'alto',label:'Alto',color:'#FF3B30'},{id:'medio',label:'Medio',color:'#FF9500'},{id:'bajo',label:'Bajo',color:'#34C759'}];
 
-  const RiskCard = ({r, fromHist}) => {
-    const typeKey = r.type||'riesgo';
-    const prefix = typeKey==='problema'?'P':typeKey==='oportunidad'?'O':'R';
-    const hc = typeKey==='problema' ? '#FF3B30' : heatColor(r.impact||'medio', r.prob||'media');
-    const idx = riskNum(r);
-    return html`
-      <div style=${{ borderRadius:14, background:'#FFF', border:'1.5px solid #E5E5EA',
-        borderLeft:'4px solid '+hc, padding:'12px 14px', position:'relative', opacity:fromHist?.7:1 }}>
-        ${fromHist && html`<div style=${{ position:'absolute', top:8, right:8, fontSize:9, color:'#86868B', background:'#F2F2F7', padding:'1px 6px', borderRadius:4 }}>📚 ${r._fromRetro}</div>`}
-        ${eId===r.id ? html`
-          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-            <textarea value=${eF.text} onInput=${e=>setEF({...eF,text:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px', fontSize:12, resize:'vertical', fontFamily:'inherit', outline:'none', minHeight:60 }} />
-            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-              <input value=${eF.owner||''} onInput=${e=>setEF({...eF,owner:e.target.value})} placeholder="Responsable"
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }} />
-              <input value=${eF.mitigation||''} onInput=${e=>setEF({...eF,mitigation:e.target.value})} placeholder="Mitigación"
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }} />
-            </div>
-            <div style=${{ display:'flex', gap:6 }}>
-              <button onClick=${saveE} style=${{ padding:'6px 14px', borderRadius:7, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>Guardar</button>
-              <button onClick=${()=>setEId(null)} style=${{ padding:'6px 12px', borderRadius:7, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>Cancelar</button>
-            </div>
-          </div>
-        ` : html`
-          <div>
-            <div style=${{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
-              <span style=${{ fontSize:13, fontWeight:800, color:hc, minWidth:30 }}>${prefix}${idx}</span>
-              <div style=${{ flex:1 }}>
-                <p style=${{ fontSize:13, fontWeight:600, margin:'0 0 3px' }}>${r.text}</p>
-                ${r.mitigation && html`<p style=${{ fontSize:11, color:'#86868B', margin:0 }}>🛡️ ${r.mitigation}</p>`}
-                ${r.opportunity && html`<p style=${{ fontSize:11, color:'#34C759', margin:0 }}>🌟 ${r.opportunity}</p>`}
-                ${!fromHist && html`
-                  <div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6 }}>
-                    ${getAlerts(r).map(a => html`
-                      <span key=${a.type} style=${{ fontSize:9, fontWeight:700, color:'#FFF', background:a.color,
-                        padding:'2px 7px', borderRadius:10,
-                        animation: a.type==='overdue' ? 'pulse 1.5s infinite' : 'none' }}>
-                        ${a.type==='stale'?'⏱':a.type==='retros'?'🔁':'⚠️'} ${a.label}
-                      </span>`)}
-                  </div>`}
-              </div>
-              ${r.owner && html`<span style=${{ fontSize:11, fontWeight:600, color:'#007AFF', flexShrink:0 }}>${r.owner}</span>`}
-            </div>
-            <!-- Impact + Prob vote buttons -->
-            <div style=${{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:50 }}>Impacto:</span>
-                ${IMPACT_BTNS.map(l => html`
-                  <button key=${l.id} onClick=${()=>!fromHist&&upd(r.id,{impact:l.id})}
-                    style=${{ padding:'2px 8px', borderRadius:5,
-                      border:(r.impact||'medio')===l.id?'2px solid '+l.color:'1px solid #E5E5EA',
-                      background:(r.impact||'medio')===l.id?l.color+'18':'#FFF',
-                      fontSize:9, fontWeight:700, color:l.color, cursor:fromHist?'default':'pointer' }}>
-                    ${l.label}
-                  </button>`)}
-              </div>
-              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:35 }}>Prob:</span>
-                ${[{id:'alta',label:'Alta',color:'#FF3B30'},{id:'media',label:'Media',color:'#FF9500'},{id:'baja',label:'Baja',color:'#34C759'}].map(l => html`
-                  <button key=${l.id} onClick=${()=>!fromHist&&upd(r.id,{prob:l.id})}
-                    style=${{ padding:'2px 8px', borderRadius:5,
-                      border:(r.prob||'media')===l.id?'2px solid '+l.color:'1px solid #E5E5EA',
-                      background:(r.prob||'media')===l.id?l.color+'18':'#FFF',
-                      fontSize:9, fontWeight:700, color:l.color, cursor:fromHist?'default':'pointer' }}>
-                    ${l.label}
-                  </button>`)}
-              </div>
-              ${!fromHist && html`
-                <div style=${{ display:'flex', gap:3, marginLeft:'auto' }}>
-                  <select value=${r.status||'open'} onChange=${e=>upd(r.id,{status:e.target.value})}
-                    style=${{ fontSize:9, padding:'3px 6px', borderRadius:5, border:'1px solid #E5E5EA', outline:'none', background:'#FFF', cursor:'pointer' }}>
-                    <option value="open">Abierto</option>
-                    <option value="mitigated">Mitigado</option>
-                    <option value="accepted">Aceptado</option>
-                  </select>
-                  <button onClick=${()=>{setEId(r.id);setEF({text:r.text,owner:r.owner||'',mitigation:r.mitigation||'',opportunity:r.opportunity||''})}}
-                    style=${{ border:'none', background:'none', fontSize:12, color:'#86868B', cursor:'pointer' }}>✏️</button>
-                  <button onClick=${()=>del(r.id)}
-                    style=${{ border:'none', background:'none', fontSize:12, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
-                </div>
-              `}
-            </div>
-          </div>
-        `}
-      </div>`;
-  };
+  const renderRisk = (r, fromHist) => RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMembers, getAlerts, tags, hasTag, entityTagList, quickToggleTag, IMPACT_BTNS, allRisks, riskNum});
 
   return html`
     <div style=${{ maxWidth:'100%', margin:'0 auto' }}>
@@ -4693,16 +4703,16 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
               </div>
             </div>
           </div>
-          <!-- Legend + row labels -->
+          <!-- Legend -->
           <div style=${{ display:'flex', flexDirection:'column', gap:6, minWidth:100 }}>
             <p style=${{ fontSize:11, fontWeight:700, marginBottom:4 }}>Leyenda</p>
-            ${[['#FF3B30','🔴 Crítico'],['#FF9500','🟠 Moderado'],['#34C759','🟢 Bajo']].map(([c,l])=>html`
+            ${[['#FF3B30','Crítico'],['#FF9500','Moderado'],['#34C759','Bajo']].map(([c,l])=>html`
               <div style=${{ display:'flex', alignItems:'center', gap:6, fontSize:11 }}>
-                <div style=${{ width:12, height:12, borderRadius:3, background:c+'33', border:'1.5px solid '+c }}></div>
+                <div style=${{ width:14, height:14, borderRadius:3, background:c+'25', border:'2px solid '+c }}></div>
                 <span style=${{ color:'#86868B' }}>${l}</span>
               </div>`)}
             <div style=${{ marginTop:8, paddingTop:8, borderTop:'1px solid #F2F2F7' }}>
-              <p style=${{ fontSize:9, color:'#C7C7CC', lineHeight:1.4 }}>Pasa el ratón sobre las bolitas para ver detalles</p>
+              <p style=${{ fontSize:9, color:'#C7C7CC', lineHeight:1.4 }}>Hover para ver detalle</p>
             </div>
           </div>
         </div>
@@ -4722,18 +4732,18 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
             <h4 style=${{ fontSize:13, fontWeight:700, color:'#86868B', marginBottom:4 }}>📚 Riesgos de retros anteriores (solo lectura)</h4>
             ${histOnly.length===0
               ? html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC' }}><p style=${{ fontSize:32 }}>📭</p><p>Sin historial de riesgos</p></div>`
-              : histOnly.map(r => html`<${RiskCard} key=${r.id} r=${r} fromHist=${true} />`)}
+              : histOnly.map(r => renderRisk(r, true))}
           ` : subTab==='mitigados' ? html`
             ${mitigados.length===0
               ? html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC' }}><p style=${{ fontSize:32 }}>✅</p><p>Sin elementos resueltos aún</p></div>`
-              : mitigados.map(r => html`<${RiskCard} key=${r.id} r=${r} fromHist=${false} />`)}
+              : mitigados.map(r => renderRisk(r, false))}
           ` : html`
             ${curItemsFiltered.length===0 && html`
               <div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
                 <p style=${{ fontSize:32, marginBottom:8 }}>${subTab==='riesgos'?'⚠️':subTab==='problemas'?'🔴':'🌟'}</p>
                 <p style=${{ fontSize:14 }}>Sin ${subTab==='riesgos'?'riesgos':subTab==='problemas'?'problemas':'oportunidades'} activos</p>
               </div>`}
-            ${curItemsFiltered.map(r => html`<${RiskCard} key=${r.id} r=${r} fromHist=${false} />`)}
+            ${curItemsFiltered.map(r => renderRisk(r, false))}
           `}
         </div>
 
