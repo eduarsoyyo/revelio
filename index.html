@@ -459,32 +459,31 @@ function useRealtime(user) {
 
 /* ═══ APP ═══ */
 function App() {
-  const [user,      setUser]      = useState(() => params.has('sala') ? loadUser() : null);
+  const [user,      setUser]      = useState(() => loadUser()); // always try to restore session
   const [salaValid, setSalaValid] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
 
   const handleJoin = (u) => {
     saveUser(u); registerUser(u); setUser(u);
     setShowLogin(false);
-    // If already on a sala page, stay; otherwise show homepage (no redirect)
+    // If on a sala page with different sala, redirect
     if (u.sala && params.has('sala') && params.get('sala') !== u.sala) {
       window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(u.sala);
     }
-    // If no sala in URL, show homepage — user picks project from there
+    // Otherwise just re-render (homepage will show)
   };
   const handleLogout = () => { clearUser(); setUser(null); };
 
   // No sala param → admin, homepage, or landing
   if (!params.has('sala')) {
     if (IS_ADMIN) return html`<${RoomPicker} />`;
-    // Logged-in user (state or localStorage) → homepage
-    const activeUser = user || loadUser();
-    if (activeUser && !activeUser._isAdmin) {
-      return html`<${UserHomePage} user=${activeUser}
-        onLogout=${()=>{ clearUser(); setUser(null); window.location.reload(); }}
+    if (user && !user._isAdmin) {
+      return html`<${UserHomePage} user=${user}
+        onLogout=${()=>{ clearUser(); setUser(null); }}
         onSelectProject=${(sala,tipo)=>{ window.location.href=window.location.pathname+'?sala='+encodeURIComponent(sala)+'&tipo='+(tipo||'agile'); }} />`;
     }
-    return html`<${NeedLink} onLogin=${()=>setShowLogin(true)} showLogin=${showLogin} onJoin=${handleJoin} onCloseLogin=${()=>setShowLogin(false)} />`;
+    // Not logged in — show login inline (no NeedLink)
+    return html`<${Login} onJoin=${handleJoin} />`;
   }
 
   // Validate sala + auto-login admin via Supabase session
@@ -564,28 +563,35 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
   const thisYear = new Date().getFullYear();
 
   useEffect(() => {
-    Promise.all([sbLoadRooms(), sbLoadTeamMembers()]).then(([allRooms, members]) => {
-      const uq = (user.username||user.name||'').toLowerCase();
-      const me = members.find(m =>
-        m.id === user.id ||
-        (m.email && (m.email.toLowerCase()===uq || m.email.split('@')[0].toLowerCase()===uq)) ||
-        (m.username && m.username.toLowerCase()===uq) ||
-        (m.name && m.name.toLowerCase()===uq)
-      );
-      setProfile(me||null);
-      const myRooms = (allRooms||[]).filter(r => me ? (me.rooms||[]).includes(r.slug) : false);
-      setRooms(myRooms);
-      // Load retro state for each sala from localStorage
-      const data = {};
-      myRooms.forEach(r => {
-        try {
-          const s = localStorage.getItem('rf-retro-state-'+r.slug);
-          if (s) data[r.slug] = JSON.parse(s);
-        } catch {}
-      });
-      setAllData(data);
-      setLoading(false);
-    });
+    // Timeout safety — never stay stuck
+    const timeout = setTimeout(() => setLoading(false), 8000);
+
+    Promise.all([sbLoadRooms(), sbLoadTeamMembers()])
+      .then(([allRooms, members]) => {
+        clearTimeout(timeout);
+        const uq = (user.username||user.name||'').toLowerCase().trim();
+        const uid = user.id||'';
+        const me = (members||[]).find(m =>
+          (uid && m.id === uid) ||
+          (m.username && m.username.toLowerCase().trim() === uq) ||
+          (m.email    && m.email.toLowerCase().trim()    === uq) ||
+          (m.email    && m.email.split('@')[0].toLowerCase().trim() === uq) ||
+          (m.name     && m.name.toLowerCase().trim()     === uq)
+        );
+        setProfile(me||null);
+        const myRooms = (allRooms||[]).filter(r => me ? (me.rooms||[]).includes(r.slug) : false);
+        setRooms(myRooms);
+        const data = {};
+        myRooms.forEach(r => {
+          try {
+            const s = localStorage.getItem('rf-retro-state-'+r.slug);
+            if (s) data[r.slug] = JSON.parse(s);
+          } catch {}
+        });
+        setAllData(data);
+        setLoading(false);
+      })
+      .catch(() => { clearTimeout(timeout); setLoading(false); });
   }, []);
 
   // Aggregate across all my projects
