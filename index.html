@@ -186,6 +186,11 @@ async function sbLoadRetros() {
     return data || [];
   } catch { return []; }
 }
+// Debounce helper
+function debounce(fn, ms) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
 async function sbSaveRetroSnapshot(sala, tipo, stateData, userId) {
   try {
     const {error} = await supabase.from('retros').insert({ sala, tipo, status:'closed', data:stateData, created_by:userId });
@@ -483,6 +488,12 @@ function useRealtime(user) {
       chRef.current.send({ type:'broadcast', event:'phase', payload:{ phase: phaseIdx, from:user.id, name:user.name } });
     }
   }, [user]);
+
+  // Auto-save debounced (every 3s after last change)
+  const autoSave = useCallback(debounce((st) => {
+    sbSaveRetroSnapshot(SALA, TIPO, st, null);
+  }, 3000), []);
+  useEffect(() => { autoSave(state); }, [state]);
 
   return { state, upd, online, cursors, moveCursor, reset, broadcastTimer, broadcastPhase };
 }
@@ -1021,28 +1032,91 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             </div>`}
           </div>`}
 
-          ${section==='contacto'&&html`<div style=${{maxWidth:480}}>
-            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Contacto</h1>
-            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Tus datos de contacto</p>
-            ${!profileLoaded?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:
-            !profile?html`<div style=${{textAlign:'center',padding:40,color:'#C7C7CC'}}>Sin perfil</div>`:html`
-              <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'24px',display:'flex',flexDirection:'column',gap:0}}>
-                ${[
-                  {icon:'Mail',    label:'Email',     val:profile.email||'—'},
-                  {icon:'Phone',   label:'Teléfono',  val:profile.phone||'—'},
-                  {icon:'Building2',label:'Empresa',  val:profile.company||'—'},
-                  {icon:'MessageSquare',label:'Teams', val:profile.teams_handle||'—'},
-                  {icon:'Briefcase',label:'Rol',      val:profile.role_label||'—'},
-                ].map((row,i)=>html`
-                  <div key=${row.label} style=${{display:'flex',alignItems:'center',gap:14,padding:'14px 0',borderBottom:i<4?'1px solid #F2F2F7':'none'}}>
-                    <div style=${{width:38,height:38,borderRadius:11,background:'#F2F2F7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                      <${Icon} name=${row.icon} size=${17} color="#86868B" />
-                    </div>
-                    <div>
-                      <div style=${{fontSize:10,color:'#86868B',fontWeight:700,textTransform:'uppercase',letterSpacing:.5}}>${row.label}</div>
-                      <div style=${{fontSize:13,fontWeight:600,marginTop:2}}>${row.val}</div>
-                    </div>
-                  </div>`)}
+          ${section==='contacto'&&html`<div style=${{maxWidth:560}}>
+            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Contacto y notificaciones</h1>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Datos de contacto y preferencias de notificación</p>
+            ${!profileLoaded?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:html`
+              <div style=${{display:'flex',flexDirection:'column',gap:14}}>
+                <!-- Contact info -->
+                <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px',display:'flex',flexDirection:'column',gap:0}}>
+                  <h3 style=${{fontSize:13,fontWeight:700,marginBottom:14,color:'#86868B',textTransform:'uppercase',letterSpacing:.5}}>Datos de contacto</h3>
+                  ${[
+                    {icon:'Mail',         label:'Email',         field:'email',         val:profile?.email||'—'},
+                    {icon:'Phone',        label:'Teléfono',      field:'phone',         val:profile?.phone||'—'},
+                    {icon:'Building2',    label:'Empresa',       field:'company',       val:profile?.company||'—'},
+                    {icon:'MessageSquare',label:'Microsoft Teams',field:'teams_handle', val:profile?.teams_handle||'—'},
+                    {icon:'Briefcase',    label:'Rol',           field:null,            val:profile?.role_label||'—'},
+                  ].map((row,i)=>html`
+                    <div key=${row.label} style=${{display:'flex',alignItems:'center',gap:14,padding:'12px 0',borderBottom:i<4?'1px solid #F2F2F7':'none'}}>
+                      <div style=${{width:36,height:36,borderRadius:10,background:'#F2F2F7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <${Icon} name=${row.icon} size=${16} color="#86868B" />
+                      </div>
+                      <div style=${{flex:1}}>
+                        <div style=${{fontSize:10,color:'#86868B',fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>${row.label}</div>
+                        <div style=${{fontSize:13,fontWeight:600,marginTop:1}}>${row.val}</div>
+                      </div>
+                    </div>`)}
+                </div>
+                <!-- Notification preferences -->
+                <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px'}}>
+                  <h3 style=${{fontSize:13,fontWeight:700,marginBottom:4,color:'#86868B',textTransform:'uppercase',letterSpacing:.5}}>Preferencias de notificación</h3>
+                  <p style=${{fontSize:11,color:'#C7C7CC',marginBottom:14}}>Configura cómo y dónde quieres recibir notificaciones</p>
+                  ${[
+                    {icon:'Bell',         label:'Notif. in-app',      field:'notif_inapp',     desc:'Campana en el proyecto'},
+                    {icon:'MessageSquare',label:'Microsoft Teams',     field:'notif_teams',     desc:'Mensajes directos via Teams'},
+                    {icon:'Mail',         label:'Email',               field:'notif_email',     desc:'Correo electrónico'},
+                    {icon:'Send',         label:'Slack',               field:'notif_slack',     desc:'Canal de Slack'},
+                  ].map(row=>html`
+                    <div key=${row.field} style=${{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #F9F9FB'}}>
+                      <div style=${{width:34,height:34,borderRadius:9,background:'#F2F2F7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <${Icon} name=${row.icon} size=${15} color="#86868B" />
+                      </div>
+                      <div style=${{flex:1}}>
+                        <div style=${{fontSize:12,fontWeight:600}}>${row.label}</div>
+                        <div style=${{fontSize:10,color:'#C7C7CC'}}>${row.desc}</div>
+                      </div>
+                      <div onClick=${()=>{
+                        if(!editProfile) return;
+                        const val = !(editProfile[row.field]??false);
+                        const upd = {...editProfile,[row.field]:val};
+                        setEditProfile(upd);
+                        sbSaveTeamMember(upd).then(()=>setProfile(upd));
+                      }}
+                        style=${{width:44,height:24,borderRadius:12,background:(editProfile?.[row.field])? '#34C759':'#E5E5EA',
+                          position:'relative',cursor:'pointer',transition:'background .2s',flexShrink:0}}>
+                        <div style=${{width:20,height:20,borderRadius:10,background:'#FFF',position:'absolute',
+                          top:2,left:(editProfile?.[row.field])?22:2,transition:'left .2s',
+                          boxShadow:'0 1px 3px rgba(0,0,0,.2)'}}></div>
+                      </div>
+                    </div>`)}
+                  ${[
+                    {icon:'Bell',         label:'Riesgos escalados a mí', field:'notif_escalado'},
+                    {icon:'CheckSquare',  label:'Accionables vencidos',   field:'notif_accionable'},
+                    {icon:'AtSign',       label:'Menciones',              field:'notif_mencion'},
+                    {icon:'FileText',     label:'Resumen semanal',        field:'notif_resumen'},
+                  ].map(row=>html`
+                    <div key=${row.field} style=${{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #F9F9FB'}}>
+                      <div style=${{width:34,height:34,borderRadius:9,background:'#F2F2F7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <${Icon} name=${row.icon} size=${15} color="#86868B" />
+                      </div>
+                      <div style=${{flex:1}}>
+                        <div style=${{fontSize:12,fontWeight:600}}>${row.label}</div>
+                      </div>
+                      <div onClick=${()=>{
+                        if(!editProfile) return;
+                        const val = !(editProfile[row.field]??true);
+                        const upd = {...editProfile,[row.field]:val};
+                        setEditProfile(upd);
+                        sbSaveTeamMember(upd).then(()=>setProfile(upd));
+                      }}
+                        style=${{width:44,height:24,borderRadius:12,background:((editProfile?.[row.field])??true)?'#34C759':'#E5E5EA',
+                          position:'relative',cursor:'pointer',transition:'background .2s',flexShrink:0}}>
+                        <div style=${{width:20,height:20,borderRadius:10,background:'#FFF',position:'absolute',
+                          top:2,left:((editProfile?.[row.field])??true)?22:2,transition:'left .2s',
+                          boxShadow:'0 1px 3px rgba(0,0,0,.2)'}}></div>
+                      </div>
+                    </div>`)}
+                </div>
               </div>`}
           </div>`}
 
@@ -2794,18 +2868,22 @@ function PEquipo() {
     setOrgSaving(false);
   };
 
-  const updateOrgField = async (memberId, field, val) => {
+  const updateOrgField = async (memberId, field, val, rowId) => {
     setOrgSaving(true);
     const managerId = org[memberId] || null;
-    await supabase.from('org_chart').upsert(
-      { sala:SALA, member_id:memberId, manager_id:managerId, [field]:val||null },
-      { onConflict:'sala,member_id' }
-    );
-    setOrgData(prev => {
-      const existing = prev.find(r=>r.member_id===memberId);
-      if (existing) return prev.map(r=>r.member_id===memberId?{...r,[field]:val}:r);
-      return [...prev, {sala:SALA, member_id:memberId, manager_id:managerId, [field]:val}];
-    });
+    if (rowId) {
+      await supabase.from('org_chart').update({ [field]:val||null }).eq('id', rowId);
+      setOrgData(prev => prev.map(r=>r.id===rowId?{...r,[field]:val}:r));
+    } else {
+      const { data:_ex } = await supabase.from('org_chart').select('id').eq('sala',SALA).eq('member_id',memberId).order('created_at',{ascending:true}).limit(1).single();
+      if (_ex?.id) {
+        await supabase.from('org_chart').update({ [field]:val||null }).eq('id',_ex.id);
+        setOrgData(prev => prev.map((r,i)=>r.member_id===memberId&&prev.findIndex(x=>x.member_id===memberId)===i?{...r,[field]:val}:r));
+      } else {
+        await supabase.from('org_chart').insert({ sala:SALA, member_id:memberId, manager_id:managerId, [field]:val||null });
+        setOrgData(prev=>[...prev,{sala:SALA,member_id:memberId,manager_id:managerId,[field]:val}]);
+      }
+    }
     setOrgSaving(false);
   };
 
@@ -2878,8 +2956,9 @@ function PEquipo() {
                         ${org[m.id] && html`<div style=${{ fontSize:11, color:'#86868B', marginTop:1 }}>Reporta a: <strong>${team.find(x=>x.id===org[m.id])?.name||'—'}</strong></div>`}
                       </div>
                     </div>
-                    <!-- Project config row -->
-                    <div style=${{ padding:'8px 16px 12px', display:'grid', gridTemplateColumns:'1fr 120px 120px 80px', gap:8, borderTop:'1px solid #F2F2F7', background:'#FAFAFA' }}>
+                    <!-- Project config row — show latest period, allow add -->
+                    <div style=${{ padding:'8px 16px 12px', borderTop:'1px solid #F2F2F7', background:'#FAFAFA' }}>
+                    <div style=${{ display:'grid', gridTemplateColumns:'1fr 120px 120px 80px auto', gap:8, alignItems:'end' }}>
                       <div>
                         <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>Rol en proyecto</label>
                         <select value=${row.role_in_project||m.role_label||''} onChange=${e=>updateOrgField(m.id,'role_in_project',e.target.value)}
@@ -2904,6 +2983,32 @@ function PEquipo() {
                           onInput=${e=>updateOrgField(m.id,'dedication',parseFloat(e.target.value)||1)}
                           style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 6px', fontSize:12, fontWeight:700, textAlign:'center', fontFamily:'inherit', outline:'none', background:'#FFF' }} />
                       </div>
+                      <button onClick=${async ()=>{
+                        const newRow={sala:SALA,member_id:m.id,manager_id:org[m.id]||null,role_in_project:'',start_date:'',end_date:'',dedication:1};
+                        const {data}=await supabase.from('org_chart').insert(newRow).select().single();
+                        if(data) setOrgData(prev=>[...prev,data]);
+                      }}
+                        title="Añadir otro período"
+                        style=${{ alignSelf:'flex-end', width:28,height:28,borderRadius:8,border:'1.5px solid #007AFF30',background:'#EEF5FF',color:'#007AFF',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>+</button>
+                    </div>
+                    ${orgData.filter(r=>r.member_id===m.id).length>1&&html`
+                      <div style=${{marginTop:6,display:'flex',flexDirection:'column',gap:4}}>
+                        ${orgData.filter(r=>r.member_id===m.id).slice(1).map((row2,pi)=>html`
+                          <div key=${row2.id} style=${{display:'grid',gridTemplateColumns:'1fr 120px 120px 80px auto',gap:6,alignItems:'center',padding:'4px 0',borderTop:'1px solid #F2F2F7'}}>
+                            <span style=${{fontSize:10,color:'#86868B'}}>Período ${pi+2}</span>
+                            <input type="date" value=${row2.start_date||''} onInput=${e=>updateOrgField(m.id,'start_date',e.target.value,row2.id)}
+                              style=${{border:'1px solid #E5E5EA',borderRadius:7,padding:'4px 5px',fontSize:10,fontFamily:'inherit',outline:'none'}} />
+                            <input type="date" value=${row2.end_date||''} onInput=${e=>updateOrgField(m.id,'end_date',e.target.value,row2.id)}
+                              style=${{border:'1px solid #E5E5EA',borderRadius:7,padding:'4px 5px',fontSize:10,fontFamily:'inherit',outline:'none'}} />
+                            <input type="number" min="0.1" max="1" step="0.1" value=${row2.dedication??1}
+                              onInput=${e=>updateOrgField(m.id,'dedication',parseFloat(e.target.value)||1,row2.id)}
+                              style=${{border:'1px solid #E5E5EA',borderRadius:7,padding:'4px 5px',fontSize:11,fontWeight:700,textAlign:'center',fontFamily:'inherit',outline:'none'}} />
+                            <button onClick=${async()=>{
+                              await supabase.from('org_chart').delete().eq('id',row2.id);
+                              setOrgData(prev=>prev.filter(r=>r.id!==row2.id));
+                            }} style=${{width:24,height:24,borderRadius:6,border:'none',background:'#FFF5F5',color:'#FF3B30',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                          </div>`)}
+                      </div>`}
                     </div>
                   </div>`;
               })}
@@ -4637,7 +4742,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
           </div>
           <!-- Tabs -->
           <div style=${{ display:'flex', gap:0, borderBottom:'2px solid #F2F2F7', overflowX:'auto' }}>
-            ${[['perfil','👤 Perfil'],['vacaciones','🏖️ Vacaciones'],['actividad','📊 Actividad'],['contacto','📞 Contacto']].map(([tid,tl])=>html`
+            ${[['perfil','👤 Perfil'],['contacto','📞 Contacto'],['actividad','📊 Actividad']].map(([tid,tl])=>html`
               <button key=${tid} onClick=${()=>setTab(tid)}
                 style=${{ padding:'9px 16px', fontSize:12, fontWeight:tab===tid?700:500,
                   color:tab===tid?'#007AFF':'#86868B', background:'transparent', border:'none',
