@@ -3540,6 +3540,18 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
 function PVacaciones({ embeddedTeam }) {
   const [team,    setTeam]   = useState(loadTeamData);
   const [sbMembers, setSbMembers] = useState([]);
+  const [vacs,    setVacs]   = useState(loadVacsData);
+  const [vacView, setVacView] = useState('anual'); // 'mensual' | 'anual'
+  const [newVac,  setNewVac] = useState({memberId:'', name:'', from:'', to:'', note:'', type:'vacaciones', reason:''});
+  const [saving,  setSaving] = useState(false);
+  const today = new Date();
+  const [viewYear,  setViewYear]  = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const days = Array.from({length:daysInMonth},(_,i)=>i+1);
+  const todayStr = today.toISOString().slice(0,10);
+
   useEffect(() => {
     if (embeddedTeam && embeddedTeam.length > 0) {
       setTeam(embeddedTeam);
@@ -3558,23 +3570,7 @@ function PVacaciones({ embeddedTeam }) {
       setVacs(allVacs); saveVacsLocal(allVacs);
     });
   }, []);
-  const [vacs, setVacs] = useState(loadVacsData);
-  const [newVac,  setNewVac] = useState({memberId:'', name:'', from:'', to:'', note:'', type:'vacaciones', reason:''});
-  const [saving,  setSaving] = useState(false);
-  const today = new Date();
-  const [viewYear,  setViewYear]  = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-11
 
-  const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
-  const days = Array.from({length:daysInMonth},(_,i)=>i+1);
-  const todayStr = today.toISOString().slice(0,10);
-
-  const prevMonth = () => { if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);} else setViewMonth(m=>m-1); };
-  const nextMonth = () => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);} else setViewMonth(m=>m+1); };
-  const goToday   = () => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); };
-
-  // Load holidays from Supabase calendars assigned to sala members
   const [calHolidays, setCalHolidays] = useState([]);
   useEffect(() => {
     sbLoadTeamMembers().then(members => {
@@ -3583,31 +3579,28 @@ function PVacaciones({ embeddedTeam }) {
       if (calIds.length === 0) return;
       sbLoadCalendars().then(cals => {
         const relevant = cals.filter(c=>calIds.includes(c.id));
-        const allH = [...new Set(relevant.flatMap(c=>(c.holidays||[]).map(h=>h.date.slice(5))))]; // MM-DD
+        const allH = [...new Set(relevant.flatMap(c=>(c.holidays||[]).map(h=>h.date.slice(5))))];
         setCalHolidays(allH);
       });
     });
   }, []);
+
   const HOLIDAYS = calHolidays.length > 0 ? calHolidays : ['01-01','01-06','02-28','05-01','06-24','08-15','10-12','11-01','12-06','12-08','12-25','12-26'];
   const isOnVac = (member, day) => {
     const dateStr = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
-    return vacs.some(v =>
-      (v.memberId===member.id || v.name===member.name) &&
-      v.from <= dateStr &&
-      (!v.to || v.to >= dateStr)
-    );
+    return vacs.some(v=>(v.memberId===member.id||v.name===member.name)&&v.from<=dateStr&&(!v.to||v.to>=dateStr));
   };
-  // Returns the absence entry for a given member+day (for initial/color)
   const getVacEntry = (member, day) => {
     const dateStr = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
-    return vacs.find(v =>
-      (v.memberId===member.id || v.name===member.name) &&
-      v.from <= dateStr && (!v.to || v.to >= dateStr)
-    ) || null;
+    return vacs.find(v=>(v.memberId===member.id||v.name===member.name)&&v.from<=dateStr&&(!v.to||v.to>=dateStr))||null;
   };
   const isWeekend = (day) => { const d=new Date(viewYear,viewMonth,day).getDay(); return d===0||d===6; };
-  const isToday   = (day) => todayStr === viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
-  const isHoliday = (day) => { const mm=String(viewMonth+1).padStart(2,'0'); const dd=String(day).padStart(2,'0'); return HOLIDAYS.includes(mm+'-'+dd); };
+  const isToday   = (day) => todayStr===viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  const isHoliday = (day) => { const mm=String(viewMonth+1).padStart(2,'0'),dd=String(day).padStart(2,'0'); return HOLIDAYS.includes(mm+'-'+dd); };
+
+  const prevMonth = () => { if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1); };
+  const nextMonth = () => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1); };
+  const goToday   = () => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); };
 
   const persist = async (t, v) => {
     saveTeamLocal(t); saveVacsLocal(v);
@@ -3624,273 +3617,214 @@ function PVacaciones({ embeddedTeam }) {
     const v = [...vacs, newEntry];
     setVacs(v); saveVacsLocal(v);
     setNewVac({memberId:'',name:'',from:'',to:'',note:'',type:'vacaciones',reason:''});
-    // Save globally to the team_member record
-    if (newVac.memberId) {
-      const memberVacs = v.filter(x=>x.memberId===newVac.memberId);
-      sbSaveMemberVacs(newVac.memberId, memberVacs);
-    }
+    if (newVac.memberId) sbSaveMemberVacs(newVac.memberId, v.filter(x=>x.memberId===newVac.memberId));
   };
   const delVac = id => {
     const removing = vacs.find(x=>x.id===id);
     const v = vacs.filter(x=>x.id!==id); setVacs(v); saveVacsLocal(v);
-    if (removing?.memberId) {
-      const memberVacs = v.filter(x=>x.memberId===removing.memberId);
-      sbSaveMemberVacs(removing.memberId, memberVacs);
-    }
+    if (removing?.memberId) sbSaveMemberVacs(removing.memberId, v.filter(x=>x.memberId===removing.memberId));
   };
 
-  // ── Vacation counters ──
+  // ── Counters helper ──
   const thisYear = today.getFullYear();
-  const lastYear = thisYear - 1;
   const countVacDays = (memberId, year, typeFilter) => {
     const m = team.find(x=>x.id===memberId); if(!m) return 0;
-    const mVacs = vacs.filter(v=>(v.memberId===memberId||v.name===m.name) && (!typeFilter||v.type===typeFilter||(!v.type&&typeFilter==='vacaciones')));
-    return mVacs.reduce((sum,v) => {
-      if (!v.from) return sum;
-      let d = new Date(v.from), to = new Date(v.to||v.from);
-      let cnt = 0;
-      while (d <= to) {
-        const yr = d.getFullYear(); const dow = d.getDay();
-        const mm = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
-        const isH = HOLIDAYS.includes(mm+'-'+dd);
-        if (yr===year && dow!==0 && dow!==6 && !isH) cnt++;
-        d.setDate(d.getDate()+1);
-      }
+    return vacs.filter(v=>(v.memberId===memberId||v.name===m.name)&&(!typeFilter||v.type===typeFilter||(!v.type&&typeFilter==='vacaciones'))).reduce((sum,v)=>{
+      if(!v.from) return sum;
+      let d=new Date(v.from), to=new Date(v.to||v.from), cnt=0;
+      while(d<=to){const yr=d.getFullYear(),dow=d.getDay(),mm=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(yr===year&&dow!==0&&dow!==6&&!HOLIDAYS.includes(mm+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
       return sum+cnt;
     },0);
   };
 
-  // Active vacations this month
-  const monthStart = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-01';
-  const monthEnd   = viewYear+'-'+String(viewMonth+1).padStart(2,'0')+'-'+String(daysInMonth).padStart(2,'0');
-  const activeThisMonth = vacs.filter(v => v.from<=monthEnd && (!v.to||v.to>=monthStart));
-
-  // Use team; if team is empty, build from vac names
-  const members = team.length > 0 ? team
-    : [...new Set(vacs.map(v=>v.name))].map((n,i)=>({id:'anon-'+i,name:n,avatar:'👤',role:''}));
+  const members = team.length > 0 ? team : [...new Set(vacs.map(v=>v.name))].map((n,i)=>({id:'anon-'+i,name:n,avatar:'👤',role:''}));
 
   return html`
     <div style=${{ maxWidth:960, margin:'0 auto' }}>
 
-      <!-- ── Vacation counters per member ── -->
-      ${team.length>0 && html`
-        <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
-          ${team.map(m=>{
-            const vacUsed  = countVacDays(m.id, thisYear, 'vacaciones');
-            const annualDays = m.annual_vac_days ?? ANNUAL_VAC_DAYS;
-            const prevPend   = m.prev_year_pending ?? 0;
-            const total      = annualDays + prevPend;
-            const remain   = Math.max(0, total - vacUsed);
-            const pct      = total>0?Math.min(100,Math.round((vacUsed/total)*100)):0;
-            const absTypes = [...new Set(vacs.filter(v=>(v.memberId===m.id||v.name===m.name)&&v.type&&v.type!=='vacaciones'&&new Date(v.from||'').getFullYear()===thisYear).map(v=>v.type))];
-            return html`
-              <div key=${m.id} style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
-                <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-                  <div style=${{ width:36,height:36,borderRadius:10,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20 }}>${m.avatar||'👤'}</div>
-                  <span style=${{ fontSize:13, fontWeight:700, flex:1 }}>${m.name}</span>
-                  ${m.role_label&&html`<span style=${{ fontSize:9, color:'#FFF', background:'#007AFF', padding:'2px 7px', borderRadius:8 }}>${m.role_label}</span>`}
-                </div>
-                <!-- Progress bar -->
-                <div style=${{ background:'#F2F2F7', borderRadius:6, height:7, marginBottom:10, overflow:'hidden' }}>
-                  <div style=${{ width:pct+'%', height:'100%', background:pct>90?'#FF3B30':pct>70?'#FF9500':'#34C759', borderRadius:6, transition:'width .5s' }}></div>
-                </div>
-                <!-- Counters -->
-                <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6, marginBottom: absTypes.length>0?8:0 }}>
-                  ${[
-                    [annualDays,'Días anuales','#1D1D1F'],
-                    [prevPend,'Año ant. pend.','#5856D6'],
-                    [total,'Total disp.','#007AFF'],
-                    [vacUsed,'Consumidos','#FF9500'],
-                    [remain,'Restantes',remain<=5?'#FF3B30':remain<=10?'#FF9500':'#34C759'],
-                  ].map(([v,l,c])=>html`
-                    <div style=${{ textAlign:'center', padding:'8px 4px', borderRadius:10, background:c+'0D', border:'1px solid '+c+'25' }}>
-                      <div style=${{ fontSize:22, fontWeight:800, color:c, lineHeight:1 }}>${v}</div>
-                      <div style=${{ fontSize:8, color:'#86868B', marginTop:3, lineHeight:1.2 }}>${l}</div>
-                    </div>`)}
-                </div>
-                ${absTypes.length>0&&html`
-                  <div style=${{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                    ${absTypes.map(t=>{
-                      const info=ABSENCE_TYPES.find(x=>x.id===t)||{label:t,id:t};
-                      const cnt=vacs.filter(v=>(v.memberId===m.id||v.name===m.name)&&v.type===t&&new Date(v.from||'').getFullYear()===thisYear).length;
-                      return html`<span key=${t} style=${{ fontSize:9, background:'#F2F2F7', padding:'2px 7px', borderRadius:6, color:'#86868B' }}>${info.label} (${cnt})</span>`;
-                    })}
-                  </div>`}
-              </div>`;
-          })}
-        </div>`}
-
-      <!-- Month nav -->
-      <div style=${{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
-        <button onClick=${prevMonth} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>‹</button>
-        <h2 style=${{ fontSize:20, fontWeight:700, flex:1, textAlign:'center' }}>${MONTH_NAMES[viewMonth]} ${viewYear}</h2>
-        <button onClick=${nextMonth} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>›</button>
-        <button onClick=${goToday} style=${{ padding:'6px 14px', borderRadius:8, border:'1.5px solid #007AFF20', background:'#007AFF10', color:'#007AFF', fontSize:12, fontWeight:600, cursor:'pointer' }}>Hoy</button>
-        ${saving && html`<span style=${{ fontSize:11, color:'#007AFF' }}>💾</span>`}
-        <span style=${{ fontSize:11, color:'#86868B' }}>${activeThisMonth.length} ausencias este mes</span>
-        <div style=${{ display:'flex', gap:10, fontSize:10, alignItems:'center' }}>
-          <span><span style=${{ display:'inline-block', width:18, height:18, background:'#C8F0D0', border:'1px solid #ccc', borderRadius:3, marginRight:3, textAlign:'center', lineHeight:'18px', fontSize:9, fontWeight:600, color:'#2D8A4E' }}>L</span>Laboral</span>
-          <span><span style=${{ display:'inline-block', width:18, height:18, background:'#E0E0E0', border:'1px solid #ccc', borderRadius:3, marginRight:3 }}></span>Fin semana</span>
-          <span><span style=${{ display:'inline-block', width:18, height:18, background:'#EEEEFF', border:'1px solid #ccc', borderRadius:3, marginRight:3, textAlign:'center', lineHeight:'18px', fontSize:9, fontWeight:600, color:'#5856D6' }}>F</span>Festivo</span>
-          <span><span style=${{ display:'inline-block', width:18, height:18, background:'#FF9500', border:'1px solid #ccc', borderRadius:3, marginRight:3, textAlign:'center', lineHeight:'18px', fontSize:9, fontWeight:800, color:'#FFF' }}>V</span>Vacaciones</span>
+      <!-- View toggle + month nav -->
+      <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+        <div style=${{ display:'flex', gap:0, borderRadius:10, overflow:'hidden', border:'1.5px solid #E5E5EA', flexShrink:0 }}>
+          ${[['anual','📊 Anual'],['mensual','📅 Mensual']].map(([vid,vl])=>html`
+            <button key=${vid} onClick=${()=>setVacView(vid)}
+              style=${{ padding:'6px 16px', fontSize:12, fontWeight:vacView===vid?700:500,
+                background:vacView===vid?'#1D1D1F':'#FFF', color:vacView===vid?'#FFF':'#6E6E73',
+                border:'none', cursor:'pointer' }}>${vl}</button>`)}
         </div>
+        ${vacView==='mensual' && html`
+          <button onClick=${prevMonth} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>‹</button>
+          <h3 style=${{ fontSize:15, fontWeight:700 }}>${MONTH_NAMES[viewMonth]} ${viewYear}</h3>
+          <button onClick=${nextMonth} style=${{ width:32,height:32,borderRadius:8,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:16,cursor:'pointer' }}>›</button>
+          <button onClick=${goToday} style=${{ padding:'5px 12px', borderRadius:8, border:'1.5px solid #007AFF20', background:'#007AFF10', color:'#007AFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>Hoy</button>`}
+        <div style=${{ flex:1 }}/>
+        ${saving && html`<span style=${{ fontSize:11, color:'#007AFF' }}>💾</span>`}
       </div>
 
-      <!-- Calendar grid -->
-      ${members.length === 0 ? html`
-        <div style=${{ textAlign:'center', padding:'48px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:16, marginBottom:20 }}>
-          <p style=${{ fontSize:40, marginBottom:8 }}>👥</p>
-          <p style=${{ fontSize:14 }}>Añade miembros en la pestaña Equipo para ver el calendario</p>
-        </div>
-      ` : html`
-        <div style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', overflow:'auto', marginBottom:20 }}>
-          <table style=${{ width:'100%', borderCollapse:'collapse', minWidth: members.length>0?600:0 }}>
-            <thead>
-              <tr style=${{ background:'#F9F9FB' }}>
-                <!-- Member column -->
-                <th style=${{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#86868B',
-                  position:'sticky', left:0, background:'#F9F9FB', borderBottom:'2px solid #E5E5EA',
-                  borderRight:'1px solid #E5E5EA', minWidth:140, zIndex:2 }}>Miembro</th>
-                <!-- Day columns -->
-                ${days.map(d => {
-                  const wknd = isWeekend(d);
-                  const td   = isToday(d);
-                  const dow  = ['D','L','M','X','J','V','S'][new Date(viewYear,viewMonth,d).getDay()];
-                  return html`
-                    <th key=${d} style=${{ padding:'4px 2px', textAlign:'center', fontSize:10,
-                      fontWeight:td?800:500, color:td?'#007AFF':wknd?'#86868B':isHoliday(d)?'#5856D6':'#86868B',
-                      background:td?'#007AFF10':wknd?'#E8F4FD':isHoliday(d)?'#EEEEFF':'#F9F9FB',
-                      borderBottom:'2px solid '+(td?'#007AFF':isHoliday(d)?'#5856D640':'#E5E5EA'),
-                      borderLeft:'1px solid #F2F2F7', minWidth:26 }}>
-                      <div>${d}</div>
-                      <div style=${{ fontSize:8, fontWeight:400 }}>${dow}</div>
-                    </th>`;
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              ${members.map((m,mi) => html`
-                <tr key=${m.id} style=${{ background:mi%2===0?'#FFF':'#FAFAFA' }}>
-                  <!-- Member cell -->
-                  <td style=${{ padding:'8px 14px', position:'sticky', left:0, background:mi%2===0?'#FFF':'#FAFAFA',
-                    borderRight:'1px solid #E5E5EA', borderBottom:'1px solid #F2F2F7', zIndex:1 }}>
-                    <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
-                      <div style=${{ width:36, height:36, borderRadius:10, background: m.color||'#E5E5EA',
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>${m.avatar||'👤'}</div>
-                      <div>
-                        <div style=${{ fontSize:12, fontWeight:600, color:'#1D1D1F', whiteSpace:'nowrap' }}>${m.name}</div>
-                        ${m.role && html`<div style=${{ fontSize:10, color:'#86868B' }}>${m.role}</div>`}
-                      </div>
+      <!-- ══ VISTA ANUAL ══ -->
+      ${vacView==='anual' && html`
+        <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+          <!-- Column headers -->
+          <div style=${{ display:'grid', gridTemplateColumns:'1fr 90px 90px 90px 90px 90px', gap:6, padding:'0 12px', marginBottom:2 }}>
+            <span style=${{ fontSize:10, color:'#86868B', fontWeight:700 }}>Miembro</span>
+            ${['Días/año','Año ant.','Total disp.','Consumidos','Restantes'].map(l=>html`
+              <span key=${l} style=${{ fontSize:10, color:'#86868B', fontWeight:700, textAlign:'center' }}>${l}</span>`)}
+          </div>
+          ${members.map(m => {
+            const mbFull = (embeddedTeam||team).find(x=>x.id===m.id)||m;
+            const annualDays = mbFull.annual_vac_days ?? ANNUAL_VAC_DAYS;
+            const prevPend   = mbFull.prev_year_pending ?? 0;
+            const vacUsed    = countVacDays(m.id, thisYear, 'vacaciones');
+            const total      = annualDays + prevPend;
+            const remain     = Math.max(0, total - vacUsed);
+            const pct        = total>0?Math.min(100,Math.round((vacUsed/total)*100)):0;
+            const onVacToday = vacs.some(v=>(v.memberId===m.id||v.name===m.name)&&v.from<=todayStr&&(!v.to||v.to>=todayStr));
+            return html`
+              <div key=${m.id} style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid '+(onVacToday?'#FF9500':'#E5E5EA'), overflow:'hidden' }}>
+                <div style=${{ display:'grid', gridTemplateColumns:'1fr 90px 90px 90px 90px 90px', gap:6, padding:'10px 12px', alignItems:'center' }}>
+                  <!-- Member -->
+                  <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
+                    <div style=${{ width:32,height:32,borderRadius:9,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>${m.avatar||'👤'}</div>
+                    <div>
+                      <div style=${{ fontSize:12, fontWeight:700 }}>${m.name}</div>
+                      ${(mbFull.role_label||m.role)&&html`<div style=${{ fontSize:9, color:'#86868B' }}>${mbFull.role_label||m.role}</div>`}
                     </div>
-                  </td>
-                  <!-- Day cells -->
-                  ${days.map(d => {
-                    const onVac  = isOnVac(m, d);
-                    const wknd   = isWeekend(d);
-                    const holi   = isHoliday(d);
-                    const td     = isToday(d);
-                    const entry  = onVac ? getVacEntry(m, d) : null;
-                    const atype  = entry ? (ABSENCE_TYPES.find(t=>t.id===entry.type)||ABSENCE_TYPES[0]) : null;
-                    const bg     = onVac ? (atype?.color||'#FF9500') : wknd ? '#E0E0E0' : holi ? '#EEEEFF' : '#C8F0D0';
-                    const label  = onVac ? (atype?.initial||'V') : wknd ? '' : holi ? 'F' : 'L';
-                    const color  = onVac ? '#FFF' : wknd ? '#888' : holi ? '#5856D6' : '#2D8A4E';
-                    const fw     = onVac ? 800 : 600;
-                    return html`
-                      <td key=${d} title=${onVac?(m.name+' - '+(atype?.label||'Vacaciones')):wknd?'Fin de semana':holi?'Festivo':'Laboral'}
-                        style=${{ padding:'1px', textAlign:'center', borderBottom:'1px solid #F2F2F7', borderLeft:'1px solid #F2F2F7',
-                          background:td?'#007AFF20':bg, minWidth:26, outline:td?'2px solid #007AFF':'none', outlineOffset:'-2px' }}>
-                        <div style=${{ fontSize:9, fontWeight:fw, color:td?'#007AFF':color, lineHeight:'18px', height:18 }}>${label}</div>
-                      </td>`;
-                  })}
-                </tr>`)}
-            </tbody>
-          </table>
+                    ${onVacToday&&html`<span style=${{ fontSize:9, color:'#FF9500', fontWeight:700, background:'#FF950015', padding:'1px 6px', borderRadius:6, marginLeft:4 }}>Hoy</span>`}
+                  </div>
+                  <!-- Counters -->
+                  <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:'#1D1D1F' }}>${annualDays}</span></div>
+                  <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:prevPend>0?'#5856D6':'#C7C7CC' }}>${prevPend}</span></div>
+                  <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:'#007AFF' }}>${total}</span></div>
+                  <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:'#FF9500' }}>${vacUsed}</span></div>
+                  <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:remain<=5?'#FF3B30':remain<=10?'#FF9500':'#34C759' }}>${remain}</span></div>
+                </div>
+                <!-- Thin progress bar -->
+                <div style=${{ height:3, background:'#F2F2F7' }}>
+                  <div style=${{ width:pct+'%', height:'100%', background:pct>90?'#FF3B30':pct>70?'#FF9500':'#34C759', transition:'width .4s' }}></div>
+                </div>
+              </div>`;
+          })}
+          <!-- Totals -->
+          <div style=${{ display:'grid', gridTemplateColumns:'1fr 90px 90px 90px 90px 90px', gap:6, padding:'10px 14px', background:'#F0F7FF', borderRadius:12, border:'1.5px solid #007AFF20' }}>
+            <span style=${{ fontSize:12, fontWeight:700, color:'#007AFF' }}>TOTAL EQUIPO</span>
+            <div style=${{ textAlign:'center' }}><span style=${{ fontSize:14, fontWeight:800, color:'#1D1D1F' }}>${members.reduce((s,m)=>s+((embeddedTeam||team).find(x=>x.id===m.id)?.annual_vac_days??ANNUAL_VAC_DAYS),0)}</span></div>
+            <div style=${{ textAlign:'center' }}><span style=${{ fontSize:14, fontWeight:800, color:'#5856D6' }}>${members.reduce((s,m)=>s+((embeddedTeam||team).find(x=>x.id===m.id)?.prev_year_pending??0),0)}</span></div>
+            <div style=${{ textAlign:'center' }}><span style=${{ fontSize:14, fontWeight:800, color:'#007AFF' }}>${members.reduce((s,m)=>{const mb=(embeddedTeam||team).find(x=>x.id===m.id)||m;return s+(mb.annual_vac_days??ANNUAL_VAC_DAYS)+(mb.prev_year_pending??0);},0)}</span></div>
+            <div style=${{ textAlign:'center' }}><span style=${{ fontSize:14, fontWeight:800, color:'#FF9500' }}>${members.reduce((s,m)=>s+countVacDays(m.id,thisYear,'vacaciones'),0)}</span></div>
+            <div style=${{ textAlign:'center' }}><span style=${{ fontSize:14, fontWeight:800, color:'#34C759' }}>${members.reduce((s,m)=>{const mb=(embeddedTeam||team).find(x=>x.id===m.id)||m;const t=(mb.annual_vac_days??ANNUAL_VAC_DAYS)+(mb.prev_year_pending??0);return s+Math.max(0,t-countVacDays(m.id,thisYear,'vacaciones'));},0)}</span></div>
+          </div>
         </div>
       `}
 
-      <!-- Vacation list for this month -->
-      <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+      <!-- ══ VISTA MENSUAL ══ -->
+      ${vacView==='mensual' && html`
+        <div>
+          <!-- Legend -->
+          <div style=${{ display:'flex', gap:12, fontSize:10, alignItems:'center', marginBottom:12, flexWrap:'wrap' }}>
+            ${[['#C8F0D0','#2D8A4E','L','Laboral'],['#E0E0E0','#888','','Fin semana'],['#EEEEFF','#5856D6','F','Festivo'],['#FF9500','#FFF','V','Ausencia']].map(([bg,c,lbl,name])=>html`
+              <span style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style=${{ display:'inline-flex', width:18, height:18, background:bg, border:'1px solid #ccc', borderRadius:3, alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:c }}>${lbl}</span>
+                <span style=${{ color:'#86868B' }}>${name}</span>
+              </span>`)}
+          </div>
 
-        <!-- Active/upcoming -->
-        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
-          <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:10, color:'#1D1D1F' }}>📅 Ausencias — ${MONTH_NAMES[viewMonth]}</h3>
-          ${activeThisMonth.length===0 && html`<p style=${{ fontSize:12, color:'#C7C7CC' }}>Sin ausencias este mes</p>`}
-          ${activeThisMonth.map(v => {
-            const isActive = v.from<=todayStr && (!v.to||v.to>=todayStr);
-            return html`
-              <div key=${v.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid #F2F2F7' }}>
-                <span style=${{ fontSize:14 }}>${isActive?'🏖️':'📅'}</span>
-                <div style=${{ flex:1 }}>
-                  <span style=${{ fontSize:12, fontWeight:600 }}>${v.name}</span>
-                  <div style=${{ fontSize:10, color:'#86868B' }}>${v.from}${v.to&&v.to!==v.from?' → '+v.to:''}${v.note?' · '+v.note:''}</div>
+          <!-- Calendar table -->
+          <div style=${{ overflowX:'auto', borderRadius:14, border:'1.5px solid #E5E5EA', background:'#FFF', marginBottom:16 }}>
+            <table style=${{ borderCollapse:'collapse', width:'100%', minWidth:600 }}>
+              <thead>
+                <tr style=${{ background:'#F9F9FB' }}>
+                  <th style=${{ padding:'8px 12px', textAlign:'left', fontSize:11, fontWeight:700, color:'#86868B', minWidth:110, borderBottom:'2px solid #E5E5EA' }}>Miembro</th>
+                  ${days.map(d=>html`
+                    <th key=${d} style=${{ padding:'4px 2px', textAlign:'center', fontSize:9, fontWeight:600,
+                      color:isWeekend(d)?'#C7C7CC':isToday(d)?'#007AFF':'#86868B',
+                      minWidth:22, borderBottom:'2px solid #E5E5EA',
+                      background:isToday(d)?'#EEF5FF':isWeekend(d)?'#F9F9F9':'transparent' }}>
+                      ${d}
+                    </th>`)}
+                </tr>
+              </thead>
+              <tbody>
+                ${members.map((m,mi)=>html`
+                  <tr key=${m.id} style=${{ borderBottom:'1px solid #F2F2F7', background:mi%2===0?'#FFF':'#FAFAFA' }}>
+                    <td style=${{ padding:'6px 12px', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+                      <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style=${{ fontSize:16 }}>${m.avatar||'👤'}</span>
+                        <span>${m.name}</span>
+                      </div>
+                    </td>
+                    ${days.map(d=>{
+                      const onVac  = isOnVac(m, d);
+                      const wknd   = isWeekend(d);
+                      const holi   = isHoliday(d);
+                      const td2    = isToday(d);
+                      const entry  = onVac ? getVacEntry(m, d) : null;
+                      const atype  = entry ? (ABSENCE_TYPES.find(t=>t.id===entry.type)||ABSENCE_TYPES[0]) : null;
+                      const bg     = onVac?(atype?.color||'#FF9500'):wknd?'#E0E0E0':holi?'#EEEEFF':'#C8F0D0';
+                      const label  = onVac?(atype?.initial||'V'):wknd?'':holi?'F':'L';
+                      const color  = onVac?'#FFF':wknd?'#888':holi?'#5856D6':'#2D8A4E';
+                      return html`
+                        <td key=${d} title=${onVac?(m.name+' - '+(atype?.label||'Ausencia')):wknd?'Fin de semana':holi?'Festivo':'Laboral'}
+                          style=${{ padding:'1px', textAlign:'center', borderLeft:'1px solid #F2F2F7',
+                            background:td2?'#007AFF20':bg, minWidth:22 }}>
+                          <div style=${{ fontSize:8, fontWeight:onVac?800:600, color:td2?'#007AFF':color, lineHeight:'18px', height:18 }}>${label}</div>
+                        </td>`;
+                    })}
+                  </tr>`)}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Add absence form -->
+          <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
+            <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:10 }}>➕ Registrar ausencia</h3>
+            <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+              <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div>
+                  <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Persona</label>
+                  <select value=${newVac.memberId} onChange=${e=>setNewVac({...newVac,memberId:e.target.value,name:''})}
+                    style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
+                    <option value="">— Seleccionar —</option>
+                    ${members.map(m=>html`<option key=${m.id} value=${m.id}>${m.avatar} ${m.name}</option>`)}
+                    <option value="__other__">Otro…</option>
+                  </select>
                 </div>
-                ${isActive && html`<span style=${{ fontSize:9, color:'#FF9500', fontWeight:700, background:'#FF950015', padding:'2px 7px', borderRadius:4 }}>HOY</span>`}
-                <button onClick=${()=>delVac(v.id)} style=${{ border:'none',background:'none',color:'#C7C7CC',fontSize:14,cursor:'pointer' }}>✕</button>
-              </div>`;
-          })}
-        </div>
-
-        <!-- Add vacation form -->
-        <div style=${{ background:'#F9F9FB', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
-          <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:10 }}>➕ Registrar ausencia</h3>
-          <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
-            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-              <div>
-                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Persona</label>
-                <select value=${newVac.memberId} onChange=${e=>setNewVac({...newVac,memberId:e.target.value,name:''})}
-                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
-                  <option value="">— Seleccionar —</option>
-                  ${members.map(m=>html`<option key=${m.id} value=${m.id}>${m.avatar} ${m.name}</option>`)}
-                  <option value="__other__">Otro…</option>
-                </select>
+                <div>
+                  <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Tipo</label>
+                  <select value=${newVac.type||'vacaciones'} onChange=${e=>setNewVac({...newVac,type:e.target.value,reason:''})}
+                    style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
+                    ${ABSENCE_TYPES.map(t=>html`<option key=${t.id} value=${t.id}>${t.label}</option>`)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Tipo de ausencia</label>
-                <select value=${newVac.type||'vacaciones'} onChange=${e=>setNewVac({...newVac,type:e.target.value,reason:''})}
-                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
-                  ${ABSENCE_TYPES.map(t=>html`<option key=${t.id} value=${t.id}>${t.label}</option>`)}
-                </select>
-              </div>
-            </div>
-            ${newVac.memberId==='__other__' && html`
-              <input value=${newVac.name} onInput=${e=>setNewVac({...newVac,name:e.target.value})}
-                placeholder="Nombre del miembro"
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }} />`}
-            ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).length>0 && html`
-              <div>
-                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Motivo</label>
+              ${newVac.memberId==='__other__'&&html`<input value=${newVac.name} onInput=${e=>setNewVac({...newVac,name:e.target.value})} placeholder="Nombre" style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }} />`}
+              ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).length>0&&html`
                 <select value=${newVac.reason||''} onChange=${e=>setNewVac({...newVac,reason:e.target.value})}
-                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
-                  <option value="">— Seleccionar motivo —</option>
+                  style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }}>
+                  <option value="">— Motivo —</option>
                   ${(ABSENCE_TYPES.find(t=>t.id===newVac.type)?.reasons||[]).map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
-                </select>
-              </div>`}
-            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-              <div>
-                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Desde</label>
-                <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
-                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
+                </select>`}
+              <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div>
+                  <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Desde</label>
+                  <input type="date" value=${newVac.from} onInput=${e=>setNewVac({...newVac,from:e.target.value})}
+                    style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
+                </div>
+                <div>
+                  <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Hasta</label>
+                  <input type="date" value=${newVac.to} onInput=${e=>setNewVac({...newVac,to:e.target.value})}
+                    style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
+                </div>
               </div>
-              <div>
-                <label style=${{ fontSize:9, color:'#86868B', display:'block', marginBottom:2, fontWeight:600, textTransform:'uppercase' }}>Hasta</label>
-                <input type="date" value=${newVac.to} onInput=${e=>setNewVac({...newVac,to:e.target.value})}
-                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, outline:'none', fontFamily:'inherit', background:'#FFF' }} />
-              </div>
+              <button onClick=${addVac} disabled=${!newVac.from||(!newVac.memberId&&!newVac.name.trim())}
+                style=${{ padding:'9px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer',
+                  opacity:(!newVac.from||(!newVac.memberId&&!newVac.name.trim()))?.5:1 }}>
+                ✅ Registrar ausencia
+              </button>
             </div>
-            <input value=${newVac.note||''} onInput=${e=>setNewVac({...newVac,note:e.target.value})}
-              placeholder="Nota / observaciones (opcional)"
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, background:'#FFF', outline:'none', fontFamily:'inherit' }} />
-            <button onClick=${addVac} disabled=${!newVac.from||(!newVac.memberId&&!newVac.name.trim())}
-              style=${{ padding:'10px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:600, cursor:'pointer',
-                opacity:(!newVac.from||(!newVac.memberId&&!newVac.name.trim()))?.5:1 }}>
-              ✅ Registrar ausencia
-            </button>
           </div>
         </div>
-      </div>
+      `}
     </div>`;
 }
-
 
 /* ═══ USER PROFILE MODAL ═══ */
 function UserProfileModal({ user, onClose, state, sA, sR }) {
