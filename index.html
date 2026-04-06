@@ -3868,7 +3868,7 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
       setTeamMembers(filtered.length > 0 ? filtered : data);
     });
   }, []);
-  const [subTab,    setSubTab]    = useState('riesgos');
+  const [subTab,    setSubTab]    = useState('resumen');
   const [escalForm, setEscalForm] = useState({riskId:'', level:'alto_mando', responsible:'', deadline:'', note:'', status:'pendiente'});
   const [form,   setForm]   = useState({type:'riesgo', text:'', impact:'medio', prob:'media', owner:'', mitigation:'', status:'open', opportunity:'', deadline:''});
   const [eId,    setEId]    = useState(null);
@@ -4065,20 +4065,50 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
   return html`
     <div style=${{ maxWidth:'100%', margin:'0 auto' }}>
 
-      <!-- KPI row -->
-      <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:18 }}>
+      <!-- Sub-tabs FIRST -->
+      <div style=${{ display:'flex', gap:4, marginBottom:16, flexWrap:'wrap' }}>
         ${[
-          ['⚠️','Riesgos',      riesgos.length,      '#FF9500'],
-          ['🔴','Problemas',     problemas.length,    '#FF3B30'],
-          ['🌟','Oportunidades', oportunidades.length,'#34C759'],
-          ['✅','Mitigados',     mitigados.length,    '#007AFF'],
-        ].map(([ic,lb,val,col])=>html`
-          <div style=${{ background:'#FFF', borderRadius:14, padding:'14px 16px', border:'1.5px solid #E5E5EA', textAlign:'center' }}>
-            <div style=${{ fontSize:22, marginBottom:4 }}>${ic}</div>
-            <div style=${{ fontSize:24, fontWeight:800, color:col }}>${val}</div>
-            <div style=${{ fontSize:10, color:'#86868B' }}>${lb}</div>
-          </div>`)}
+          ['resumen',      'LayoutDashboard','Resumen',     ''],
+          ['riesgos',      'AlertTriangle', 'Riesgos',     riesgos.length>0?' ('+riesgos.length+')':''],
+          ['problemas',    'AlertOctagon',  'Problemas',   problemas.length>0?' ('+problemas.length+')':''],
+          ['oportunidades','Star',          'Oportunidades',oportunidades.length>0?' ('+oportunidades.length+')':''],
+          ['mitigados',    'CheckCircle2',  'Resueltos',   ''],
+          ['escalado',     'TrendingUp',    'Escalado',    ''],
+          ['sugeridos',    'Bell',          'Sugeridos',   suggestedEscalations.length>0?' ('+suggestedEscalations.length+')':''],
+          ['historial',    'BookOpen',      'Historial',   ''],
+        ].map(([tid,icon,label,badge])=>html`
+          <button key=${tid} onClick=${()=>setSubTab(tid)}
+            style=${{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:20,
+              border:'1.5px solid '+(subTab===tid?'#007AFF':'#E5E5EA'),
+              background:subTab===tid?'#007AFF':'#FFF',
+              color:subTab===tid?'#FFF':'#6E6E73',
+              fontSize:12, fontWeight:subTab===tid?600:500, cursor:'pointer', transition:'all .15s' }}>
+            <${Icon} name=${icon} size=${13} color=${subTab===tid?'#FFF':'#86868B'} />
+            ${label}${badge}
+          </button>`)}
       </div>
+
+      <!-- RESUMEN tab: KPIs + heat map -->
+      ${(subTab==='resumen'||!subTab) && html`
+        <div>
+          <!-- KPI row -->
+          <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:18 }}>
+            ${[
+              ['AlertTriangle','Riesgos',      riesgos.length,      '#FF9500'],
+              ['AlertOctagon', 'Problemas',    problemas.length,    '#FF3B30'],
+              ['Star',         'Oportunidades',oportunidades.length,'#34C759'],
+              ['CheckCircle2', 'Mitigados',    mitigados.length,    '#007AFF'],
+            ].map(([ic,lb,val,col])=>html`
+              <div onClick=${()=>setSubTab(lb.toLowerCase())} style=${{ background:'#FFF', borderRadius:14, padding:'14px 16px', border:'1.5px solid #E5E5EA', textAlign:'center', cursor:'pointer', transition:'all .15s' }}
+                onMouseOver=${e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.boxShadow='0 4px 16px '+col+'20';}}
+                onMouseOut=${e=>{e.currentTarget.style.borderColor='#E5E5EA';e.currentTarget.style.boxShadow='none';}}>
+                <div style=${{ width:36,height:36,borderRadius:10,background:col+'15',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px' }}>
+                  <${Icon} name=${ic} size=${18} color=${col} />
+                </div>
+                <div style=${{ fontSize:28, fontWeight:800, color:col, lineHeight:1 }}>${val}</div>
+                <div style=${{ fontSize:11, color:'#86868B', marginTop:4 }}>${lb}</div>
+              </div>`)}
+          </div>
 
       <!-- Heat map 3x3 with dots + hover tooltip -->
       <div style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', padding:'16px 18px', marginBottom:16 }}>
@@ -4157,30 +4187,9 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
           </div>
         </div>
       </div>
+      `}
 
-      <!-- Sub-tabs -->
-      <div style=${{ display:'flex', gap:4, padding:'0 0 14px', flexWrap:'wrap' }}>
-        ${[
-          ['riesgos',      'AlertTriangle', 'Riesgos',     ''],
-          ['problemas',    'AlertOctagon',  'Problemas',   ''],
-          ['oportunidades','Star',          'Oportunidades',''],
-          ['mitigados',    'CheckCircle2',  'Resueltos',   ''],
-          ['escalado',     'TrendingUp',    'Escalado',    ''],
-          ['sugeridos',    'Bell',          'Sugeridos',   suggestedEscalations.length>0?' ('+suggestedEscalations.length+')':''],
-          ['historial',    'BookOpen',      'Historial',   ''],
-        ].map(([tid,icon,label,badge])=>html`
-          <button key=${tid} onClick=${()=>setSubTab(tid)}
-            style=${{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:20,
-              border:'1.5px solid '+(subTab===tid?'#007AFF':'#E5E5EA'),
-              background:subTab===tid?'#007AFF':'#FFF',
-              color:subTab===tid?'#FFF':'#6E6E73',
-              fontSize:12, fontWeight:subTab===tid?600:500, cursor:'pointer', transition:'all .15s',
-              position:'relative' }}>
-            <${Icon} name=${icon} size=${13} color=${subTab===tid?'#FFF':'#86868B'} />
-            ${label}${badge}
-          </button>`)}
-      </div>
-
+      ${subTab!=='resumen' && html`
       <div style=${{ display:'grid', gridTemplateColumns:'1fr 320px', gap:14, alignItems:'start' }}>
 
         <!-- Main list -->
@@ -4255,6 +4264,7 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
           </div>
         `}
       </div>
+      `}
     </div>`;
 }
 
