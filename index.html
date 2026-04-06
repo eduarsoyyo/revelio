@@ -557,51 +557,56 @@ function App() {
 function UserHomePage({ user, onLogout, onSelectProject }) {
   const [rooms,   setRooms]   = useState([]);
   const [profile, setProfile] = useState(null);
-  const [allData, setAllData] = useState({}); // { sala: { actions, risks } }
-  const [loading, setLoading] = useState(true);
+  const [allData, setAllData] = useState({});
+  const [roomsLoaded,   setRoomsLoaded]   = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const today = new Date().toISOString().slice(0,10);
   const thisYear = new Date().getFullYear();
 
+  // Load rooms
   useEffect(() => {
-    // Timeout safety — never stay stuck
-    const timeout = setTimeout(() => setLoading(false), 8000);
-
-    Promise.all([sbLoadRooms(), sbLoadTeamMembers()])
-      .then(([allRooms, members]) => {
-        clearTimeout(timeout);
-        const uq = (user.username||user.name||'').toLowerCase().trim();
-        const uid = user.id||'';
-        const me = (members||[]).find(m =>
-          (uid && m.id === uid) ||
-          (m.username && m.username.toLowerCase().trim() === uq) ||
-          (m.email    && m.email.toLowerCase().trim()    === uq) ||
-          (m.email    && m.email.split('@')[0].toLowerCase().trim() === uq) ||
-          (m.name     && m.name.toLowerCase().trim()     === uq)
-        );
-        setProfile(me||null);
-        const myRooms = (allRooms||[]).filter(r => me ? (me.rooms||[]).includes(r.slug) : false);
-        setRooms(myRooms);
-        const data = {};
-        myRooms.forEach(r => {
-          try {
-            const s = localStorage.getItem('rf-retro-state-'+r.slug);
-            if (s) data[r.slug] = JSON.parse(s);
-          } catch {}
-        });
-        setAllData(data);
-        setLoading(false);
-      })
-      .catch(() => { clearTimeout(timeout); setLoading(false); });
+    sbLoadRooms().then(allRooms => {
+      setRooms(allRooms||[]);
+      setRoomsLoaded(true);
+    }).catch(() => setRoomsLoaded(true));
   }, []);
 
-  // Aggregate across all my projects
+  // Load profile + retro data from localStorage
+  useEffect(() => {
+    sbLoadTeamMembers().then(members => {
+      const uq = (user.username||user.name||'').toLowerCase().trim();
+      const me = (members||[]).find(m =>
+        (user.id && m.id === user.id) ||
+        (m.username && m.username.toLowerCase().trim() === uq) ||
+        (m.email    && m.email.toLowerCase().trim()    === uq) ||
+        (m.email    && m.email.split('@')[0].toLowerCase().trim() === uq) ||
+        (m.name     && m.name.toLowerCase().trim()     === uq)
+      );
+      setProfile(me||null);
+      setProfileLoaded(true);
+    }).catch(() => setProfileLoaded(true));
+  }, []);
+
+  // Once rooms are loaded, pull retro state from localStorage
+  useEffect(() => {
+    if (!roomsLoaded) return;
+    const data = {};
+    rooms.forEach(r => {
+      try {
+        const s = localStorage.getItem('rf-retro-state-'+r.slug);
+        if (s) data[r.slug] = JSON.parse(s);
+      } catch {}
+    });
+    setAllData(data);
+  }, [roomsLoaded, rooms.length]);
+
+  const myRooms = rooms.filter(r => profile ? (profile.rooms||[]).includes(r.slug) : false);
+
   const myActions = Object.values(allData).flatMap(d=>(d.actions||[]).filter(a=>a.owner===user.name||a.createdBy===user.id));
-  const myRisks   = Object.values(allData).flatMap(d=>(d.risks||[]).filter(r=>r.owner===user.name||(r.escalation?.memberName===user.name||r.escalation?.memberId===user.id)));
+  const myRisks   = Object.values(allData).flatMap(d=>(d.risks||[]).filter(r=>r.escalation&&(r.escalation.memberName===user.name||r.escalation.memberId===user.id)));
   const overdueActions = myActions.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.date&&a.date<today);
-  const escalatedToMe  = myRisks.filter(r=>r.escalation&&(r.escalation.memberName===user.name||r.escalation.memberId===user.id));
   const pendingActions = myActions.filter(a=>a.status!=='done'&&a.status!=='discarded');
 
-  // Vacations
   const annualDays = profile?.annual_vac_days ?? 22;
   const prevPend   = profile?.prev_year_pending ?? 0;
   const myVacs     = profile?.vacations || [];
@@ -612,136 +617,148 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
     while(d<=to){const yr=d.getFullYear(),dow=d.getDay(),mm=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(yr===thisYear&&dow!==0&&dow!==6&&!HOLS.includes(mm+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
     return sum+cnt;
   },0);
-  const totalVac = annualDays + prevPend;
+  const totalVac  = annualDays + prevPend;
   const remainVac = Math.max(0, totalVac - vacUsed);
-  const vacPct = totalVac>0?Math.min(100,Math.round((vacUsed/totalVac)*100)):0;
+  const vacPct    = totalVac>0?Math.min(100,Math.round((vacUsed/totalVac)*100)):0;
   const onVacToday = myVacs.some(v=>v.from<=today&&(!v.to||v.to>=today));
+
+  const goToProject = (sala, tipo) => {
+    if (onSelectProject) onSelectProject(sala, tipo);
+    else window.location.href = '/?sala='+encodeURIComponent(sala)+'&tipo='+(tipo||'agile');
+  };
 
   return html`
     <div style=${{ minHeight:'100vh', background:'#F5F5F7' }}>
       <!-- Header -->
-      <div style=${{ background:'#FFF', borderBottom:'1px solid #E5E5EA', padding:'14px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <span class="wm" style=${{ fontSize:22, color:'#1D1D1F' }}>revelio</span>
+      <div style=${{ background:'#FFF', borderBottom:'1px solid #E5E5EA', padding:'12px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:22, fontWeight:400, letterSpacing:2, background:'linear-gradient(90deg,#007AFF,#5856D6)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>revelio</span>
         <div style=${{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style=${{ width:36, height:36, borderRadius:10, background:user.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>${user.avatar||'👤'}</div>
+          <div style=${{ width:34,height:34,borderRadius:10,background:user.color||'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18 }}>${user.avatar||'👤'}</div>
           <div>
             <div style=${{ fontSize:13, fontWeight:700 }}>${user.name}</div>
             <div style=${{ fontSize:11, color:'#86868B' }}>${user.role||profile?.role_label||''}</div>
           </div>
           <button onClick=${onLogout}
-            style=${{ padding:'6px 12px', borderRadius:8, border:'1.5px solid #FF3B3020', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600, cursor:'pointer' }}>
-            Cerrar sesión
+            style=${{ padding:'5px 12px', borderRadius:8, border:'1.5px solid #FF3B3020', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+            Salir
           </button>
         </div>
       </div>
 
       <div style=${{ maxWidth:900, margin:'0 auto', padding:'24px 16px' }}>
 
-        ${loading ? html`<div style=${{ textAlign:'center', padding:60, color:'#86868B' }}>⏳ Cargando…</div>` : html`
-
-          <!-- Greeting -->
-          <div style=${{ marginBottom:20 }}>
-            <h1 style=${{ fontSize:24, fontWeight:700 }}>
-              ${onVacToday ? '🏖️ De vacaciones' : new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]}
-            </h1>
-            <p style=${{ fontSize:13, color:'#86868B', marginTop:3 }}>
-              ${rooms.length} proyecto${rooms.length!==1?'s':''} · ${pendingActions.length} accionable${pendingActions.length!==1?'s':''} pendiente${pendingActions.length!==1?'s':''}
+        <!-- Greeting -->
+        <div style=${{ marginBottom:20 }}>
+          <h1 style=${{ fontSize:24, fontWeight:700 }}>
+            ${onVacToday?'🏖️ De vacaciones':new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]}
+          </h1>
+          <p style=${{ fontSize:13, color:'#86868B', marginTop:3 }}>
+            ${profileLoaded&&roomsLoaded ? html`
+              ${myRooms.length} proyecto${myRooms.length!==1?'s':''}
+              · ${pendingActions.length} accionable${pendingActions.length!==1?'s':''} pendiente${pendingActions.length!==1?'s':''}
               ${overdueActions.length>0?html` · <span style=${{ color:'#FF3B30', fontWeight:700 }}>${overdueActions.length} vencido${overdueActions.length>1?'s':''}</span>`:''}
-            </p>
+            ` : html`<span style=${{ color:'#C7C7CC' }}>Cargando datos…</span>`}
+          </p>
+        </div>
+
+        <!-- KPI row — always visible, shows — while loading -->
+        <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:20 }}>
+          ${[
+            [profileLoaded&&roomsLoaded?pendingActions.length:'—', 'Accionables', '#007AFF', '🎯'],
+            [profileLoaded&&roomsLoaded?overdueActions.length:'—', 'Vencidos', overdueActions.length>0?'#FF3B30':'#34C759', '⚠️'],
+            [profileLoaded&&roomsLoaded?myRisks.length:'—', 'Escalados a mí', myRisks.length>0?'#5856D6':'#86868B', '📈'],
+            [profileLoaded?remainVac:'—', 'Días vac. restantes', remainVac<=5?'#FF3B30':remainVac<=10?'#FF9500':'#34C759', '🏖️'],
+          ].map(([v,l,c,ic])=>html`
+            <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px', textAlign:'center' }}>
+              <div style=${{ fontSize:20, marginBottom:4 }}>${ic}</div>
+              <div style=${{ fontSize:26, fontWeight:800, color:c }}>${v}</div>
+              <div style=${{ fontSize:10, color:'#86868B', marginTop:3 }}>${l}</div>
+            </div>`)}
+        </div>
+
+        <div style=${{ display:'grid', gridTemplateColumns:'1fr 280px', gap:16 }}>
+          <div>
+            <!-- Projects -->
+            <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>📂 Mis proyectos</h2>
+            ${!roomsLoaded||!profileLoaded ? html`
+              <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+                ${[1,2,3].map(i=>html`<div key=${i} style=${{ height:64, borderRadius:14, background:'#E5E5EA', animation:'pulse 1.5s infinite' }}></div>`)}
+              </div>` :
+              myRooms.length===0 ? html`
+                <div style=${{ textAlign:'center', padding:'40px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
+                  <p style=${{ fontSize:28, marginBottom:8 }}>📂</p>
+                  <p style=${{ fontSize:13 }}>Sin proyectos asignados</p>
+                  <p style=${{ fontSize:11, marginTop:4 }}>Pide a tu administrador que te asigne a un proyecto</p>
+                </div>` :
+              html`<div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+                ${myRooms.map(r=>{
+                  const d=allData[r.slug]||{};
+                  const rA=(d.actions||[]).filter(a=>(a.owner===user.name||a.createdBy===user.id)&&a.status!=='done'&&a.status!=='discarded');
+                  const rR=(d.risks||[]).filter(x=>x.status!=='mitigated');
+                  return html`
+                    <div onClick=${()=>goToProject(r.slug, r.tipo)}
+                      style=${{ cursor:'pointer', padding:'14px 16px', borderRadius:14, background:'#FFF',
+                        border:'1.5px solid #E5E5EA', transition:'all .15s' }}
+                      onMouseOver=${e=>{e.currentTarget.style.borderColor='#007AFF';e.currentTarget.style.transform='translateY(-1px)';}}
+                      onMouseOut=${e=>{e.currentTarget.style.borderColor='#E5E5EA';e.currentTarget.style.transform='none';}}>
+                      <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <div>
+                          <div style=${{ fontSize:14, fontWeight:700, color:'#1D1D1F' }}>${r.name}</div>
+                          <div style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>${r.tipo||'Agile'}</div>
+                        </div>
+                        <div style=${{ display:'flex', gap:8, alignItems:'center' }}>
+                          ${rA.length>0&&html`<span style=${{ fontSize:10, background:'#007AFF10', color:'#007AFF', padding:'3px 8px', borderRadius:8, fontWeight:600 }}>🎯 ${rA.length}</span>`}
+                          ${rR.length>0&&html`<span style=${{ fontSize:10, background:'#FF950010', color:'#FF9500', padding:'3px 8px', borderRadius:8, fontWeight:600 }}>⚠️ ${rR.length}</span>`}
+                          <span style=${{ fontSize:18, color:'#C7C7CC' }}>›</span>
+                        </div>
+                      </div>
+                    </div>`;
+                })}
+              </div>`}
+
+            <!-- Pending actions -->
+            ${pendingActions.length>0&&html`
+              <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>🎯 Mis accionables</h2>
+              <div style=${{ display:'flex', flexDirection:'column', gap:6, marginBottom:20 }}>
+                ${[...pendingActions].sort((a,b)=>a.date>b.date?1:-1).slice(0,6).map(a=>{
+                  const overdue=a.date&&a.date<today;
+                  const pc={high:'#FF3B30',medium:'#FF9500',low:'#34C759'};
+                  return html`
+                    <div style=${{ padding:'9px 14px', borderRadius:12, background:'#FFF',
+                      border:'1.5px solid '+(overdue?'#FF3B3015':'#E5E5EA'),
+                      borderLeft:'3px solid '+(pc[a.priority]||'#86868B') }}>
+                      <div style=${{ fontSize:12, fontWeight:600 }}>${a.text}</div>
+                      ${a.date&&html`<div style=${{ fontSize:10, color:overdue?'#FF3B30':'#86868B', marginTop:2 }}>📅 ${a.date}${overdue?' · VENCIDO':''}</div>`}
+                    </div>`;
+                })}
+                ${pendingActions.length>6&&html`<p style=${{ fontSize:11, color:'#86868B', textAlign:'center' }}>+${pendingActions.length-6} más en los proyectos</p>`}
+              </div>`}
+
+            ${myRisks.length>0&&html`
+              <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10, color:'#5856D6' }}>📈 Escalados a mí</h2>
+              <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+                ${myRisks.map(r=>html`
+                  <div style=${{ padding:'9px 14px', borderRadius:12, background:'#F8F5FF', border:'1.5px solid #5856D620', borderLeft:'3px solid #5856D6' }}>
+                    <div style=${{ fontSize:12, fontWeight:600 }}>${r.text}</div>
+                    <div style=${{ fontSize:10, color:'#5856D6', marginTop:2 }}>Nivel: ${r.escalation.levelLabel||r.escalation.level||'—'}</div>
+                  </div>`)}
+              </div>`}
           </div>
 
-          <!-- KPI row -->
-          <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:20 }}>
-            ${[
-              [pendingActions.length, 'Accionables', '#007AFF', '🎯'],
-              [overdueActions.length, 'Vencidos', overdueActions.length>0?'#FF3B30':'#34C759', '⚠️'],
-              [escalatedToMe.length, 'Escalados a mí', escalatedToMe.length>0?'#5856D6':'#86868B', '📈'],
-              [remainVac, 'Días vac. restantes', remainVac<=5?'#FF3B30':remainVac<=10?'#FF9500':'#34C759', '🏖️'],
-            ].map(([v,l,c,i])=>html`
-              <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px', textAlign:'center' }}>
-                <div style=${{ fontSize:20, marginBottom:4 }}>${i}</div>
-                <div style=${{ fontSize:26, fontWeight:800, color:c }}>${v}</div>
-                <div style=${{ fontSize:10, color:'#86868B', marginTop:3 }}>${l}</div>
-              </div>`)}
-          </div>
-
-          <div style=${{ display:'grid', gridTemplateColumns:'1fr 280px', gap:16 }}>
-            <div>
-              <!-- My projects -->
-              <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>📂 Mis proyectos</h2>
-              ${rooms.length===0
-                ? html`<div style=${{ textAlign:'center', padding:'40px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>Sin proyectos asignados</div>`
-                : html`<div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
-                    ${rooms.map(r => {
-                      const d = allData[r.slug]||{};
-                      const rActions = (d.actions||[]).filter(a=>(a.owner===user.name||a.createdBy===user.id)&&a.status!=='done'&&a.status!=='discarded');
-                      const rRisks   = (d.risks||[]).filter(x=>x.status!=='mitigated');
-                      return html`
-                        <div onClick=${()=>(onSelectProject||((s,t)=>{window.location.href='/?sala='+encodeURIComponent(s)+'&tipo='+(t||'agile')}))(r.slug,r.tipo)}
-                          style=${{ display:'block', cursor:'pointer', padding:'14px 16px', borderRadius:14, background:'#FFF',
-                            border:'1.5px solid #E5E5EA', transition:'border-color .15s' }}
-                          onMouseOver=${e=>e.currentTarget.style.borderColor='#007AFF'}
-                          onMouseOut=${e=>e.currentTarget.style.borderColor='#E5E5EA'}>
-                          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                            <div>
-                              <div style=${{ fontSize:14, fontWeight:700, color:'#1D1D1F' }}>${r.name}</div>
-                              <div style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>${r.tipo||'Agile'}</div>
-                            </div>
-                            <div style=${{ display:'flex', gap:8, alignItems:'center' }}>
-                              ${rActions.length>0&&html`<span style=${{ fontSize:10, background:'#007AFF10', color:'#007AFF', padding:'3px 8px', borderRadius:8, fontWeight:600 }}>🎯 ${rActions.length}</span>`}
-                              ${rRisks.length>0&&html`<span style=${{ fontSize:10, background:'#FF9500 10', color:'#FF9500', padding:'3px 8px', borderRadius:8, fontWeight:600 }}>⚠️ ${rRisks.length}</span>`}
-                              <span style=${{ fontSize:16, color:'#C7C7CC' }}>→</span>
-                            </div>
-                          </div>
-                        </a>`;
-                    })}`}
-              </div>
-
-              <!-- My pending actions -->
-              ${pendingActions.length>0&&html`
-                <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>🎯 Mis accionables</h2>
-                <div style=${{ display:'flex', flexDirection:'column', gap:6, marginBottom:20 }}>
-                  ${[...pendingActions].sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0).slice(0,8).map(a=>{
-                    const overdue=a.date&&a.date<today;
-                    const PRIS_LOCAL={high:'#FF3B30',medium:'#FF9500',low:'#34C759'};
-                    return html`
-                      <div style=${{ padding:'10px 14px', borderRadius:12, background:'#FFF',
-                        border:'1.5px solid '+(overdue?'#FF3B3020':'#E5E5EA'),
-                        borderLeft:'3px solid '+(PRIS_LOCAL[a.priority]||'#86868B') }}>
-                        <div style=${{ fontSize:12, fontWeight:600 }}>${a.text}</div>
-                        ${a.date&&html`<div style=${{ fontSize:10, color:overdue?'#FF3B30':'#86868B', marginTop:2 }}>📅 ${a.date}${overdue?' · VENCIDO':''}</div>`}
-                      </div>`;
-                  })}
-                  ${pendingActions.length>8&&html`<p style=${{ fontSize:11, color:'#86868B', textAlign:'center' }}>+${pendingActions.length-8} más en los proyectos</p>`}
-                </div>`}
-
-              <!-- Escalated to me -->
-              ${escalatedToMe.length>0&&html`
-                <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10, color:'#5856D6' }}>📈 Escalados a mí</h2>
-                <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-                  ${escalatedToMe.map(r=>html`
-                    <div style=${{ padding:'10px 14px', borderRadius:12, background:'#F8F5FF', border:'1.5px solid #5856D620', borderLeft:'3px solid #5856D6' }}>
-                      <div style=${{ fontSize:12, fontWeight:600 }}>${r.text}</div>
-                      <div style=${{ fontSize:10, color:'#5856D6', marginTop:2 }}>Nivel: ${r.escalation.levelLabel||r.escalation.level||'—'} · ${r.escalation.status||'pendiente'}</div>
-                    </div>`)}
-                </div>`}
-            </div>
-
-            <!-- Right: vacations -->
-            <div>
-              <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>🏖️ Mis vacaciones</h2>
-              <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px' }}>
-                <!-- Progress -->
+          <!-- Vacations sidebar -->
+          <div>
+            <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>🏖️ Mis vacaciones</h2>
+            <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px' }}>
+              ${!profileLoaded ? html`<div style=${{ textAlign:'center', padding:20, color:'#C7C7CC', fontSize:12 }}>Cargando…</div>` : html`
                 <div style=${{ marginBottom:12 }}>
                   <div style=${{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#86868B', marginBottom:5 }}>
-                    <span>${vacUsed}d consumidos</span>
+                    <span>${vacUsed}d consumidos de ${totalVac}d</span>
                     <span style=${{ fontWeight:700, color:vacPct>80?'#FF3B30':vacPct>60?'#FF9500':'#34C759' }}>${vacPct}%</span>
                   </div>
-                  <div style=${{ background:'#F2F2F7', borderRadius:6, height:8, overflow:'hidden', marginBottom:5 }}>
+                  <div style=${{ background:'#F2F2F7', borderRadius:6, height:8, overflow:'hidden', marginBottom:8 }}>
                     <div style=${{ width:vacPct+'%', height:'100%', background:vacPct>80?'#FF3B30':vacPct>60?'#FF9500':'#34C759', borderRadius:6 }}></div>
                   </div>
                 </div>
-                <!-- Counters -->
                 <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginBottom:12 }}>
                   ${[[annualDays,'Días/año','#1D1D1F'],[prevPend,'Año ant.','#5856D6'],[totalVac,'Total','#007AFF'],[remainVac,'Restantes',remainVac<=5?'#FF3B30':remainVac<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
                     <div style=${{ textAlign:'center', padding:'8px 4px', borderRadius:10, background:c+'0D', border:'1px solid '+c+'25' }}>
@@ -749,26 +766,24 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                       <div style=${{ fontSize:8, color:'#86868B', marginTop:2 }}>${l}</div>
                     </div>`)}
                 </div>
-                <!-- Recent absences -->
-                ${myVacs.filter(v=>new Date(v.from||'').getFullYear()===thisYear).slice(0,4).map((v,i)=>{
+                ${myVacs.filter(v=>new Date(v.from||'').getFullYear()===thisYear).slice(0,3).map((v,i)=>{
                   const info=ABSENCE_TYPES.find(t=>t.id===v.type)||ABSENCE_TYPES[0];
                   return html`
-                    <div key=${v.id||i} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid #F2F2F7', fontSize:11 }}>
-                      <div style=${{ width:20, height:20, borderRadius:5, background:info.color||'#FF9500', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:'#FFF', flexShrink:0 }}>${info.initial||'V'}</div>
+                    <div key=${v.id||i} style=${{ display:'flex', alignItems:'center', gap:8, padding:'5px 0', borderBottom:'1px solid #F2F2F7', fontSize:11 }}>
+                      <div style=${{ width:18,height:18,borderRadius:4,background:info.color||'#FF9500',display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,fontWeight:800,color:'#FFF',flexShrink:0 }}>${info.initial||'V'}</div>
                       <div style=${{ flex:1 }}>
-                        <div style=${{ fontSize:11, fontWeight:600 }}>${info.label.split(' ').slice(1).join(' ')||info.label}</div>
+                        <div style=${{ fontSize:10, fontWeight:600 }}>${info.label.split(' ').slice(1).join(' ')||info.label}</div>
                         <div style=${{ fontSize:9, color:'#86868B' }}>${v.from}${v.to&&v.to!==v.from?' → '+v.to:''}</div>
                       </div>
                     </div>`;
                 })}
-              </div>
+              `}
             </div>
           </div>
-        `}
+        </div>
       </div>
     </div>`;
 }
-
 
 /* ═══ NEED LINK SCREEN ═══ */
 function NeedLink({ onLogin, showLogin, onJoin, onCloseLogin }) {
