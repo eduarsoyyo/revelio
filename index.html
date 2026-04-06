@@ -2223,7 +2223,7 @@ function RoomPicker() {
     });
 
     if (!candidate) {
-      setAdminError(\`Usuario "\${adminEmail}" no encontrado en el equipo.\`);
+      setAdminError('Usuario "' + adminEmail + '" no encontrado. Verifica nombre, username o email.');
       setAdminLogging(false); return;
     }
 
@@ -2232,7 +2232,7 @@ function RoomPicker() {
     const isSU = candidate.is_superuser === true || candidate.is_superuser === 'true' || candidate.is_superuser === 1;
 
     if (!isSU && !inLocalList) {
-      setAdminError(\`"\${candidate.name}" no tiene permisos de administrador. Pide al admin técnico que ejecute: UPDATE team_members SET is_superuser=true WHERE id='\${candidate.id}';\`);
+      setAdminError('"' + candidate.name + '" existe pero necesita is_superuser=true en Supabase.');
       setAdminLogging(false); return;
     }
 
