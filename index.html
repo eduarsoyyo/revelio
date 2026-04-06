@@ -838,14 +838,16 @@ function HomeVacaciones({ profile, user }) {
 
 
 function UserHomePage({ user, onLogout, onSelectProject }) {
-  const [section, setSection] = useState('dashboard');
-  const [rooms,   setRooms]   = useState([]);
-  const [profile, setProfile] = useState(null);
-  const [allData, setAllData] = useState({});
-  const [roomsLoaded,   setRoomsLoaded]   = useState(false);
-  const [profileLoaded, setProfileLoaded] = useState(false);
-  const [editProfile, setEditProfile] = useState(null);
-  const [savingProfile, setSavingProfile] = useState(false);
+  const [section,      setSection]      = useState('dashboard');
+  const [rooms,        setRooms]        = useState([]);
+  const [profile,      setProfile]      = useState(null);
+  const [allData,      setAllData]      = useState({});
+  const [roomsLoaded,  setRoomsLoaded]  = useState(false);
+  const [profileLoaded,setProfileLoaded]= useState(false);
+  const [editProfile,  setEditProfile]  = useState(null);
+  const [savingProfile,setSavingProfile]= useState(false);
+  const [showNotifs,   setShowNotifs]   = useState(false);
+  const [homeNotifs,   setHomeNotifs]   = useState([]);
   const today = new Date().toISOString().slice(0,10);
   const thisYear = new Date().getFullYear();
 
