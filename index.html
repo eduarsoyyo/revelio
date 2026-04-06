@@ -2947,57 +2947,56 @@ function Login({ onJoin, isModal }) {
     if (!username.trim()) { setError('Introduce tu usuario o email'); return; }
     setLoading(true); setError('');
 
-    // Admin path — Supabase Auth (only if password provided)
-    if (password.trim()) {
-      const { session } = await sbSignIn(username.trim(), password);
-      if (session) {
-        setLoading(false);
-        window.location.href = window.location.pathname + '?admin';
-        return;
-      }
+    // Load members fresh from Supabase
+    let allMembers = members;
+    if (!allMembers || allMembers.length === 0) {
+      allMembers = await sbLoadTeamMembers();
     }
 
-    // Team member login
     const uq = username.trim().toLowerCase();
-    const member = members.find(m =>
+    const member = allMembers.find(m =>
       (m.username && m.username.toLowerCase() === uq) ||
       (m.email    && m.email.toLowerCase()    === uq) ||
       (m.email    && m.email.split('@')[0].toLowerCase() === uq) ||
       (m.name     && m.name.toLowerCase()     === uq)
     );
-    if (!member) { setLoading(false); setError('❌ Usuario "' + username + '" no encontrado'); return; }
 
-    // Check password only if the member has one set
+    if (!member) {
+      // Fallback: try Supabase Auth if password given
+      if (password.trim()) {
+        const { session } = await sbSignIn(username.trim(), password);
+        if (session) {
+          // Supabase auth users also go to homepage
+          const u = { id: session.user.id, name: username.trim(), avatar: '👤', color: '#007AFF', role: '', isSuperuser: false };
+          try { localStorage.setItem('rf-session', JSON.stringify(u)); } catch {}
+          setLoading(false); onJoin(u); return;
+        }
+      }
+      setLoading(false); setError('No se encontró el usuario "' + username.trim() + '"'); return;
+    }
+
+    // Password check — only if member has one set
     const storedPw = member.pin || member.password || '';
-    if (storedPw && storedPw !== password) {
-      setLoading(false); setError('❌ Contraseña incorrecta'); return;
-    }
-    // If no password set → allow entry (open access)
-
-    if (member.is_superuser) {
-      // Superuser login — go to admin panel
-      const superSession = { id:member.id, name:member.name, email:member.email||username,
-        avatar:member.avatar||'🧙', color:member.color||'#5856D6',
-        role:member.role_label||'Admin', username:member.username||member.name, isSuperuser:true };
-      try {
-        localStorage.setItem('rf-admin-session', JSON.stringify(superSession));
-        localStorage.setItem('rf-session', JSON.stringify(superSession));
-      } catch {}
-      setLoading(false);
-      window.location.href = window.location.pathname + '?admin';
-      return;
+    if (storedPw && storedPw !== password.trim()) {
+      setLoading(false); setError('Contraseña incorrecta'); return;
     }
 
-    // Regular user — go to homepage
-    setLoading(false);
-    onJoin({
+    // Build session — EVERYONE goes to homepage (superusers use ← Admin from there)
+    const userSession = {
       id: member.id, name: member.name,
-      avatar: member.avatar||'👤', color: member.color||'#007AFF',
-      role: member.role_label||'', calendarId: member.calendar_id||null,
-      username: member.username, isSuperuser: false,
-    });
-  };
+      avatar: member.avatar || '👤', color: member.color || '#007AFF',
+      role: member.role_label || '', calendarId: member.calendar_id || null,
+      username: member.username || member.name,
+      isSuperuser: !!member.is_superuser,
+    };
+    try {
+      localStorage.setItem('rf-session', JSON.stringify(userSession));
+      if (member.is_superuser) localStorage.setItem('rf-admin-session', JSON.stringify(userSession));
+    } catch {}
 
+    setLoading(false);
+    onJoin(userSession);
+  };
   return html`
     <div style=${{ ...(!isModal ? { minHeight:'100vh', background:'linear-gradient(135deg,#0057FF,#00C6FF)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 } : {}) }}>
       <div style=${{ background:'#FFF', borderRadius:24, padding:'36px 32px', maxWidth:420, width:'100%', ...(!isModal ? { boxShadow:'0 20px 60px rgba(0,0,0,.15)' } : {}) }}>
@@ -3017,7 +3016,7 @@ function Login({ onJoin, isModal }) {
           </div>
 
           <div>
-            <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', display:'block', marginBottom:4 }}>Contraseña</label>
+            <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', display:'block', marginBottom:4 }}>Contraseña <span style=${{fontWeight:400,color:'#C7C7CC'}}>(opcional)</span></label>
             <input type="password" value=${password} onInput=${e=>{setPassword(e.target.value);setError('');}}
               onKeyDown=${e=>e.key==='Enter'&&handleLogin()}
               placeholder="••••••••"
