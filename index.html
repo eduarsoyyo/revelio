@@ -178,8 +178,8 @@ const PHASES = [
   { id:'session',    label:'Resumen',      num:'06' },
 ];
 const MAIN_TABS = [
-  { id:'retro',       label:'Retro',       icon:'📋' },
   { id:'equipo',      label:'Equipo',      icon:'👥' },
+  { id:'retro',       label:'Retro',       icon:'📋' },
   { id:'accionables', label:'Accionables', icon:'🎯' },
   { id:'riesgos',     label:'Riesgos',     icon:'⚠️' },
 ];
@@ -462,6 +462,9 @@ function App() {
   // No sala param → admin or landing
   if (!params.has('sala')) {
     if (IS_ADMIN) return html`<${RoomPicker} />`;
+    // If user already logged in (non-admin) → show their homepage
+    const savedUser = loadUser();
+    if (savedUser && !savedUser._isAdmin) return html`<${UserHomePage} user=${savedUser} onLogout=${()=>{ clearUser(); window.location.reload(); }} />`;
     return html`<${NeedLink} onLogin=${()=>setShowLogin(true)} showLogin=${showLogin} onJoin=${handleJoin} onCloseLogin=${()=>setShowLogin(false)} />`;
   }
 
@@ -531,6 +534,216 @@ function App() {
   if (!user) return html`<${Login} onJoin=${handleJoin} />`;
   return html`<${RetroBoard} user=${user} onLogout=${handleLogout} />`;
 }
+
+/* ═══ USER HOMEPAGE ═══ */
+function UserHomePage({ user, onLogout }) {
+  const [rooms,   setRooms]   = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [allData, setAllData] = useState({}); // { sala: { actions, risks } }
+  const [loading, setLoading] = useState(true);
+  const today = new Date().toISOString().slice(0,10);
+  const thisYear = new Date().getFullYear();
+
+  useEffect(() => {
+    Promise.all([sbLoadRooms(), sbLoadTeamMembers()]).then(([allRooms, members]) => {
+      const uq = (user.username||user.name||'').toLowerCase();
+      const me = members.find(m =>
+        m.id === user.id ||
+        (m.email && (m.email.toLowerCase()===uq || m.email.split('@')[0].toLowerCase()===uq)) ||
+        (m.username && m.username.toLowerCase()===uq) ||
+        (m.name && m.name.toLowerCase()===uq)
+      );
+      setProfile(me||null);
+      const myRooms = (allRooms||[]).filter(r => me ? (me.rooms||[]).includes(r.slug) : false);
+      setRooms(myRooms);
+      // Load retro state for each sala from localStorage
+      const data = {};
+      myRooms.forEach(r => {
+        try {
+          const s = localStorage.getItem('rf-retro-state-'+r.slug);
+          if (s) data[r.slug] = JSON.parse(s);
+        } catch {}
+      });
+      setAllData(data);
+      setLoading(false);
+    });
+  }, []);
+
+  // Aggregate across all my projects
+  const myActions = Object.values(allData).flatMap(d=>(d.actions||[]).filter(a=>a.owner===user.name||a.createdBy===user.id));
+  const myRisks   = Object.values(allData).flatMap(d=>(d.risks||[]).filter(r=>r.owner===user.name||(r.escalation?.memberName===user.name||r.escalation?.memberId===user.id)));
+  const overdueActions = myActions.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.date&&a.date<today);
+  const escalatedToMe  = myRisks.filter(r=>r.escalation&&(r.escalation.memberName===user.name||r.escalation.memberId===user.id));
+  const pendingActions = myActions.filter(a=>a.status!=='done'&&a.status!=='discarded');
+
+  // Vacations
+  const annualDays = profile?.annual_vac_days ?? 22;
+  const prevPend   = profile?.prev_year_pending ?? 0;
+  const myVacs     = profile?.vacations || [];
+  const HOLS = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
+  const vacUsed = myVacs.filter(v=>v.type==='vacaciones'||!v.type).reduce((sum,v)=>{
+    if(!v.from) return sum;
+    let d=new Date(v.from), to=new Date(v.to||v.from), cnt=0;
+    while(d<=to){const yr=d.getFullYear(),dow=d.getDay(),mm=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(yr===thisYear&&dow!==0&&dow!==6&&!HOLS.includes(mm+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
+    return sum+cnt;
+  },0);
+  const totalVac = annualDays + prevPend;
+  const remainVac = Math.max(0, totalVac - vacUsed);
+  const vacPct = totalVac>0?Math.min(100,Math.round((vacUsed/totalVac)*100)):0;
+  const onVacToday = myVacs.some(v=>v.from<=today&&(!v.to||v.to>=today));
+
+  return html`
+    <div style=${{ minHeight:'100vh', background:'#F5F5F7' }}>
+      <!-- Header -->
+      <div style=${{ background:'#FFF', borderBottom:'1px solid #E5E5EA', padding:'14px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span class="wm" style=${{ fontSize:22, color:'#1D1D1F' }}>revelio</span>
+        <div style=${{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style=${{ width:36, height:36, borderRadius:10, background:user.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>${user.avatar||'👤'}</div>
+          <div>
+            <div style=${{ fontSize:13, fontWeight:700 }}>${user.name}</div>
+            <div style=${{ fontSize:11, color:'#86868B' }}>${user.role||profile?.role_label||''}</div>
+          </div>
+          <button onClick=${onLogout}
+            style=${{ padding:'6px 12px', borderRadius:8, border:'1.5px solid #FF3B3020', background:'#FFF', color:'#FF3B30', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+
+      <div style=${{ maxWidth:900, margin:'0 auto', padding:'24px 16px' }}>
+
+        ${loading ? html`<div style=${{ textAlign:'center', padding:60, color:'#86868B' }}>⏳ Cargando…</div>` : html`
+
+          <!-- Greeting -->
+          <div style=${{ marginBottom:20 }}>
+            <h1 style=${{ fontSize:24, fontWeight:700 }}>
+              ${onVacToday ? '🏖️ De vacaciones' : new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]}
+            </h1>
+            <p style=${{ fontSize:13, color:'#86868B', marginTop:3 }}>
+              ${rooms.length} proyecto${rooms.length!==1?'s':''} · ${pendingActions.length} accionable${pendingActions.length!==1?'s':''} pendiente${pendingActions.length!==1?'s':''}
+              ${overdueActions.length>0?html` · <span style=${{ color:'#FF3B30', fontWeight:700 }}>${overdueActions.length} vencido${overdueActions.length>1?'s':''}</span>`:''}
+            </p>
+          </div>
+
+          <!-- KPI row -->
+          <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:20 }}>
+            ${[
+              [pendingActions.length, 'Accionables', '#007AFF', '🎯'],
+              [overdueActions.length, 'Vencidos', overdueActions.length>0?'#FF3B30':'#34C759', '⚠️'],
+              [escalatedToMe.length, 'Escalados a mí', escalatedToMe.length>0?'#5856D6':'#86868B', '📈'],
+              [remainVac, 'Días vac. restantes', remainVac<=5?'#FF3B30':remainVac<=10?'#FF9500':'#34C759', '🏖️'],
+            ].map(([v,l,c,i])=>html`
+              <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px', textAlign:'center' }}>
+                <div style=${{ fontSize:20, marginBottom:4 }}>${i}</div>
+                <div style=${{ fontSize:26, fontWeight:800, color:c }}>${v}</div>
+                <div style=${{ fontSize:10, color:'#86868B', marginTop:3 }}>${l}</div>
+              </div>`)}
+          </div>
+
+          <div style=${{ display:'grid', gridTemplateColumns:'1fr 280px', gap:16 }}>
+            <div>
+              <!-- My projects -->
+              <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>📂 Mis proyectos</h2>
+              ${rooms.length===0
+                ? html`<div style=${{ textAlign:'center', padding:'40px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>Sin proyectos asignados</div>`
+                : html`<div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+                    ${rooms.map(r => {
+                      const d = allData[r.slug]||{};
+                      const rActions = (d.actions||[]).filter(a=>(a.owner===user.name||a.createdBy===user.id)&&a.status!=='done'&&a.status!=='discarded');
+                      const rRisks   = (d.risks||[]).filter(x=>x.status!=='mitigated');
+                      return html`
+                        <a href=${'/?sala='+encodeURIComponent(r.slug)+'&tipo='+(r.tipo||'agile')}
+                          style=${{ display:'block', textDecoration:'none', padding:'14px 16px', borderRadius:14, background:'#FFF',
+                            border:'1.5px solid #E5E5EA', transition:'border-color .15s' }}
+                          onMouseOver=${e=>e.currentTarget.style.borderColor='#007AFF'}
+                          onMouseOut=${e=>e.currentTarget.style.borderColor='#E5E5EA'}>
+                          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                            <div>
+                              <div style=${{ fontSize:14, fontWeight:700, color:'#1D1D1F' }}>${r.name}</div>
+                              <div style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>${r.tipo||'Agile'}</div>
+                            </div>
+                            <div style=${{ display:'flex', gap:8, alignItems:'center' }}>
+                              ${rActions.length>0&&html`<span style=${{ fontSize:10, background:'#007AFF10', color:'#007AFF', padding:'3px 8px', borderRadius:8, fontWeight:600 }}>🎯 ${rActions.length}</span>`}
+                              ${rRisks.length>0&&html`<span style=${{ fontSize:10, background:'#FF9500 10', color:'#FF9500', padding:'3px 8px', borderRadius:8, fontWeight:600 }}>⚠️ ${rRisks.length}</span>`}
+                              <span style=${{ fontSize:16, color:'#C7C7CC' }}>→</span>
+                            </div>
+                          </div>
+                        </a>`;
+                    })}`}
+              </div>
+
+              <!-- My pending actions -->
+              ${pendingActions.length>0&&html`
+                <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>🎯 Mis accionables</h2>
+                <div style=${{ display:'flex', flexDirection:'column', gap:6, marginBottom:20 }}>
+                  ${[...pendingActions].sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0).slice(0,8).map(a=>{
+                    const overdue=a.date&&a.date<today;
+                    const PRIS_LOCAL={high:'#FF3B30',medium:'#FF9500',low:'#34C759'};
+                    return html`
+                      <div style=${{ padding:'10px 14px', borderRadius:12, background:'#FFF',
+                        border:'1.5px solid '+(overdue?'#FF3B3020':'#E5E5EA'),
+                        borderLeft:'3px solid '+(PRIS_LOCAL[a.priority]||'#86868B') }}>
+                        <div style=${{ fontSize:12, fontWeight:600 }}>${a.text}</div>
+                        ${a.date&&html`<div style=${{ fontSize:10, color:overdue?'#FF3B30':'#86868B', marginTop:2 }}>📅 ${a.date}${overdue?' · VENCIDO':''}</div>`}
+                      </div>`;
+                  })}
+                  ${pendingActions.length>8&&html`<p style=${{ fontSize:11, color:'#86868B', textAlign:'center' }}>+${pendingActions.length-8} más en los proyectos</p>`}
+                </div>`}
+
+              <!-- Escalated to me -->
+              ${escalatedToMe.length>0&&html`
+                <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10, color:'#5856D6' }}>📈 Escalados a mí</h2>
+                <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+                  ${escalatedToMe.map(r=>html`
+                    <div style=${{ padding:'10px 14px', borderRadius:12, background:'#F8F5FF', border:'1.5px solid #5856D620', borderLeft:'3px solid #5856D6' }}>
+                      <div style=${{ fontSize:12, fontWeight:600 }}>${r.text}</div>
+                      <div style=${{ fontSize:10, color:'#5856D6', marginTop:2 }}>Nivel: ${r.escalation.levelLabel||r.escalation.level||'—'} · ${r.escalation.status||'pendiente'}</div>
+                    </div>`)}
+                </div>`}
+            </div>
+
+            <!-- Right: vacations -->
+            <div>
+              <h2 style=${{ fontSize:15, fontWeight:700, marginBottom:10 }}>🏖️ Mis vacaciones</h2>
+              <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px' }}>
+                <!-- Progress -->
+                <div style=${{ marginBottom:12 }}>
+                  <div style=${{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#86868B', marginBottom:5 }}>
+                    <span>${vacUsed}d consumidos</span>
+                    <span style=${{ fontWeight:700, color:vacPct>80?'#FF3B30':vacPct>60?'#FF9500':'#34C759' }}>${vacPct}%</span>
+                  </div>
+                  <div style=${{ background:'#F2F2F7', borderRadius:6, height:8, overflow:'hidden', marginBottom:5 }}>
+                    <div style=${{ width:vacPct+'%', height:'100%', background:vacPct>80?'#FF3B30':vacPct>60?'#FF9500':'#34C759', borderRadius:6 }}></div>
+                  </div>
+                </div>
+                <!-- Counters -->
+                <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginBottom:12 }}>
+                  ${[[annualDays,'Días/año','#1D1D1F'],[prevPend,'Año ant.','#5856D6'],[totalVac,'Total','#007AFF'],[remainVac,'Restantes',remainVac<=5?'#FF3B30':remainVac<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
+                    <div style=${{ textAlign:'center', padding:'8px 4px', borderRadius:10, background:c+'0D', border:'1px solid '+c+'25' }}>
+                      <div style=${{ fontSize:20, fontWeight:800, color:c }}>${v}</div>
+                      <div style=${{ fontSize:8, color:'#86868B', marginTop:2 }}>${l}</div>
+                    </div>`)}
+                </div>
+                <!-- Recent absences -->
+                ${myVacs.filter(v=>new Date(v.from||'').getFullYear()===thisYear).slice(0,4).map((v,i)=>{
+                  const info=ABSENCE_TYPES.find(t=>t.id===v.type)||ABSENCE_TYPES[0];
+                  return html`
+                    <div key=${v.id||i} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid #F2F2F7', fontSize:11 }}>
+                      <div style=${{ width:20, height:20, borderRadius:5, background:info.color||'#FF9500', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:'#FFF', flexShrink:0 }}>${info.initial||'V'}</div>
+                      <div style=${{ flex:1 }}>
+                        <div style=${{ fontSize:11, fontWeight:600 }}>${info.label.split(' ').slice(1).join(' ')||info.label}</div>
+                        <div style=${{ fontSize:9, color:'#86868B' }}>${v.from}${v.to&&v.to!==v.from?' → '+v.to:''}</div>
+                      </div>
+                    </div>`;
+                })}
+              </div>
+            </div>
+          </div>
+        `}
+      </div>
+    </div>`;
+}
+
 
 /* ═══ NEED LINK SCREEN ═══ */
 function NeedLink({ onLogin, showLogin, onJoin, onCloseLogin }) {
@@ -2388,120 +2601,66 @@ function SuggestedEscalations({ risks, allRisks, getAlerts, upd, setSubTab, setE
 
 /* ═══ ESCALADO PANEL ═══ */
 function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
-  const [team, setTeam]  = useState([]);
-  const [org,  setOrg]   = useState({});  // { memberId: managerId }
-
-  useEffect(() => {
-    Promise.all([sbLoadTeamMembers(), sbLoadOrgChart(SALA)]).then(([members, chart]) => {
-      const teamFiltered = members.filter(m=>(m.rooms||[]).includes(SALA));
-      setTeam(teamFiltered.length > 0 ? teamFiltered : members);
-      const map = {};
-      chart.forEach(n => { map[n.member_id] = n.manager_id || null; });
-      setOrg(map);
-    });
-  }, []);
-
+  const LEVELS = [
+    { id:'equipo',    label:'Equipo',             color:'#34C759', desc:'Se gestiona internamente en el equipo' },
+    { id:'jp',        label:'Jefe de Proyecto',    color:'#FF9500', desc:'Escalar al Jefe de Proyecto' },
+    { id:'sm',        label:'Service Manager',     color:'#FF3B30', desc:'Requiere intervención del Service Manager' },
+    { id:'dt',        label:'Dirección Técnica',   color:'#5856D6', desc:'Elevar a Dirección Técnica (PM2)' },
+  ];
   const STATUS = [
-    { id:'pendiente', label:'Pendiente', color:'#FF9500' },
-    { id:'en_curso',  label:'En curso',  color:'#007AFF' },
-    { id:'resuelto',  label:'Resuelto',  color:'#34C759' },
-    { id:'bloqueado', label:'Bloqueado', color:'#FF3B30' },
+    { id:'pendiente', label:'Pendiente',  color:'#FF9500' },
+    { id:'en_curso',  label:'En curso',   color:'#007AFF' },
+    { id:'resuelto',  label:'Resuelto',   color:'#34C759' },
+    { id:'bloqueado', label:'Bloqueado',  color:'#FF3B30' },
   ];
 
   const openRisks = risks.filter(r => r.status !== 'mitigated' && (r.type||'riesgo') !== 'oportunidad');
   const escalated = risks.filter(r => r.escalation);
-
-  // Build chain from a member up the org tree
-  const getChain = (memberId) => {
-    const chain = [];
-    let cur = memberId;
-    const seen = new Set();
-    while (cur && !seen.has(cur)) {
-      seen.add(cur);
-      const m = team.find(x=>x.id===cur);
-      if (m) chain.push(m);
-      cur = org[cur] || null;
-    }
-    return chain; // [self, manager, gm, ...]
-  };
-
-  // For a risk, determine next escalation step
-  const getNextEscalation = (r) => {
-    const ownerMember = team.find(m=>m.name===r.owner || m.id===r.owner);
-    if (!ownerMember) return null;
-    const currentLevel = r.escalation?.memberId;
-    const chain = getChain(ownerMember.id);
-    if (!currentLevel) return chain[1] || null; // first escalation: direct manager
-    const idx = chain.findIndex(m=>m.id===currentLevel);
-    return idx >= 0 && idx+1 < chain.length ? chain[idx+1] : null;
-  };
-
-  // Escalation chain visual
-  const getRiskChain = (r) => {
-    const ownerMember = team.find(m=>m.name===r.owner || m.id===r.owner);
-    if (!ownerMember) return [];
-    return getChain(ownerMember.id);
-  };
+  const byLevel   = (lid) => escalated.filter(r => r.escalation?.level === lid);
 
   const saveEscalation = () => {
-    if (!escalForm.riskId || !escalForm.memberId) return;
-    const member = team.find(m=>m.id===escalForm.memberId);
+    if (!escalForm.riskId || !escalForm.level) return;
+    const lvl = LEVELS.find(l=>l.id===escalForm.level);
     upd(escalForm.riskId, {
       escalation: {
-        memberId: escalForm.memberId,
-        memberName: member?.name || '',
-        memberRole: member?.role_label || '',
-        deadline: escalForm.deadline,
-        note: escalForm.note,
-        status: escalForm.status,
+        level:     escalForm.level,
+        levelLabel: lvl?.label||'',
+        deadline:  escalForm.deadline||'',
+        note:      escalForm.note||'',
+        status:    escalForm.status||'pendiente',
         createdAt: new Date().toISOString(),
       }
     });
-    setEscalForm({riskId:'', memberId:'', deadline:'', note:'', status:'pendiente'});
-  };
-  const removeEscalation = (id) => upd(id, { escalation: null });
-  const escalateNext = (r) => {
-    const next = getNextEscalation(r);
-    if (!next) return;
-    upd(r.id, {
-      escalation: {
-        ...(r.escalation||{}),
-        memberId: next.id,
-        memberName: next.name,
-        memberRole: next.role_label||'',
-        status: 'pendiente',
-        createdAt: new Date().toISOString(),
-      }
-    });
+    setEscalForm({riskId:'', level:'jp', deadline:'', note:'', status:'pendiente'});
   };
 
-  // Colors by org depth
-  const DEPTH_COLORS = ['#34C759','#FF9500','#FF3B30','#5856D6','#1D1D1F'];
-  const depthColor = (r) => {
-    const ownerMember = team.find(m=>m.name===r.owner||m.id===r.owner);
-    if (!ownerMember || !r.escalation?.memberId) return '#86868B';
-    const chain = getChain(ownerMember.id);
-    const idx = chain.findIndex(m=>m.id===r.escalation.memberId);
-    return DEPTH_COLORS[Math.min(idx, DEPTH_COLORS.length-1)];
+  const removeEscalation = (id) => upd(id, { escalation: null });
+
+  const escalateNext = (r) => {
+    const idx = LEVELS.findIndex(l=>l.id===r.escalation?.level);
+    const next = LEVELS[idx+1];
+    if (!next) return;
+    upd(r.id, { escalation: {...r.escalation, level:next.id, levelLabel:next.label, status:'pendiente', createdAt:new Date().toISOString()} });
   };
 
   return html`
     <div>
-      <!-- KPI: escalation by status -->
+      <!-- KPI row: count per level -->
       <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
-        ${STATUS.map(s => {
-          const cnt = escalated.filter(r=>r.escalation?.status===s.id).length;
+        ${LEVELS.map(l => {
+          const cnt = byLevel(l.id).length;
           return html`
-            <div style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', padding:'12px 10px', textAlign:'center', borderTop:'3px solid '+s.color }}>
-              <div style=${{ fontSize:22, fontWeight:800, color:s.color }}>${cnt||'—'}</div>
-              <div style=${{ fontSize:11, fontWeight:700, color:'#1D1D1F', marginTop:2 }}>${s.label}</div>
+            <div style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', padding:'12px 10px', textAlign:'center', borderTop:'3px solid '+l.color }}>
+              <div style=${{ fontSize:22, fontWeight:800, color:l.color }}>${cnt||'—'}</div>
+              <div style=${{ fontSize:11, fontWeight:700, color:'#1D1D1F', marginTop:2 }}>${l.label}</div>
+              <div style=${{ fontSize:9, color:'#86868B', marginTop:2 }}>${l.desc}</div>
             </div>`;
         })}
       </div>
 
-      <div style=${{ display:'grid', gridTemplateColumns:'1fr 320px', gap:14, alignItems:'start' }}>
+      <div style=${{ display:'grid', gridTemplateColumns:'1fr 300px', gap:14, alignItems:'start' }}>
 
-        <!-- Escalated risks list -->
+        <!-- Escalated risks list grouped by level -->
         <div>
           ${escalated.length===0 ? html`
             <div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
@@ -2509,121 +2668,91 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
               <p style=${{ fontSize:13 }}>Sin riesgos escalados</p>
               <p style=${{ fontSize:11, marginTop:4 }}>Usa el formulario para escalar un riesgo</p>
             </div>` :
-            escalated.map(r => {
-              const esc = r.escalation;
-              const st = STATUS.find(s=>s.id===esc.status)||STATUS[0];
-              const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
-              const prefix = (r.type||'riesgo')==='problema'?'P':'R';
-              const color = depthColor(r);
-              const chain = getRiskChain(r);
-              const curIdx = chain.findIndex(m=>m.id===esc.memberId);
-              const next = getNextEscalation(r);
+            LEVELS.map(l => {
+              const items = byLevel(l.id);
+              if (!items.length) return null;
               return html`
-                <div key=${r.id} style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA',
-                  borderLeft:'4px solid '+color, padding:'12px 14px', marginBottom:8 }}>
-                  <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                    <span style=${{ fontSize:12, fontWeight:800, color:color }}>${prefix}${rn}</span>
-                    <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
-                    <select value=${esc.status} onChange=${e=>upd(r.id,{escalation:{...esc,status:e.target.value}})}
-                      style=${{ fontSize:9, padding:'3px 6px', borderRadius:5, border:'1px solid #E5E5EA', outline:'none', color:st.color, background:st.color+'10' }}>
-                      ${STATUS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
-                    </select>
-                    <button onClick=${()=>removeEscalation(r.id)} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:12, cursor:'pointer' }}>✕</button>
+                <div key=${l.id} style=${{ marginBottom:14 }}>
+                  <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:8, paddingBottom:6, borderBottom:'2px solid '+l.color+'30' }}>
+                    <div style=${{ width:10, height:10, borderRadius:5, background:l.color }}></div>
+                    <span style=${{ fontSize:12, fontWeight:700, color:l.color }}>${l.label}</span>
+                    <span style=${{ fontSize:10, color:'#86868B' }}>${items.length} riesgo${items.length>1?'s':''}</span>
                   </div>
-                  <!-- Escalation chain visual -->
-                  <div style=${{ display:'flex', alignItems:'center', gap:4, flexWrap:'wrap', marginBottom:8 }}>
-                    ${chain.map((m,i) => html`
-                      <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                        ${i>0 && html`<span style=${{ color:'#C7C7CC', fontSize:10 }}>→</span>`}
-                        <div style=${{ display:'flex', alignItems:'center', gap:4, padding:'3px 8px 3px 4px', borderRadius:20,
-                          background: m.id===esc.memberId ? color+'18' : '#F9F9FB',
-                          border:'1.5px solid '+(m.id===esc.memberId ? color : '#E5E5EA') }}>
-                          <span style=${{ fontSize:14 }}>${m.avatar||'👤'}</span>
-                          <div>
-                            <div style=${{ fontSize:10, fontWeight:700, color:m.id===esc.memberId?color:'#1D1D1F' }}>${m.name}</div>
-                            ${m.role_label && html`<div style=${{ fontSize:8, color:'#86868B' }}>${m.role_label}</div>`}
-                          </div>
-                          ${m.id===esc.memberId && html`<span style=${{ fontSize:9, background:color, color:'#FFF', borderRadius:4, padding:'1px 4px', fontWeight:700 }}>aquí</span>`}
+                  ${items.map(r => {
+                    const esc = r.escalation;
+                    const st  = STATUS.find(s=>s.id===esc.status)||STATUS[0];
+                    const rn  = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
+                    const px  = (r.type||'riesgo')==='problema'?'P':'R';
+                    const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===esc.level)+1];
+                    return html`
+                      <div style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA',
+                        borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:6 }}>
+                        <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                          <span style=${{ fontSize:12, fontWeight:800, color:l.color }}>${px}${rn}</span>
+                          <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
+                          <select value=${esc.status} onChange=${e=>upd(r.id,{escalation:{...esc,status:e.target.value}})}
+                            style=${{ fontSize:9, padding:'3px 6px', borderRadius:5, border:'1px solid #E5E5EA', outline:'none', color:st.color, background:st.color+'10' }}>
+                            ${STATUS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
+                          </select>
+                          <button onClick=${()=>removeEscalation(r.id)} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:12, cursor:'pointer' }}>✕</button>
                         </div>
-                      </div>`)}
-                  </div>
-                  <div style=${{ display:'flex', gap:8, alignItems:'center', fontSize:10, color:'#86868B' }}>
-                    ${esc.deadline && html`<span>📅 ${esc.deadline}</span>`}
-                    ${esc.note && html`<span>📝 ${esc.note}</span>`}
-                    ${next && html`
-                      <button onClick=${()=>escalateNext(r)}
-                        style=${{ marginLeft:'auto', fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:7,
-                          border:'1.5px solid '+color+'30', background:color+'10', color:color, cursor:'pointer' }}>
-                        ↑ Escalar a ${next.name}
-                      </button>`}
-                  </div>
+                        <!-- Level chain visual -->
+                        <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:6 }}>
+                          ${LEVELS.map((lvl,i)=>html`
+                            <div key=${lvl.id} style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                              ${i>0&&html`<span style=${{ color:'#E5E5EA', fontSize:10 }}>→</span>`}
+                              <span style=${{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:8,
+                                background:lvl.id===esc.level?lvl.color:'#F2F2F7',
+                                color:lvl.id===esc.level?'#FFF':'#86868B' }}>${lvl.label}</span>
+                            </div>`)}
+                        </div>
+                        <div style=${{ display:'flex', gap:10, alignItems:'center', fontSize:10, color:'#86868B' }}>
+                          ${esc.deadline&&html`<span>📅 ${esc.deadline}</span>`}
+                          ${esc.note&&html`<span>📝 ${esc.note}</span>`}
+                          ${nextLvl&&html`
+                            <button onClick=${()=>escalateNext(r)}
+                              style=${{ marginLeft:'auto', fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:7,
+                                border:'1.5px solid '+nextLvl.color+'30', background:nextLvl.color+'10', color:nextLvl.color, cursor:'pointer' }}>
+                              ↑ Subir a ${nextLvl.label}
+                            </button>`}
+                        </div>
+                      </div>`;
+                  })}
                 </div>`;
             })}
         </div>
 
-        <!-- Add escalation form — org-chart based -->
+        <!-- Form -->
         <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', position:'sticky', top:0 }}>
           <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>📈 Escalar riesgo</h4>
-          <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>La cadena sigue el organigrama del proyecto</p>
+          <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Selecciona el riesgo y el nivel de escalado</p>
           <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
-            <select value=${escalForm.riskId} onChange=${e=>{
-              const r=openRisks.find(x=>x.id===e.target.value);
-              const next = r ? getNextEscalation(r) : null;
-              setEscalForm({...escalForm, riskId:e.target.value, memberId:next?.id||''});
-            }}
+            <select value=${escalForm.riskId} onChange=${e=>setEscalForm({...escalForm,riskId:e.target.value})}
               style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }}>
               <option value="">— Selecciona riesgo —</option>
               ${openRisks.map((r,i) => {
-                const prefix = (r.type||'riesgo')==='problema'?'P':'R';
-                const n = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
-                return html`<option key=${r.id} value=${r.id}>${prefix}${n}: ${r.text.slice(0,40)}${r.text.length>40?'…':''}</option>`;
+                const px=(r.type||'riesgo')==='problema'?'P':'R';
+                const n=risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
+                return html`<option key=${r.id} value=${r.id}>${px}${n}: ${r.text.slice(0,40)}${r.text.length>40?'…':''}</option>`;
               })}
             </select>
 
-            <!-- Show chain for selected risk -->
-            ${escalForm.riskId && (() => {
-              const r = openRisks.find(x=>x.id===escalForm.riskId);
-              if (!r) return null;
-              const chain = getRiskChain(r);
-              if (chain.length<2) return html`
-                <div style=${{ padding:'10px 12px', borderRadius:10, background:'#FFF9E6', border:'1px solid #FF950030' }}>
-                  <p style=${{ fontSize:11, color:'#FF9500', marginBottom:8 }}>⚠️ Sin jerarquía en el organigrama. Selecciona a quién escalar:</p>
-                  <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
-                    ${team.filter(m=>m.id!==ownerMember?.id).map(m=>html`
-                      <label style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:9,
-                        background:escalForm.memberId===m.id?'#007AFF10':'#F9F9FB',
-                        border:'1.5px solid '+(escalForm.memberId===m.id?'#007AFF':'#E5E5EA'), cursor:'pointer' }}
-                        onClick=${()=>setEscalForm({...escalForm,memberId:m.id})}>
-                        <span style=${{ fontSize:16 }}>${m.avatar||'👤'}</span>
-                        <div style=${{ flex:1 }}>
-                          <span style=${{ fontSize:12, fontWeight:600 }}>${m.name}</span>
-                          ${m.role_label&&html`<span style=${{ fontSize:9, color:'#86868B', marginLeft:4 }}>${m.role_label}</span>`}
-                        </div>
-                        ${escalForm.memberId===m.id&&html`<span style=${{ fontSize:9, color:'#007AFF', fontWeight:700 }}>✓</span>`}
-                      </label>`)}
+            <!-- Level selector -->
+            <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
+              ${LEVELS.map(l=>html`
+                <label key=${l.id}
+                  onClick=${()=>setEscalForm({...escalForm,level:l.id})}
+                  style=${{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:9, cursor:'pointer',
+                    background:escalForm.level===l.id?l.color+'12':'#F9F9FB',
+                    border:'1.5px solid '+(escalForm.level===l.id?l.color:'#E5E5EA') }}>
+                  <div style=${{ width:10, height:10, borderRadius:5, background:l.color, flexShrink:0 }}></div>
+                  <div style=${{ flex:1 }}>
+                    <div style=${{ fontSize:12, fontWeight:600 }}>${l.label}</div>
+                    <div style=${{ fontSize:9, color:'#86868B' }}>${l.desc}</div>
                   </div>
-                </div>`;
-              return html`
-                <div>
-                  <p style=${{ fontSize:10, color:'#86868B', marginBottom:6, fontWeight:600 }}>Cadena de escalado:</p>
-                  <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
-                    ${chain.map((m,i) => html`
-                      <label key=${m.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:9,
-                        background:escalForm.memberId===m.id?'#007AFF10':'#F9F9FB',
-                        border:'1.5px solid '+(escalForm.memberId===m.id?'#007AFF':'#E5E5EA'), cursor: i===0?'default':'pointer' }}
-                        onClick=${()=>i>0&&setEscalForm({...escalForm,memberId:m.id})}>
-                        <span style=${{ fontSize:11, color:'#C7C7CC', minWidth:14 }}>${i===0?'•':'L'+i}</span>
-                        <span style=${{ fontSize:16 }}>${m.avatar||'👤'}</span>
-                        <div style=${{ flex:1 }}>
-                          <span style=${{ fontSize:12, fontWeight:600 }}>${m.name}</span>
-                          ${m.role_label && html`<span style=${{ fontSize:9, color:'#86868B', marginLeft:4 }}>${m.role_label}</span>`}
-                        </div>
-                        ${i===0 && html`<span style=${{ fontSize:9, color:'#86868B' }}>origen</span>`}
-                        ${escalForm.memberId===m.id && i>0 && html`<span style=${{ fontSize:9, color:'#007AFF', fontWeight:700 }}>✓ seleccionado</span>`}
-                      </label>`)}
-                  </div>
-                </div>`;
-            })()}
+                  ${escalForm.level===l.id&&html`<span style=${{ fontSize:10, color:l.color, fontWeight:700 }}>✓</span>`}
+                </label>`)}
+            </div>
 
             <select value=${escalForm.status} onChange=${e=>setEscalForm({...escalForm,status:e.target.value})}
               style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }}>
@@ -2631,15 +2760,15 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
             </select>
             <div>
               <label style=${{ fontSize:10, color:'#86868B', display:'block', marginBottom:3 }}>Fecha límite</label>
-              <input type="date" value=${escalForm.deadline} onInput=${e=>setEscalForm({...escalForm,deadline:e.target.value})}
+              <input type="date" value=${escalForm.deadline||''} onInput=${e=>setEscalForm({...escalForm,deadline:e.target.value})}
                 style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
             </div>
-            <textarea value=${escalForm.note} onInput=${e=>setEscalForm({...escalForm,note:e.target.value})}
+            <textarea value=${escalForm.note||''} onInput=${e=>setEscalForm({...escalForm,note:e.target.value})}
               placeholder="Nota / justificación…" rows="2"
               style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, fontFamily:'inherit', outline:'none', resize:'vertical' }}></textarea>
-            <button onClick=${saveEscalation} disabled=${!escalForm.riskId||!escalForm.memberId}
+            <button onClick=${saveEscalation} disabled=${!escalForm.riskId||!escalForm.level}
               style=${{ padding:'9px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:700, cursor:'pointer',
-                opacity:(escalForm.riskId&&escalForm.memberId)?1:.4 }}>
+                opacity:(escalForm.riskId&&escalForm.level)?1:.4 }}>
               📈 Escalar
             </button>
           </div>
@@ -2647,7 +2776,6 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
       </div>
     </div>`;
 }
-
 
 /* ═══ PFTEs — dedicación y FTEs del equipo ═══ */
 function PFTEs({ team, org, orgData: orgDataProp }) {
@@ -4124,7 +4252,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
 
 function RetroBoard({ user, onLogout }) {
   const { state, upd, online, cursors, moveCursor, reset, broadcastTimer, broadcastPhase } = useRealtime(user);
-  const [mainTab, setMainTab] = useState('retro');
+  const [mainTab, setMainTab] = useState('equipo');
   const [phase, setPhase] = useState(() => loadRetroPhase());
   const [timer,   setTimer]   = useState(900);
   const [running, setRunning] = useState(false);
