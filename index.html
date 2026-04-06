@@ -84,7 +84,15 @@ async function sbLoadTeamMembers() {
   try { const {data}=await supabase.from('team_members').select('*').order('name'); return data||[]; } catch { return []; }
 }
 async function sbSaveTeamMember(m) {
-  try { await supabase.from('team_members').upsert(m); } catch {}
+  try {
+    if (m.id) {
+      // Update existing record by id
+      const {email,...rest} = m; // don't overwrite email
+      await supabase.from('team_members').update(rest).eq('id', m.id);
+    } else {
+      await supabase.from('team_members').insert(m);
+    }
+  } catch(e) { console.error('sbSaveTeamMember', e); }
 }
 async function sbDeleteTeamMember(id) {
   try { await supabase.from('team_members').delete().eq('id',id); } catch {}
@@ -115,6 +123,12 @@ async function sbToggleTagAssignment(tagId, entityType, entityId, sala) {
     if (ex?.id) { await supabase.from('tag_assignments').delete().eq('id',ex.id); return false; }
     else { await supabase.from('tag_assignments').insert({tag_id:tagId,entity_type:entityType,entity_id:entityId,sala}); return true; }
   } catch { return false; }
+}
+
+async function sbSaveMemberVacs(memberId, vacs) {
+  try {
+    await supabase.from('team_members').update({ vacations: vacs }).eq('id', memberId);
+  } catch(e) { console.error('sbSaveMemberVacs', e); }
 }
 
 async function sbLoadOrgChart(sala) {
@@ -622,7 +636,12 @@ function Icon({ name, size=18, color='currentColor', strokeWidth=1.75 }) {
 
 /* ═══ HOME VACACIONES ═══ */
 function HomeVacaciones({ profile, user }) {
-  const [vacs,   setVacs]   = useState(() => profile?.vacations || []);
+  const [vacs,   setVacs]   = useState(() => {
+    const v = profile?.vacations;
+    if (!v) return [];
+    if (Array.isArray(v)) return v;
+    try { return JSON.parse(v) || []; } catch { return []; }
+  });
   const [newVac, setNewVac] = useState({from:'', to:'', type:'vacaciones', reason:'', note:''});
   const [saving, setSaving] = useState(false);
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
@@ -970,7 +989,11 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Información personal y vacaciones</p>
             <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             ${!profileLoaded?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:
-            !editProfile?html`<div style=${{textAlign:'center',padding:40,color:'#C7C7CC'}}>Sin perfil configurado</div>`:html`
+            (!editProfile && !profileLoaded)?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:
+            (!editProfile)?html`
+              ${(()=>{ const fp={id:user.id,name:user.name,company:'',teams_handle:'',phone:'',vacations:[]}; if(!editProfile) setTimeout(()=>setEditProfile(fp),0); return null; })()}
+              <div style=${{textAlign:'center',padding:20,color:'#86868B',fontSize:12}}>Cargando perfil…</div>
+            `:html`
               <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'24px',display:'flex',flexDirection:'column',gap:14}}>
                 <div style=${{display:'flex',alignItems:'center',gap:14,paddingBottom:16,borderBottom:'1px solid #F2F2F7'}}>
                   <div style=${{width:60,height:60,borderRadius:16,background:editProfile.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32}}>${editProfile.avatar||'👤'}</div>
@@ -1426,29 +1449,8 @@ function AdminRoles() {
   const RC = {'Scrum Master':'#007AFF','Product Owner':'#5856D6','Desarrollador/a':'#34C759','QA / Tester':'#FF9500','Diseñador/a':'#FF2D55','DevOps':'#00C7BE','Tech Lead':'#FF3B30','Analista':'#AF52DE','Project Manager':'#007AFF','Stakeholder':'#86868B','Otro':'#C7C7CC'};
   const rc = (r) => RC[r]||'#5856D6';
 
-  const [escalCfg, setEscalCfg] = useState(getEscalationConfig);
-  const saveEscalCfgLocal = (cfg) => { setEscalCfg(cfg); saveEscalationConfig(cfg); };
-
   return html`
     <div>
-      <!-- Escalation config box -->
-      <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', marginBottom:20 }}>
-        <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>⏱ Tiempo de margen por criticidad de riesgo</h4>
-        <p style=${{ fontSize:11, color:'#86868B', marginBottom:12 }}>Días antes de sugerir escalado automáticamente si el riesgo no se actualiza</p>
-        <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
-          ${Object.entries(escalCfg).map(([key, val]) => html`
-            <div key=${key} style=${{ padding:'12px', borderRadius:10, background:'#F9F9FB', border:'1px solid #E5E5EA' }}>
-              <p style=${{ fontSize:11, fontWeight:700, color:key==='alto'?'#FF3B30':key==='medio'?'#FF9500':'#34C759', marginBottom:6 }}>${val.label}</p>
-              <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
-                <input type="number" min="1" max="30" value=${val.days}
-                  onInput=${e=>saveEscalCfgLocal({...escalCfg,[key]:{...val,days:parseInt(e.target.value)||1}})}
-                  style=${{ width:52, border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:13, fontWeight:700, textAlign:'center', fontFamily:'inherit', outline:'none' }} />
-                <span style=${{ fontSize:11, color:'#86868B' }}>días</span>
-              </div>
-            </div>`)}
-        </div>
-      </div>
-
       <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div>
           <h3 style=${{ fontSize:16, fontWeight:700 }}>🏷️ Gestión de roles</h3>
@@ -1686,6 +1688,32 @@ function AdminConvenio() {
 
 
 /* ═══ ADMIN ESCALADO GLOBAL ═══ */
+/* ═══ ESCAL THRESHOLDS WIDGET ═══ */
+function EscalThresholdsWidget() {
+  const [cfg, setCfg] = useState(getEscalationConfig);
+  const save = (newCfg) => { setCfg(newCfg); saveEscalationConfig(newCfg); };
+  return html`
+    <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'18px', marginBottom:20 }}>
+      <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+        <${Icon} name="Timer" size=${16} color="#86868B" />
+        <h4 style=${{ fontSize:13, fontWeight:700 }}>Tiempo de margen por criticidad de riesgo</h4>
+      </div>
+      <p style=${{ fontSize:11, color:'#86868B', marginBottom:14 }}>Días antes de sugerir escalado automáticamente si el riesgo no se actualiza</p>
+      <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+        ${Object.entries(cfg).map(([key, val]) => html`
+          <div key=${key} style=${{ padding:'14px', borderRadius:11, background:'#F9F9FB', border:'1.5px solid '+(key==='alto'?'#FF3B3030':key==='medio'?'#FF950030':'#34C75930') }}>
+            <p style=${{ fontSize:11, fontWeight:700, color:key==='alto'?'#FF3B30':key==='medio'?'#FF9500':'#34C759', marginBottom:8 }}>${val.label}</p>
+            <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
+              <input type="number" min="1" max="60" value=${val.days}
+                onInput=${e=>save({...cfg,[key]:{...val,days:parseInt(e.target.value)||1}})}
+                style=${{ width:60, border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:16, fontWeight:700, textAlign:'center', fontFamily:'inherit', outline:'none', background:'#FFF' }} />
+              <span style=${{ fontSize:12, color:'#86868B' }}>días</span>
+            </div>
+          </div>`)}
+      </div>
+    </div>`;
+}
+
 function AdminEscaladoGlobal({ rooms }) {
   const [members,   setMembers]   = useState([]);
   const [globalOrg, setGlobalOrg] = useState({});
@@ -1763,6 +1791,9 @@ function AdminEscaladoGlobal({ rooms }) {
 
   return html`
     <div>
+      <!-- Escalation time thresholds config -->
+      <${EscalThresholdsWidget} />
+
       <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
         <div>
           <h3 style=${{fontSize:16,fontWeight:700}}>📈 Escalado Global</h3>
@@ -2061,6 +2092,18 @@ function AdminUsuarios({ rooms }) {
                   </div>
                   <button onClick=${()=>{ setEditId(m.id); setEditData({...m}); }}
                     style=${{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>✏️ Editar</button>
+                  <button onClick=${async ()=>{
+                    const newVal = !m.is_superuser;
+                    await supabase.from('team_members').update({is_superuser:newVal}).eq('id',m.id);
+                    setMembers(prev=>prev.map(x=>x.id===m.id?{...x,is_superuser:newVal}:x));
+                  }}
+                    title=${m.is_superuser?'Quitar permisos admin':'Dar permisos admin'}
+                    style=${{ padding:'5px 10px', borderRadius:7, border:'none', cursor:'pointer',
+                      background:m.is_superuser?'#FF3B3010':'#5856D610',
+                      color:m.is_superuser?'#FF3B30':'#5856D6',
+                      fontSize:10, fontWeight:700, flexShrink:0 }}>
+                    ${m.is_superuser?'🔓 Quitar admin':'🔒 Hacer admin'}
+                  </button>
                   ${!!m.is_superuser
                     ? html`<span style=${{ padding:'5px 10px', borderRadius:7, background:'#5856D608', border:'1.5px solid #5856D620', color:'#5856D6', fontSize:10, fontWeight:600 }}>🔒 Protegido</span>`
                     : html`<button onClick=${()=>deleteMember(m.id)} style=${{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #FF3B3020', background:'#FFF', color:'#FF3B30', fontSize:11, cursor:'pointer' }}>✕</button>`}
@@ -2118,17 +2161,88 @@ function RoomPicker() {
 
   useEffect(() => {
     sbGetSession().then(session => {
-      if (session) { setAuthUser(session.user); setAuthState('signed-in'); }
-      else { setAuthState('signed-out'); }
+      if (session) { setAuthUser(session.user); setAuthState('signed-in'); return; }
+      // Check superuser localStorage session
+      try {
+        const stored = localStorage.getItem('rf-admin-session');
+        if (stored) {
+          const su = JSON.parse(stored);
+          if (su?.isSuperuser) { setAuthUser({ email: su.email, _member: su }); setAuthState('signed-in'); return; }
+        }
+      } catch {}
+      setAuthState('signed-out');
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_ev, session) => {
       if (session) { setAuthUser(session.user); setAuthState('signed-in'); }
-      else { setAuthUser(null); setAuthState('signed-out'); }
+      else {
+        // Only sign out if no superuser session
+        try {
+          const stored = localStorage.getItem('rf-admin-session');
+          if (stored && JSON.parse(stored)?.isSuperuser) return;
+        } catch {}
+        setAuthUser(null); setAuthState('signed-out');
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleSignOut = async () => { await sbSignOut(); setAuthState('signed-out'); setAuthUser(null); };
+  const handleSignOut = async () => {
+    await sbSignOut();
+    try { localStorage.removeItem('rf-admin-session'); } catch {}
+    setAuthState('signed-out'); setAuthUser(null);
+  };
+
+  // ─── ADMIN LOGIN FORM (shown when no Supabase session) ───
+  // Allows both: (a) Supabase Auth email+pass, (b) team_members with is_superuser=true
+  const [adminEmail,    setAdminEmail]    = useState('');
+  const [adminPass,     setAdminPass]     = useState('');
+  const [adminError,    setAdminError]    = useState('');
+  const [adminLogging,  setAdminLogging]  = useState(false);
+
+  const handleAdminLogin = async () => {
+    const input = adminEmail.trim().toLowerCase();
+    if (!input) { setAdminError('Introduce tu email o nombre de usuario'); return; }
+    setAdminLogging(true); setAdminError('');
+
+    // Try 1: Supabase Auth (email+password)
+    if (input.includes('@') && adminPass) {
+      const { session, error } = await sbSignIn(adminEmail.trim(), adminPass);
+      if (session) { setAdminLogging(false); return; }
+    }
+
+    // Try 2: team_members — any of: is_superuser=true OR in local admin list
+    const storedAdmins = (() => { try { return JSON.parse(localStorage.getItem('rf-admin-list')||'[]'); } catch { return []; } })();
+    const members = await sbLoadTeamMembers();
+
+    // Debug: log what we find for this input
+    const candidate = members.find(m => {
+      const nameMatch  = m.name    && m.name.toLowerCase()    === input;
+      const userMatch  = m.username && m.username.toLowerCase() === input;
+      const emailMatch = m.email   && (m.email.toLowerCase()   === input || m.email.split('@')[0].toLowerCase() === input);
+      return nameMatch || userMatch || emailMatch;
+    });
+
+    if (!candidate) {
+      setAdminError(\`Usuario "\${adminEmail}" no encontrado en el equipo.\`);
+      setAdminLogging(false); return;
+    }
+
+    // Check access: is_superuser flag OR in local admin list
+    const inLocalList = storedAdmins.includes(candidate.id) || storedAdmins.includes(candidate.username) || storedAdmins.includes(candidate.name?.toLowerCase());
+    const isSU = candidate.is_superuser === true || candidate.is_superuser === 'true' || candidate.is_superuser === 1;
+
+    if (!isSU && !inLocalList) {
+      setAdminError(\`"\${candidate.name}" no tiene permisos de administrador. Pide al admin técnico que ejecute: UPDATE team_members SET is_superuser=true WHERE id='\${candidate.id}';\`);
+      setAdminLogging(false); return;
+    }
+
+    // Grant access
+    const superSession = { id:candidate.id, name:candidate.name, email:candidate.email||adminEmail, isSuperuser:true };
+    try { localStorage.setItem('rf-admin-session', JSON.stringify(superSession)); } catch {}
+    setAuthUser({ email: candidate.email||adminEmail, _member: candidate });
+    setAuthState('signed-in');
+    setAdminLogging(false);
+  };
 
   if (authState === 'checking') return html`
     <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7' }}>
@@ -2138,11 +2252,44 @@ function RoomPicker() {
       </div>
     </div>`;
 
-  if (authState === 'signed-out') {
-    // No active session — redirect to unified login
-    window.location.href = window.location.pathname;
-    return null;
-  }
+  if (authState === 'signed-out') return html`
+    <div style=${{ minHeight:'100vh', background:'#F5F5F7', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style=${{ background:'#FFF', borderRadius:22, border:'1.5px solid #E5E5EA', padding:'36px 32px', width:'100%', maxWidth:380, boxShadow:'0 8px 40px rgba(0,0,0,.08)' }}>
+        <div style=${{ textAlign:'center', marginBottom:28 }}>
+          <div style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:28, fontWeight:400, letterSpacing:3, background:'linear-gradient(90deg,#007AFF,#5856D6)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', marginBottom:6 }}>revelio</div>
+          <p style=${{ fontSize:13, color:'#86868B' }}>Panel de Administración</p>
+        </div>
+        <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
+          <div>
+            <label style=${{ fontSize:10, color:'#86868B', fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:4 }}>Email o nombre de usuario</label>
+            <input type="text" value=${adminEmail} onInput=${e=>setAdminEmail(e.target.value)}
+              onKeyDown=${e=>e.key==='Enter'&&handleAdminLogin()}
+              placeholder="admin@empresa.com o tu nombre"
+              style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:11, padding:'11px 14px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+              onFocus=${e=>e.target.style.borderColor='#007AFF'}
+              onBlur=${e=>e.target.style.borderColor='#E5E5EA'} />
+          </div>
+          <div>
+            <label style=${{ fontSize:10, color:'#86868B', fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:4 }}>Contraseña <span style=${{ fontWeight:400, color:'#C7C7CC' }}>(solo Supabase Auth)</span></label>
+            <input type="password" value=${adminPass} onInput=${e=>setAdminPass(e.target.value)}
+              onKeyDown=${e=>e.key==='Enter'&&handleAdminLogin()}
+              placeholder="Opcional si eres superusuario"
+              style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:11, padding:'11px 14px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+              onFocus=${e=>e.target.style.borderColor='#007AFF'}
+              onBlur=${e=>e.target.style.borderColor='#E5E5EA'} />
+          </div>
+          ${adminError && html`<div style=${{ background:'#FFF5F5', border:'1.5px solid #FF3B3030', borderRadius:10, padding:'10px 14px', fontSize:12, color:'#FF3B30' }}>${adminError}</div>`}
+          <button onClick=${handleAdminLogin} disabled=${adminLogging}
+            style=${{ padding:'13px', borderRadius:12, border:'none', background:'linear-gradient(135deg,#007AFF,#5856D6)', color:'#FFF', fontSize:14, fontWeight:700, cursor:'pointer', opacity:adminLogging?.6:1, marginTop:4 }}>
+            ${adminLogging ? '⏳ Verificando…' : 'Entrar al panel'}
+          </button>
+          <p style=${{ textAlign:'center', fontSize:11, color:'#C7C7CC', marginTop:4 }}>
+            Solo accesible para administradores y superusuarios<br/>
+            <span style=${{color:'#86868B'}}>Si eres el admin técnico: entra con email+contraseña de Supabase Auth primero</span>
+          </p>
+        </div>
+      </div>
+    </div>`;
 
   // ─── ADMIN PANEL (autenticado) ───
   const [room, setRoom] = useState('');
@@ -2154,6 +2301,7 @@ function RoomPicker() {
   const [filterProject, setFilterProject] = useState('all');
   const [sbRetros, setSbRetros] = useState([]);
   const [loadingSb, setLoadingSb] = useState(true);
+  const [orgData, setOrgData] = useState([]);
 
   // Load rooms from Supabase (override localStorage if available)
   useEffect(() => {
@@ -2163,7 +2311,7 @@ function RoomPicker() {
     sbLoadRetros().then(data => { setSbRetros(data); setLoadingSb(false); });
     sbLoadCalendars().then(cals => { window.__calendars = cals; });
     sbLoadTeamMembers().then(members => { window.__allMembers = members||[]; });
-    supabase.from('org_chart').select('sala,member_id,end_date,start_date').then(({data}) => { window.__orgData = data||[]; });
+    supabase.from('org_chart').select('sala,member_id,end_date,start_date,dedication').then(({data}) => { const d=data||[]; window.__orgData=d; setOrgData(d); });
   }, []);
 
   const go = (slug, t) => { window.location.href = window.location.pathname + '?sala=' + encodeURIComponent(slug) + '&tipo=' + (t || 'agile'); };
@@ -2248,7 +2396,7 @@ function RoomPicker() {
           <h1 class="wm" style=${{ fontSize:28, marginBottom:2 }}>revelio</h1>
           <p style=${{ color:'#86868B', fontSize:13 }}>Panel de administración</p>
           <div style=${{ position:'absolute', right:0, top:'50%', transform:'translateY(-50%)', display:'flex', alignItems:'center', gap:8 }}>
-            ${authUser && html`<span style=${{ fontSize:11, color:'#86868B' }}>${authUser.email}</span>`}
+            ${authUser && html`<span style=${{ fontSize:11, color:'#86868B' }}>${authUser._member?.name || authUser.email}</span>`}
             <button onClick=${handleSignOut} style=${{ ...bS, padding:'5px 12px', fontSize:11, color:'#FF3B30', borderColor:'#FF3B3030' }}>🔒 Cerrar sesión</button>
           </div>
         </div>
@@ -2520,7 +2668,7 @@ function RoomPicker() {
                       const vacPct = totalCap>0?Math.min(100,Math.round((totalUsed/totalCap)*100)):null;
                       const vacColor = vacPct===null?'#C7C7CC':vacPct>90?'#FF3B30':vacPct>70?'#FF9500':'#34C759';
                       // Rotation %: members who have left (end_date < today) / total historical
-                      const orgRows = (window.__orgData||[]).filter(r=>r.sala===s.slug);
+                      const orgRows = orgData.filter(r=>r.sala===s.slug);
                       const todayStr2 = new Date().toISOString().slice(0,10);
                       const leftCount = orgRows.filter(r=>r.end_date&&r.end_date<todayStr2).length;
                       const totalCount = orgRows.length;
@@ -2853,6 +3001,9 @@ function PEquipo() {
   const [org,     setOrg]    = useState({}); // { memberId: managerId }
   const [orgData, setOrgData]= useState([]); // full org_chart rows
   const [orgSaving, setOrgSaving] = useState(false);
+  const [tags, setTags] = useState([]);
+  const [tagAssign, setTagAssign] = useState([]);
+  const [activeTagFilter, setActiveTagFilter] = useState(null);
 
   useEffect(() => {
     Promise.all([sbLoadTeamMembers(), sbLoadOrgChart(SALA)]).then(([data, chart]) => {
@@ -2866,7 +3017,16 @@ function PEquipo() {
       setOrgData(chart);
       setLoading(false);
     });
+    sbLoadTags(SALA).then(t=>setTags(t||[]));
+    sbLoadTagAssignments(SALA).then(a=>setTagAssign(a||[]));
   }, []);
+  const hasMemberTag = (tagId,memberId) => tagAssign.some(a=>a.tag_id===tagId&&a.entity_type==='member'&&a.entity_id===memberId);
+  const memberTagList = (memberId) => tags.filter(t=>hasMemberTag(t.id,memberId));
+  const toggleMemberTag = async (tagId,memberId) => {
+    const added = await sbToggleTagAssignment(tagId,'member',memberId,SALA);
+    if(added) setTagAssign(prev=>[...prev,{tag_id:tagId,entity_type:'member',entity_id:memberId,sala:SALA}]);
+    else setTagAssign(prev=>prev.filter(a=>!(a.tag_id===tagId&&a.entity_type==='member'&&a.entity_id===memberId)));
+  };
 
   const setManager = async (memberId, managerId) => {
     setOrgSaving(true);
@@ -2935,6 +3095,21 @@ function PEquipo() {
 
         <!-- ── LISTA ── -->
         ${subTab==='lista' && html`
+          <!-- Tag filter bar -->
+          ${tags.length>0&&html`
+            <div style=${{display:'flex',gap:4,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+              <span style=${{fontSize:10,color:'#86868B',fontWeight:600}}>🏷️</span>
+              <button onClick=${()=>setActiveTagFilter(null)}
+                style=${{padding:'3px 10px',borderRadius:20,border:'1.5px solid '+(activeTagFilter===null?'#1D1D1F':'#E5E5EA'),
+                  background:activeTagFilter===null?'#1D1D1F':'#FFF',color:activeTagFilter===null?'#FFF':'#6E6E73',
+                  fontSize:10,fontWeight:600,cursor:'pointer'}}>Todos</button>
+              ${tags.map(t=>html`
+                <button key=${t.id} onClick=${()=>setActiveTagFilter(activeTagFilter===t.id?null:t.id)}
+                  style=${{padding:'3px 10px',borderRadius:20,border:'1.5px solid '+(activeTagFilter===t.id?t.color:'#E5E5EA'),
+                    background:activeTagFilter===t.id?t.color:'#FFF',color:activeTagFilter===t.id?'#FFF':t.color,
+                    fontSize:10,fontWeight:700,cursor:'pointer'}}>${t.name}</button>`)}
+            </div>`}
+
           <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
             ${team.length===0 ? html`
               <div style=${{ textAlign:'center', padding:'48px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:16 }}>
@@ -2942,7 +3117,7 @@ function PEquipo() {
                 <p style=${{ fontSize:14 }}>Sin miembros asignados a este proyecto</p>
                 <p style=${{ fontSize:12, marginTop:6 }}>Añádelos desde Admin → Usuarios</p>
               </div>` :
-              team.map(m => {
+              (activeTagFilter ? team.filter(m=>hasMemberTag(activeTagFilter,m.id)) : team).map(m => {
                 const onVac = (m.vacations||[]).some(v=>v.from<=today&&(!v.to||v.to>=today));
                 const color = rc(m.role_label||'');
                 const row = orgData.find(r=>r.member_id===m.id)||{};
@@ -2962,6 +3137,17 @@ function PEquipo() {
                           ${onVac && html`<span style=${{ fontSize:10, color:'#FF9500', fontWeight:700, background:'#FF950015', padding:'2px 7px', borderRadius:8 }}>🏖️ Vacaciones</span>`}
                         </div>
                         ${org[m.id] && html`<div style=${{ fontSize:11, color:'#86868B', marginTop:1 }}>Reporta a: <strong>${team.find(x=>x.id===org[m.id])?.name||'—'}</strong></div>`}
+                      ${tags.length>0&&html`
+                        <div style=${{display:'flex',gap:3,flexWrap:'wrap',marginTop:4}}>
+                          ${memberTagList(m.id).map(t=>html`
+                            <span key=${t.id} onClick=${()=>toggleMemberTag(t.id,m.id)}
+                              style=${{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10,background:t.color,color:'#FFF',cursor:'pointer'}}>
+                              ${t.name} ✕</span>`)}
+                          ${tags.filter(t=>!hasMemberTag(t.id,m.id)).map(t=>html`
+                            <span key=${t.id} onClick=${()=>toggleMemberTag(t.id,m.id)}
+                              style=${{fontSize:9,padding:'1px 6px',borderRadius:10,border:'1px dashed '+t.color+'80',color:t.color,cursor:'pointer'}}>
+                              + ${t.name}</span>`)}
+                        </div>`}
                       </div>
                     </div>
                     <!-- Project config row — show latest period, allow add -->
@@ -4118,11 +4304,11 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
   const saveE = () => { sR(allRisks.map(r=>r.id===eId?{...r,...eF}:r)); setEId(null); };
 
   const TYPE_CONFIG = {
-    riesgo:      { label:'Riesgos',       icon:'⚠️', color:'#FF9500', bg:'#FFF9E6', desc:'Amenazas potenciales', btn:'+ Riesgo' },
-    problema:    { label:'Problemas',     icon:'🔴', color:'#FF3B30', bg:'#FFF5F5', desc:'Issues activos',       btn:'+ Problema' },
-    oportunidad: { label:'Oportunidades', icon:'🌟', color:'#34C759', bg:'#F0FFF4', desc:'Mejoras potenciales',  btn:'+ Oportunidad' },
+    riesgos:      { label:'Riesgos',       icon:'⚠️', color:'#FF9500', bg:'#FFF9E6', desc:'Amenazas potenciales', btn:'+ Riesgo',      type:'riesgo' },
+    problemas:    { label:'Problemas',     icon:'🔴', color:'#FF3B30', bg:'#FFF5F5', desc:'Issues activos',       btn:'+ Problema',   type:'problema' },
+    oportunidades:{ label:'Oportunidades', icon:'🌟', color:'#34C759', bg:'#F0FFF4', desc:'Mejoras potenciales',  btn:'+ Oportunidad',type:'oportunidad' },
   };
-  const cur = TYPE_CONFIG[subTab] || TYPE_CONFIG.riesgo;
+  const cur = TYPE_CONFIG[subTab] || TYPE_CONFIG.riesgos;
   const curItemsRaw = subTab==='riesgos'?riesgos:subTab==='problemas'?problemas:subTab==='oportunidades'?oportunidades:mitigados;
   const curItemsFiltered = activeTagFilter
     ? curItemsRaw.filter(r=>tagAssignments.some(a=>a.tag_id===activeTagFilter&&a.entity_type==='risk'&&a.entity_id===r.id))
@@ -4229,25 +4415,25 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
     <div style=${{ maxWidth:'100%', margin:'0 auto' }}>
 
       <!-- Sub-tabs FIRST -->
-      <div style=${{ display:'flex', gap:4, marginBottom:16, flexWrap:'wrap' }}>
+      <div style=${{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
         ${[
-          ['resumen',      'LayoutDashboard','Resumen',     ''],
-          ['riesgos',      'AlertTriangle', 'Riesgos',     riesgos.length>0?' ('+riesgos.length+')':''],
-          ['problemas',    'AlertOctagon',  'Problemas',   problemas.length>0?' ('+problemas.length+')':''],
-          ['oportunidades','Star',          'Oportunidades',oportunidades.length>0?' ('+oportunidades.length+')':''],
-          ['mitigados',    'CheckCircle2',  'Resueltos',   ''],
-          ['escalado',     'TrendingUp',    'Escalado',    ''],
-          ['sugeridos',    'Bell',          'Sugeridos',   suggestedEscalations.length>0?' ('+suggestedEscalations.length+')':''],
-          ['historial',    'BookOpen',      'Historial',   ''],
-        ].map(([tid,icon,label,badge])=>html`
+          ['resumen',       '📊', 'Resumen',      ''],
+          ['riesgos',       '⚠️', 'Riesgos',      riesgos.length>0?' '+riesgos.length:''],
+          ['problemas',     '🔴', 'Problemas',    problemas.length>0?' '+problemas.length:''],
+          ['oportunidades', '🌟', 'Oportunidades',oportunidades.length>0?' '+oportunidades.length:''],
+          ['mitigados',     '✅', 'Resueltos',    mitigados.length>0?' '+mitigados.length:''],
+          ['escalado',      '📈', 'Escalado',     ''],
+          ['sugeridos',     '🔔', 'Sugeridos',    suggestedEscalations.length>0?' '+suggestedEscalations.length:''],
+          ['historial',     '📚', 'Historial',    ''],
+        ].map(([tid,emoji,label,badge])=>html`
           <button key=${tid} onClick=${()=>setSubTab(tid)}
-            style=${{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:20,
-              border:'1.5px solid '+(subTab===tid?'#007AFF':'#E5E5EA'),
-              background:subTab===tid?'#007AFF':'#FFF',
+            style=${{ display:'flex', alignItems:'center', gap:5, padding:'7px 14px', borderRadius:20,
+              border:'none',
+              background:subTab===tid?'#007AFF':'#F2F2F7',
               color:subTab===tid?'#FFF':'#6E6E73',
-              fontSize:12, fontWeight:subTab===tid?600:500, cursor:'pointer', transition:'all .15s' }}>
-            <${Icon} name=${icon} size=${13} color=${subTab===tid?'#FFF':'#86868B'} />
-            ${label}${badge}
+              fontSize:12, fontWeight:subTab===tid?700:500, cursor:'pointer',
+              transition:'background .15s' }}>
+            ${emoji} ${label}${badge?html`<span style=${{background:subTab===tid?'rgba(255,255,255,.3)':'#E5E5EA',borderRadius:10,padding:'0 6px',fontSize:10,fontWeight:700,marginLeft:2}}>${badge.trim()}</span>`:''}
           </button>`)}
       </div>
 
@@ -4269,7 +4455,7 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
         </div>`}
 
       <!-- RESUMEN tab: KPIs + heat map -->
-      ${(subTab==='resumen'||!subTab) && html`
+      ${subTab==='resumen' && html`
         <div>
           <!-- KPI row -->
           <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:18 }}>
@@ -4388,11 +4574,10 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
               ? html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC' }}><p style=${{ fontSize:32 }}>✅</p><p>Sin elementos resueltos aún</p></div>`
               : mitigados.map(r => html`<${RiskCard} key=${r.id} r=${r} fromHist=${false} />`)}
           ` : html`
-            ${curItems.length===0 && html`
+            ${curItemsFiltered.length===0 && html`
               <div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
-                <p style=${{ fontSize:32, marginBottom:8 }}>${cur.icon}</p>
-                <p style=${{ fontSize:14 }}>Sin ${cur.label.toLowerCase()} activos</p>
-                <p style=${{ fontSize:12, marginTop:4 }}>${cur.desc}</p>
+                <p style=${{ fontSize:32, marginBottom:8 }}>${subTab==='riesgos'?'⚠️':subTab==='problemas'?'🔴':'🌟'}</p>
+                <p style=${{ fontSize:14 }}>Sin ${subTab==='riesgos'?'riesgos':subTab==='problemas'?'problemas':'oportunidades'} activos</p>
               </div>`}
             ${curItemsFiltered.map(r => html`<${RiskCard} key=${r.id} r=${r} fromHist=${false} />`)}
           `}
