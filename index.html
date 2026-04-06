@@ -127,16 +127,27 @@ async function sbToggleTagAssignment(tagId, entityType, entityId, sala) {
 
 /* ─── Roles (Supabase table: custom_roles) ─── */
 async function sbLoadRoles() {
+  // Try 'roles' table first, then 'custom_roles' as fallback
   try {
-    const { data } = await supabase.from('custom_roles').select('name').order('name');
-    return (data||[]).map(r=>r.name);
-  } catch { return []; }
+    const { data, error } = await supabase.from('roles').select('name').order('name');
+    if (!error && data) {
+      const names = data.map(r=>r.name).filter(Boolean);
+      try { localStorage.setItem('rf-admin-roles', JSON.stringify(names)); } catch {}
+      if (names.length > 0) return names;
+    }
+  } catch {}
+  // Fallback: localStorage
+  try { return JSON.parse(localStorage.getItem('rf-admin-roles')||'[]'); } catch { return []; }
 }
 async function sbSaveRole(name) {
-  try { await supabase.from('custom_roles').upsert({name}, {onConflict:'name'}); } catch {}
+  try { await supabase.from('roles').upsert({name}, {onConflict:'name'}); } catch {
+    try { await supabase.from('custom_roles').upsert({name}, {onConflict:'name'}); } catch {}
+  }
 }
 async function sbDeleteRole(name) {
-  try { await supabase.from('custom_roles').delete().eq('name', name); } catch {}
+  try { await supabase.from('roles').delete().eq('name', name); } catch {
+    try { await supabase.from('custom_roles').delete().eq('name', name); } catch {}
+  }
 }
 
 async function sbSaveMemberVacs(memberId, vacs) {
@@ -665,7 +676,8 @@ function HomeVacaciones({ profile, user }) {
   const [viewYear,setViewYear]=useState(new Date().getFullYear());
   const today = new Date().toISOString().slice(0,10);
   const thisYear = new Date().getFullYear();
-  const HOLS = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
+  const HOLS_MAP = {'01-01':'Año Nuevo','01-06':'Reyes Magos','05-01':'Día del Trabajo','08-15':'Asunción','10-12':'Fiesta Nacional','11-01':'Todos los Santos','12-06':'Día de la Constitución','12-08':'Inmaculada Concepción','12-25':'Navidad'};
+  const HOLS = Object.keys(HOLS_MAP);
 
   const annualDays = profile?.annual_vac_days ?? 22;
   const prevPend   = profile?.prev_year_pending ?? 0;
@@ -724,6 +736,7 @@ function HomeVacaciones({ profile, user }) {
   };
   const isWknd = (yr,mo,d) => { const dow=new Date(yr,mo,d).getDay(); return dow===0||dow===6; };
   const isHol  = (mo,d) => HOLS.includes(String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'));
+  const holName = (mo,d) => HOLS_MAP[String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')]||'Festivo';
   const infoFor = (e) => e ? (ABSENCE_TYPES.find(t=>t.id===e.type)||ABSENCE_TYPES[0]) : null;
 
   return html`<div style=${{display:'flex',flexDirection:'column',gap:14}}>
@@ -772,7 +785,7 @@ function HomeVacaciones({ profile, user }) {
                 const acronym = info?.initial || '';
                 const tip = e
                   ? (e.label||info?.label||'Ausencia')+(e.from?' | '+e.from:'')+(e.to&&e.to!==e.from?' → '+e.to:'')+(e.reason?' | '+e.reason:'')
-                  : wk?'Fin de semana':hl?'Festivo':String(d);
+                  : wk?'Fin de semana':hl?holName(mo,d):String(d);
                 return html`<div title=${tip}
                   style=${{height:26,borderRadius:4,background:bg,display:'flex',alignItems:'center',justifyContent:'center',
                     fontSize:9,fontWeight:info||isT?800:500,color:fc,lineHeight:1}}>
@@ -796,7 +809,6 @@ function HomeVacaciones({ profile, user }) {
     <!-- Register form -->
     <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px'}}>
       <h4 style=${{fontSize:13,fontWeight:700,marginBottom:12}}>Registrar ausencia</h4>
-      <h4 style=${{fontSize:13,fontWeight:700,marginBottom:14}}>Registrar ausencia</h4>
       <!-- Row 1: Tipo + Nombre/referencia -->
       <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
         <div>
@@ -836,6 +848,8 @@ function HomeVacaciones({ profile, user }) {
             </select>
           </div>`:html``}
       </div>
+      <button onClick=${addVac} disabled=${!newVac.from||saving}
+        style=${{width:'100%',padding:'11px',borderRadius:10,border:'none',background:newVac.from?'#1D1D1F':'#E5E5EA',color:newVac.from?'#FFF':'#86868B',fontSize:13,fontWeight:600,cursor:newVac.from?'pointer':'default',transition:'all .15s'}}>
         ${saving?'Guardando…':'+ Registrar ausencia'}
       </button>
     </div>
