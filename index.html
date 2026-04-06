@@ -1144,7 +1144,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
               </div>`}
           </div>`}
 
-          section==='vacaciones'&&html`<div>
+          ${section==='vacaciones'&&html`<div>
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Vacaciones y ausencias</h1>
             <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Registro y calendario de ausencias</p>
             <${HomeVacaciones} profile=${profile||{id:user.id,name:user.name,annual_vac_days:22,prev_year_pending:0,vacations:[]}} user=${user} />
@@ -2947,11 +2947,8 @@ function Login({ onJoin, isModal }) {
     if (!username.trim()) { setError('Introduce tu usuario o email'); return; }
     setLoading(true); setError('');
 
-    // Load members fresh from Supabase
-    let allMembers = members;
-    if (!allMembers || allMembers.length === 0) {
-      allMembers = await sbLoadTeamMembers();
-    }
+    // Load members fresh from Supabase (always, to ensure latest data)
+    const allMembers = await sbLoadTeamMembers();
 
     const uq = username.trim().toLowerCase();
     const member = allMembers.find(m =>
