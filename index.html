@@ -889,6 +889,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
   const [showNotifs,   setShowNotifs]   = useState(false);
   const [homeNotifs,   setHomeNotifs]   = useState([]);
   const [rolesList,    setRolesList]    = useState(getAllRoles);
+  const today    = new Date().toISOString().slice(0,10);
   const thisYear = new Date().getFullYear();
 
   useEffect(() => {
