@@ -2033,51 +2033,7 @@ function RoomPicker() {
               `;
             })()}
 
-            <!-- Sparklines row -->
-            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
 
-              <!-- Notas por retro -->
-              <div style=${{ ...cS, padding:'18px' }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>📈 Notas por retro</h3>
-                <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Últimas ${trend.length} sesiones</p>
-                ${trend.length === 0
-                  ? html`<p style=${{ color:'#C7C7CC', fontSize:12, textAlign:'center', padding:20 }}>Sin datos</p>`
-                  : html`
-                    <div style=${{ display:'flex', alignItems:'flex-end', gap:4, height:90 }}>
-                      ${trend.map((t,i) => {
-                        const v = t.data?.notes?.length || 0;
-                        const h = Math.max((v/trendMax)*100, 4);
-                        const sala = rooms.find(r => r.slug === t.sala);
-                        return html`<div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }} title=${(sala?.name||t.sala)+': '+v+' notas'}>
-                          <span style=${{ fontSize:9, color:'#86868B', fontWeight:700 }}>${v||''}</span>
-                          <div style=${{ width:'100%', height:h+'%', minHeight:4, background:'linear-gradient(180deg,#007AFF,#5856D6)', borderRadius:'3px 3px 0 0' }} />
-                          <span style=${{ fontSize:8, color:'#C7C7CC', marginTop:2 }}>${fd(t.created_at).split(' ')[0]}</span>
-                        </div>`;
-                      })}
-                    </div>`}
-              </div>
-
-              <!-- Participantes por retro -->
-              <div style=${{ ...cS, padding:'18px' }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>👥 Participantes por retro</h3>
-                <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Últimas ${trend.length} sesiones</p>
-                ${trend.length === 0
-                  ? html`<p style=${{ color:'#C7C7CC', fontSize:12, textAlign:'center', padding:20 }}>Sin datos</p>`
-                  : html`
-                    <div style=${{ display:'flex', alignItems:'flex-end', gap:4, height:90 }}>
-                      ${trend.map((t,i) => {
-                        const p = [...new Set((t.data?.notes||[]).map(n=>n.userName))].length;
-                        const h = Math.max((p/partMax)*100, 4);
-                        const sala = rooms.find(r => r.slug === t.sala);
-                        return html`<div key=${i} style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }} title=${(sala?.name||t.sala)+': '+p+' personas'}>
-                          <span style=${{ fontSize:9, color:'#86868B', fontWeight:700 }}>${p||''}</span>
-                          <div style=${{ width:'100%', height:h+'%', minHeight:4, background:'linear-gradient(180deg,#34C759,#30d158)', borderRadius:'3px 3px 0 0' }} />
-                          <span style=${{ fontSize:8, color:'#C7C7CC', marginTop:2 }}>${fd(t.created_at).split(' ')[0]}</span>
-                        </div>`;
-                      })}
-                    </div>`}
-              </div>
-            </div>
 
             <!-- Donut + Notas por proyecto -->
             <div style=${{ display:'grid', gridTemplateColumns:'200px 1fr', gap:12, marginBottom:12 }}>
@@ -2136,7 +2092,7 @@ function RoomPicker() {
                 <table style=${{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
                   <thead>
                     <tr style=${{ borderBottom:'1.5px solid #E5E5EA', background:'#F9F9FB' }}>
-                      ${['Proyecto','Tipo','Retros','Notas','Votos','Accionables','% Hecho','Riesgos','Participantes','Última'].map(h=>html`
+                      ${['Proyecto','Tipo','Retros','Notas','Accionables','% Hecho','Riesgos','Participantes','% Vacas','% Rotación','Última'].map(h=>html`
                         <th key=${h} style=${{ padding:'8px 12px', textAlign:'left', fontWeight:700, color:'#86868B', fontSize:9, textTransform:'uppercase', whiteSpace:'nowrap' }}>${h}</th>
                       `)}
                     </tr>
@@ -2147,6 +2103,28 @@ function RoomPicker() {
                       const cc  = cr>=75?'#34C759':cr>=40?'#FF9500':'#FF3B30';
                       const avgP = s.retros>0 ? (s.parts.length/s.retros).toFixed(1) : 0;
                       const lastDate = s.last ? (s.last.created_at || s.last.date) : null;
+                      // Vacation %: days consumed / total available for sala members
+                      const allMbrs = window.__allMembers||[];
+                      const slaMbrs = allMbrs.filter(m=>(m.rooms||[]).includes(s.slug));
+                      const HOLS2 = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
+                      const thisYr2 = new Date().getFullYear();
+                      const cntVD = (vList,mId,mn) => (vList||[]).filter(v=>(v.memberId===mId||v.name===mn)&&(v.type==='vacaciones'||!v.type)&&new Date(v.from||'').getFullYear()===thisYr2).reduce((sum,v)=>{
+                        if(!v.from) return sum;
+                        let d=new Date(v.from),to=new Date(v.to||v.from),cnt=0;
+                        while(d<=to){const dow=d.getDay(),mm2=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(d.getFullYear()===thisYr2&&dow!==0&&dow!==6&&!HOLS2.includes(mm2+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
+                        return sum+cnt;
+                      },0);
+                      const totalCap = slaMbrs.reduce((sum,m)=>sum+(m.annual_vac_days??22)+(m.prev_year_pending??0),0);
+                      const totalUsed = slaMbrs.reduce((sum,m)=>sum+cntVD(m.vacations,m.id,m.name),0);
+                      const vacPct = totalCap>0?Math.min(100,Math.round((totalUsed/totalCap)*100)):null;
+                      const vacColor = vacPct===null?'#C7C7CC':vacPct>90?'#FF3B30':vacPct>70?'#FF9500':'#34C759';
+                      // Rotation %: members who have left (end_date < today) / total historical
+                      const orgRows = (window.__orgData||[]).filter(r=>r.sala===s.slug);
+                      const todayStr2 = new Date().toISOString().slice(0,10);
+                      const leftCount = orgRows.filter(r=>r.end_date&&r.end_date<todayStr2).length;
+                      const totalCount = orgRows.length;
+                      const rotPct = totalCount>0?Math.round((leftCount/totalCount)*100):null;
+                      const rotColor = rotPct===null?'#C7C7CC':rotPct>40?'#FF3B30':rotPct>20?'#FF9500':'#34C759';
                       return html`
                         <tr key=${s.slug} style=${{ borderBottom:'1px solid #F2F2F7' }}
                           onMouseOver=${e=>e.currentTarget.style.background='#F9F9FB'}
@@ -2159,7 +2137,6 @@ function RoomPicker() {
                           </td>
                           <td style=${{ padding:'10px 12px', fontWeight:700, color:'#007AFF' }}>${s.retros}</td>
                           <td style=${{ padding:'10px 12px', fontWeight:600 }}>${s.notes}</td>
-                          <td style=${{ padding:'10px 12px', color:'#FF9500', fontWeight:600 }}>${s.votes}</td>
                           <td style=${{ padding:'10px 12px' }}>${s.done}/${s.actions}</td>
                           <td style=${{ padding:'10px 12px', minWidth:100 }}>
                             <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
@@ -2175,6 +2152,24 @@ function RoomPicker() {
                               : html`<span style=${{ color:'#86868B' }}>—</span>`}
                           </td>
                           <td style=${{ padding:'10px 12px', color:'#86868B' }}>${s.parts.length} <span style=${{ fontSize:9 }}>(${avgP}/retro)</span></td>
+                          <td style=${{ padding:'8px 12px', minWidth:80 }}>
+                            ${vacPct===null ? html`<span style=${{ color:'#C7C7CC', fontSize:10 }}>—</span>` : html`
+                              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                                <div style=${{ flex:1, height:5, background:'#F2F2F7', borderRadius:3, overflow:'hidden' }}>
+                                  <div style=${{ height:'100%', width:vacPct+'%', background:vacColor, borderRadius:3 }}></div>
+                                </div>
+                                <span style=${{ fontSize:10, fontWeight:700, color:vacColor, minWidth:28 }}>${vacPct}%</span>
+                              </div>`}
+                          </td>
+                          <td style=${{ padding:'8px 12px', minWidth:80 }}>
+                            ${rotPct===null ? html`<span style=${{ color:'#C7C7CC', fontSize:10 }}>—</span>` : html`
+                              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                                <div style=${{ flex:1, height:5, background:'#F2F2F7', borderRadius:3, overflow:'hidden' }}>
+                                  <div style=${{ height:'100%', width:rotPct+'%', background:rotColor, borderRadius:3 }}></div>
+                                </div>
+                                <span style=${{ fontSize:10, fontWeight:700, color:rotColor, minWidth:28 }}>${rotPct}%</span>
+                              </div>`}
+                          </td>
                           <td style=${{ padding:'10px 12px', color:'#86868B', fontSize:10 }}>${lastDate ? fd(lastDate) : '—'}</td>
                         </tr>`;
                     })}
@@ -2329,28 +2324,17 @@ function ProjectList({ currentSala, userId }) {
 function Login({ onJoin, isModal }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [rooms,    setRooms]    = useState([]);
-  const [selRoom,  setSelRoom]  = useState(SALA !== 'general' ? SALA : '');
   const [members,  setMembers]  = useState([]);
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
-  const [step,     setStep]     = useState('credentials'); // credentials | sala
 
-  // Load rooms and team_members on mount
-  useEffect(() => {
-    sbLoadRooms().then(r => {
-      setRooms(r||[]);
-      // If URL has sala param, pre-select it
-      if (SALA && SALA !== 'general') setSelRoom(SALA);
-    });
-    sbLoadTeamMembers().then(m => setMembers(m||[]));
-  }, []);
+  useEffect(() => { sbLoadTeamMembers().then(m => setMembers(m||[])); }, []);
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) { setError('Introduce usuario y contraseña'); return; }
     setLoading(true); setError('');
 
-    // Try Supabase Auth first (admin path)
+    // Admin path — Supabase Auth
     const { session } = await sbSignIn(username.trim(), password);
     if (session) {
       setLoading(false);
@@ -2358,7 +2342,7 @@ function Login({ onJoin, isModal }) {
       return;
     }
 
-    // Regular team member login — search by username, email prefix, or name
+    // Team member login
     const uq = username.trim().toLowerCase();
     const member = members.find(m =>
       (m.username && m.username.toLowerCase() === uq) ||
@@ -2367,52 +2351,24 @@ function Login({ onJoin, isModal }) {
       (m.name     && m.name.toLowerCase()     === uq)
     );
     if (!member) { setLoading(false); setError('❌ Usuario no encontrado'); return; }
-    // Support both pin and password fields
     const storedPw = member.pin || member.password || '';
     if (!storedPw || storedPw !== password) { setLoading(false); setError('❌ Contraseña incorrecta'); return; }
 
-    // Superuser → try Supabase Auth with their stored email (bypasses pin requirement)
     if (member.is_superuser) {
-      if (!storedPw) {
-        // No pin set — try Supabase Auth with member's email
-        const { session: s2 } = await sbSignIn(member.email||username.trim(), password);
-        if (!s2) { setLoading(false); setError('❌ Contraseña incorrecta'); return; }
-      }
       setLoading(false);
       window.location.href = window.location.pathname + '?admin';
       return;
     }
 
-    // Check if member is in the selected sala
-    const targetSala = selRoom || SALA;
-    if (!(member.rooms||[]).includes(targetSala)) {
-      setLoading(false);
-      setError('❌ No tienes acceso a este proyecto');
-      return;
-    }
-
+    // No sala needed — go to homepage, user picks project there
     setLoading(false);
     onJoin({
       id: member.id, name: member.name,
       avatar: member.avatar||'👤', color: member.color||'#007AFF',
       role: member.role_label||'', calendarId: member.calendar_id||null,
-      username: member.username, sala: targetSala,
+      username: member.username,
     });
   };
-
-  // Rooms this member has access to (shown after typing username)
-  const memberRooms = username.trim()
-    ? (() => {
-        const uq2 = username.trim().toLowerCase();
-        const m = members.find(x=>
-          (x.username||'').toLowerCase()===uq2 ||
-          (x.email||'').toLowerCase()===uq2 ||
-          ((x.email||'').split('@')[0].toLowerCase())===uq2 ||
-          (x.name||'').toLowerCase()===uq2
-        );
-        return (m?.rooms||[]).map(slug=>rooms.find(r=>r.slug===slug)).filter(Boolean);
-      })()
-    : [];
 
   return html`
     <div style=${{ ...(!isModal ? { minHeight:'100vh', background:'linear-gradient(135deg,#0057FF,#00C6FF)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 } : {}) }}>
@@ -2440,24 +2396,7 @@ function Login({ onJoin, isModal }) {
               style=${{ ...iS, fontSize:14 }} />
           </div>
 
-          <!-- Room selector (if member has multiple rooms) -->
-          ${memberRooms.length > 1 && html`
-            <div>
-              <label style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', display:'block', marginBottom:4 }}>Proyecto</label>
-              <select value=${selRoom} onChange=${e=>setSelRoom(e.target.value)}
-                style=${{ ...iS, fontSize:13, background:'#FFF' }}>
-                <option value="">— Selecciona proyecto —</option>
-                ${memberRooms.map(r=>html`<option key=${r.slug} value=${r.slug}>${r.name}</option>`)}
-              </select>
-            </div>
-          `}
 
-          ${memberRooms.length === 1 && selRoom !== memberRooms[0].slug && html`
-            <div style=${{ padding:'8px 12px', background:'#F0F7FF', borderRadius:8, fontSize:12, color:'#007AFF' }}>
-              📂 Proyecto: <strong>${memberRooms[0].name}</strong>
-              ${(()=>{ if(selRoom!==memberRooms[0].slug) setSelRoom(memberRooms[0].slug); })()}
-            </div>
-          `}
 
           ${error && html`
             <div style=${{ background:'#FFF5F5', border:'1px solid #FF3B3025', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#FF3B30', fontWeight:600 }}>
