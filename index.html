@@ -127,22 +127,17 @@ async function sbToggleTagAssignment(tagId, entityType, entityId, sala) {
 
 /* ─── Roles (Supabase table: custom_roles) ─── */
 async function sbLoadRoles() {
-  // Always return built-in ROLES + any custom ones from Supabase/localStorage
+  // Try 'roles' table first, then 'custom_roles' as fallback
   try {
     const { data, error } = await supabase.from('roles').select('name').order('name');
     if (!error && data) {
-      const custom = data.map(r=>r.name).filter(Boolean);
-      const merged = [...new Set([...ROLES, ...custom])];
-      try { localStorage.setItem('rf-admin-roles', JSON.stringify(custom)); } catch {}
-      _rolesCache = merged;
-      return merged;
+      const names = data.map(r=>r.name).filter(Boolean);
+      try { localStorage.setItem('rf-admin-roles', JSON.stringify(names)); } catch {}
+      if (names.length > 0) return names;
     }
   } catch {}
-  // Fallback: localStorage + built-in ROLES
-  try {
-    const saved = JSON.parse(localStorage.getItem('rf-admin-roles')||'[]');
-    return [...new Set([...ROLES, ...saved])];
-  } catch { return [...ROLES]; }
+  // Fallback: localStorage
+  try { return JSON.parse(localStorage.getItem('rf-admin-roles')||'[]'); } catch { return []; }
 }
 async function sbSaveRole(name) {
   try { await supabase.from('roles').upsert({name}, {onConflict:'name'}); } catch {
@@ -185,6 +180,7 @@ async function sbSaveOrgNode(sala, memberId, managerId) {
     }
   } catch {}
 }
+async function sbLoadCalendars() {
   try { const {data}=await supabase.from('calendars').select('*').order('name'); return data||[]; } catch { return []; }
 }
 async function sbSaveCalendar(cal) {
@@ -899,13 +895,9 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
   useEffect(() => {
     sbLoadRooms().then(r => { setRooms(r||[]); setRoomsLoaded(true); }).catch(()=>setRoomsLoaded(true));
   }, []);
-  // Load roles from Supabase (merge with built-in) + stay in sync
+  // Load roles from Supabase + stay in sync with storage changes
   useEffect(() => {
-    sbLoadRoles().then(r => {
-      const merged = [...new Set([...ROLES, ...r])];
-      setRolesList(merged);
-      _rolesCache = merged;
-    });
+    sbLoadRoles().then(r => setRolesList(r));
     const onStorage = () => setRolesList(getAllRoles());
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
