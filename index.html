@@ -4258,17 +4258,17 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
     </select>`;
 
   return html`
-    <div style=${{position:'fixed',inset:0,zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center'}}
+    <div style=${{position:'fixed',inset:0,zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}
       onClick=${e=>{if(e.target===e.currentTarget)onClose()}}>
       <!-- Backdrop -->
-      <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.45)',backdropFilter:'blur(4px)'}}></div>
+      <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}></div>
       <!-- Modal -->
-      <div style=${{position:'relative',background:'#FFF',borderRadius:20,width:'90%',maxWidth:780,maxHeight:'90vh',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,.2)',animation:'fadeIn .2s ease',display:'flex',flexDirection:'column'}}>
+      <div style=${{position:'relative',background:'#FFF',borderRadius:20,width:'90%',maxWidth:780,maxHeight:'85vh',overflow:'hidden',boxShadow:'0 12px 48px rgba(0,0,0,.12), 0 0 0 1px rgba(0,0,0,.04)',animation:'fadeIn .2s ease',display:'flex',flexDirection:'column'}}>
         <!-- Header -->
-        <div style=${{padding:'16px 20px',borderBottom:'1px solid #E5E5EA',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+        <div style=${{padding:'18px 24px',borderBottom:'1px solid #F2F2F7',display:'flex',alignItems:'center',gap:10,flexShrink:0,background:'#FAFAFA'}}>
           <span style=${{fontSize:18,flexShrink:0}}>${tp.icon}</span>
           <div style=${{flex:1}}>
-            <div style=${{display:'flex',alignItems:'center',gap:8}}>
+            <div style=${{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
               <span style=${{fontSize:10,fontWeight:700,color:tp.color,background:tp.color+'12',padding:'2px 8px',borderRadius:6}}>${tp.label}</span>
               <span style=${{fontSize:10,fontWeight:700,color:st.color,background:st.bg,padding:'2px 8px',borderRadius:6}}>${st.label}</span>
               <span style=${{fontSize:10,fontWeight:700,color:pr.color}}>${pr.icon} ${pr.label}</span>
@@ -4312,16 +4312,17 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
             </div>
             <!-- Linked Risk -->
             ${task.riskId && html`
-              <div style=${{background:'#FFF5F5',borderRadius:10,border:'1.5px solid #FF3B3020',padding:'12px 14px',cursor:'pointer',transition:'all .15s'}}
+              <div style=${{background:'#FFF5F5',borderRadius:12,border:'1.5px solid #FF3B3015',padding:'14px 16px',cursor:'pointer',transition:'all .15s'}}
                 onClick=${()=>{ if(onGoToRisk) onGoToRisk(task.riskId); onClose(); }}
-                onMouseOver=${e=>e.currentTarget.style.borderColor='#FF3B30'}
-                onMouseOut=${e=>e.currentTarget.style.borderColor='#FF3B3020'}>
-                <div style=${{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
-                  <${Icon} name="AlertTriangle" size=${14} color="#FF3B30" />
-                  <span style=${{fontSize:11,fontWeight:700,color:'#FF3B30'}}>Vinculado a riesgo</span>
-                  <span style=${{marginLeft:'auto',fontSize:10,color:'#FF3B30',fontWeight:600}}>Ver riesgo →</span>
+                onMouseOver=${e=>{e.currentTarget.style.borderColor='#FF3B30';e.currentTarget.style.background='#FFF0F0';}}
+                onMouseOut=${e=>{e.currentTarget.style.borderColor='#FF3B3015';e.currentTarget.style.background='#FFF5F5';}}>
+                <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                  ${(()=>{const allR=(window.__currentRisks||[]); const rsk=allR.find(r=>r.id===task.riskId); const rNum=rsk?allR.filter(x=>(x.type||'riesgo')===(rsk.type||'riesgo')).indexOf(rsk)+1:0; const prefix=(rsk?.type||'riesgo')==='problema'?'P':'R'; return html`
+                    <span style=${{fontSize:12,fontWeight:800,color:'#FF3B30',background:'#FF3B3012',padding:'2px 8px',borderRadius:6}}>${prefix}${rNum||'?'}</span>`;})()}
+                  <span style=${{fontSize:12,fontWeight:700,color:'#FF3B30'}}>Vinculado a riesgo</span>
+                  <span style=${{marginLeft:'auto',fontSize:11,color:'#FF3B30',fontWeight:600}}>Ver riesgo →</span>
                 </div>
-                <p style=${{fontSize:12,color:'#1D1D1F',margin:0}}>${(()=>{const rsk=(window.__currentRisks||[]).find(r=>r.id===task.riskId); return rsk?rsk.text:'Riesgo ID: '+task.riskId;})()}</p>
+                <p style=${{fontSize:13,color:'#1D1D1F',margin:0,fontWeight:500}}>${(()=>{const rsk=(window.__currentRisks||[]).find(r=>r.id===task.riskId); return rsk?rsk.text:'Riesgo no encontrado';})()}</p>
                 <p style=${{fontSize:10,color:'#86868B',marginTop:6}}>Clic para ir al riesgo · Al completar la tarea se preguntará si el riesgo está mitigado</p>
               </div>`}
             <!-- Meta info -->
@@ -4387,12 +4388,12 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
         </div>
 
         <!-- Footer -->
-        <div style=${{padding:'12px 20px',borderTop:'1px solid #E5E5EA',display:'flex',gap:8,justifyContent:'space-between',flexShrink:0}}>
+        <div style=${{padding:'14px 24px',borderTop:'1px solid #F2F2F7',display:'flex',gap:8,justifyContent:'space-between',flexShrink:0,background:'#FAFAFA'}}>
           <button onClick=${()=>{if(confirm('¿Eliminar esta tarea?'))onDelete(task.id)}}
-            style=${{padding:'8px 16px',borderRadius:9,border:'1.5px solid #FF3B3025',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
+            style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
           <div style=${{display:'flex',gap:8}}>
-            <button onClick=${onClose} style=${{padding:'8px 18px',borderRadius:9,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer'}}>Cancelar</button>
-            <button onClick=${save} style=${{padding:'8px 22px',borderRadius:9,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
+            <button onClick=${onClose} style=${{padding:'8px 20px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:500,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+            <button onClick=${save} style=${{padding:'8px 24px',borderRadius:10,border:'none',background:'linear-gradient(135deg,#007AFF,#5856D6)',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
           </div>
         </div>
       </div>
