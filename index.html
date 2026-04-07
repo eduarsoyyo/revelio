@@ -3003,7 +3003,7 @@ function RoomPicker() {
                     ${(() => {
                       const thisYr = new Date().getFullYear();
                       const HOLS = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
-                      const cntD = (vList, memberId, yr) => vList.filter(v=>(v.memberId===memberId||v.name===salaMembers.find(x=>x.id===memberId)?.name)&&(v.type==='vacaciones'||!v.type)&&new Date(v.from||'').getFullYear()===yr).reduce((sum,v)=>{
+                      const cntD = (vList, memberId, yr) => (Array.isArray(vList)?vList:(() => { try { return JSON.parse(vList)||[]; } catch { return []; } })()).filter(v=>(v.type==='vacaciones'||!v.type)&&new Date(v.from||'').getFullYear()===yr).reduce((sum,v)=>{
                         if(!v.from) return sum;
                         let d=new Date(v.from),to=new Date(v.to||v.from),cnt=0;
                         while(d<=to){const dow=d.getDay(),mm=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(d.getFullYear()===yr&&dow!==0&&dow!==6&&!HOLS.includes(mm+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
@@ -3032,22 +3032,23 @@ function RoomPicker() {
                         </div>
                         <!-- Per-member mini bars -->
                         <div style=${{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
-                          ${salaMembers.slice(0,4).map(m=>{
+                          ${salaMembers.slice(0,6).map(m=>{
                             const cap = (m.annual_vac_days??ANNUAL_VAC_DAYS)+(m.prev_year_pending??0);
                             const used = cntD(m.vacations||[],m.id,thisYr);
                             const mp = cap>0?Math.min(100,Math.round((used/cap)*100)):0;
                             return html`
                               <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:6 }}>
-                                <span style=${{ fontSize:13 }}>${m.avatar||'👤'}</span>
+                                <span style=${{ fontSize:13, width:18, textAlign:'center' }}>${m.avatar||'👤'}</span>
+                                <span style=${{ fontSize:9, color:'#1D1D1F', fontWeight:500, minWidth:60, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>${m.name?.split(' ')[0]||'—'}</span>
                                 <div style=${{ flex:1 }}>
                                   <div style=${{ background:'#F2F2F7', borderRadius:3, height:5, overflow:'hidden' }}>
-                                    <div style=${{ width:mp+'%', height:'100%', background:mp>90?'#FF3B30':mp>70?'#FF9500':'#34C759', borderRadius:3 }}></div>
+                                    <div style=${{ width:mp+'%', height:'100%', background:mp>90?'#FF3B30':mp>70?'#FF9500':'#34C759', borderRadius:3, transition:'width .3s' }}></div>
                                   </div>
                                 </div>
-                                <span style=${{ fontSize:9, color:'#86868B', minWidth:24, textAlign:'right' }}>${mp}%</span>
+                                <span style=${{ fontSize:9, color:'#86868B', minWidth:40, textAlign:'right' }}>${used}/${cap}d</span>
                               </div>`;
                           })}
-                          ${salaMembers.length>4&&html`<span style=${{ fontSize:9, color:'#C7C7CC', textAlign:'center' }}>+${salaMembers.length-4} más</span>`}
+                          ${salaMembers.length>6&&html`<span style=${{ fontSize:9, color:'#C7C7CC', textAlign:'center' }}>+${salaMembers.length-6} más</span>`}
                         </div>
                         ${vacToday.length>0&&html`<div style=${{ fontSize:10, color:'#FF9500', fontWeight:700 }}>Hoy: ${vacToday.map(m=>m.name).join(', ')}</div>`}
                         ${vacSoon.length>0&&html`<div style=${{ fontSize:10, color:'#86868B', marginTop:4 }}>Próx. mes: ${vacSoon.slice(0,2).map(m=>m.name).join(', ')}${vacSoon.length>2?' +'+vacSoon.length-2:''}</div>`}
@@ -3133,7 +3134,7 @@ function RoomPicker() {
                       const slaMbrs = allMbrs.filter(m=>(m.rooms||[]).includes(s.slug));
                       const HOLS2 = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
                       const thisYr2 = new Date().getFullYear();
-                      const cntVD = (vList,mId,mn) => (vList||[]).filter(v=>(v.memberId===mId||v.name===mn)&&(v.type==='vacaciones'||!v.type)&&new Date(v.from||'').getFullYear()===thisYr2).reduce((sum,v)=>{
+                      const cntVD = (vList,mId,mn) => (Array.isArray(vList)?vList:(() => { try { return JSON.parse(vList)||[]; } catch { return []; } })()).filter(v=>(v.type==='vacaciones'||!v.type)&&new Date(v.from||'').getFullYear()===thisYr2).reduce((sum,v)=>{
                         if(!v.from) return sum;
                         let d=new Date(v.from),to=new Date(v.to||v.from),cnt=0;
                         while(d<=to){const dow=d.getDay(),mm2=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(d.getFullYear()===thisYr2&&dow!==0&&dow!==6&&!HOLS2.includes(mm2+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
