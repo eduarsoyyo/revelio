@@ -2580,12 +2580,7 @@ function SalaCard({ r, sbRetros, go, onRemove, setEditRoom }) {
           <span style=${{ fontSize:11, color:'#86868B' }}>📝 ${rm.reduce((s,rt)=>s+(rt.data?.notes?.length||0),0)} notas</span>
           <span style=${{ fontSize:11, color:'#86868B' }}>👥 ${[...new Set(rm.flatMap(rt=>(rt.data?.notes||[]).map(n=>n.userName)))].length} personas</span>
         ` : html`<span style=${{ fontSize:11, color:'#C7C7CC' }}>Sin retros guardadas</span>`}
-        ${users.length > 0 && html`
-          <button onClick=${()=>{ ['rf-reg-','rf-user-'].forEach(k=>localStorage.removeItem(k+r.slug)); location.reload(); }}
-            style=${{ marginLeft:'auto', fontSize:9, color:'#86868B', background:'none', border:'1px solid #E5E5EA', borderRadius:5, padding:'2px 7px', cursor:'pointer' }}>
-            👤 ${users.length} sesiones · limpiar
-          </button>
-        `}
+
       </div>
     </div>`;
 }
@@ -2854,12 +2849,14 @@ function RoomPicker() {
       .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
     // Use LATEST snapshot for current state (actions/risks), all snapshots for history
     const latest  = sbSala[0];
-    const notes   = sbSala.reduce((s, rt) => s + (rt.data?.notes?.length || 0), 0);
-    const votes   = sbSala.reduce((s, rt) => s + ((rt.data?.notes || []).reduce((a, n) => a + (n.voters?.length || 0), 0)), 0);
-    // Actions and risks from LATEST snapshot only (not cumulative across retros)
+    // Count only CLOSED retros for cumulative metrics
+    const closedRetros = sbSala.filter(rt => rt.status === 'closed');
+    const notes   = closedRetros.reduce((s, rt) => s + (rt.data?.notes?.length || 0), 0);
+    const votes   = closedRetros.reduce((s, rt) => s + ((rt.data?.notes || []).reduce((a, n) => a + (n.voters?.length || 0), 0)), 0);
+    // Actions and risks from LATEST snapshot only
     const actions = latest?.data?.actions?.length || 0;
     const done    = (latest?.data?.actions || []).filter(a => a.status === 'done').length;
-    const parts   = [...new Set(sbSala.flatMap(rt => (rt.data?.notes || []).map(n => n.userName)))];
+    const parts   = [...new Set(closedRetros.flatMap(rt => (rt.data?.notes || []).map(n => n.userName)))];
     const risks   = latest?.data?.risks || [];
     const risksOpen      = risks.filter(x => x.status !== 'mitigated').length;
     const risksMitigated = risks.filter(x => x.status === 'mitigated').length;
@@ -3323,19 +3320,45 @@ function RoomPicker() {
 
       <!-- ── MODAL: Editar proyecto ── -->
       ${editRoom && html`
-        <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${()=>setEditRoom(null)}>
-          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 30px', maxWidth:420, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h3 style=${{ fontSize:17, fontWeight:700, marginBottom:18 }}>✏️ Editar proyecto</h3>
+        <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,.18)', backdropFilter:'blur(8px)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }} onClick=${()=>setEditRoom(null)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 30px', maxWidth:520, width:'100%', maxHeight:'85vh', overflowY:'auto', boxShadow:'0 12px 48px rgba(0,0,0,.12)' }}>
+            <h3 style=${{ fontSize:17, fontWeight:700, marginBottom:18 }}>Editar proyecto</h3>
             <p style=${{ fontSize:11, color:'#86868B', marginBottom:6 }}>Nombre</p>
             <input value=${editRoom.name} onInput=${e=>setEditRoom({...editRoom,name:e.target.value})}
               onKeyDown=${e=>e.key==='Enter'&&saveEdit()}
               style=${{ ...iS, marginBottom:14, fontSize:14 }} />
             <p style=${{ fontSize:11, color:'#86868B', marginBottom:6 }}>Metodología</p>
             <select value=${editRoom.tipo} onChange=${e=>setEditRoom({...editRoom,tipo:e.target.value})}
-              style=${{ ...iS, marginBottom:20 }}>
+              style=${{ ...iS, marginBottom:14 }}>
               ${Object.entries(TASK_TEMPLATES).map(([k,v]) => html`<option key=${k} value=${k}>${v.icon} ${v.label}</option>`)}
             </select>
-            <p style=${{ fontSize:10, color:'#C7C7CC', marginBottom:14 }}>El slug (<code>${editRoom.slug}</code>) no se puede cambiar — es la URL del proyecto.</p>
+            <!-- User assignment -->
+            <div style=${{ marginBottom:14, padding:'14px', borderRadius:12, background:'#F9F9FB', border:'1.5px solid #E5E5EA' }}>
+              <p style=${{ fontSize:11, color:'#86868B', fontWeight:700, marginBottom:8, textTransform:'uppercase', letterSpacing:.4 }}>Personas asignadas</p>
+              <div style=${{ display:'flex', flexDirection:'column', gap:4, maxHeight:200, overflowY:'auto' }}>
+                ${(window.__allMembers||[]).map(m=>{
+                  const assigned = (m.rooms||[]).includes(editRoom.slug);
+                  return html`
+                    <label key=${m.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:8, cursor:'pointer',
+                      background:assigned?'#007AFF08':'transparent', border:assigned?'1px solid #007AFF20':'1px solid transparent' }}>
+                      <input type="checkbox" checked=${assigned}
+                        onChange=${async()=>{
+                          const newRooms = assigned ? (m.rooms||[]).filter(s=>s!==editRoom.slug) : [...(m.rooms||[]), editRoom.slug];
+                          await sbSaveTeamMember({...m, rooms:newRooms});
+                          window.__allMembers = (window.__allMembers||[]).map(x=>x.id===m.id?{...x,rooms:newRooms}:x);
+                          setEditRoom({...editRoom, _refresh:Date.now()});
+                        }}
+                        style=${{ accentColor:'#007AFF' }} />
+                      <span style=${{ fontSize:14 }}>${m.avatar||'👤'}</span>
+                      <div>
+                        <span style=${{ fontSize:12, fontWeight:assigned?600:400, color:assigned?'#007AFF':'#1D1D1F' }}>${m.name}</span>
+                        ${m.role_label&&html`<span style=${{ fontSize:10, color:'#86868B', marginLeft:4 }}>${m.role_label}</span>`}
+                      </div>
+                    </label>`;
+                })}
+              </div>
+            </div>
+            <p style=${{ fontSize:10, color:'#C7C7CC', marginBottom:14 }}>El slug (<code>${editRoom.slug}</code>) no se puede cambiar.</p>
             <div style=${{ display:'flex', gap:10 }}>
               <button onClick=${()=>setEditRoom(null)} style=${{ ...bS, flex:1, padding:'11px' }}>Cancelar</button>
               <button onClick=${saveEdit} style=${{ ...bP, flex:1, padding:'11px' }}>Guardar cambios</button>
@@ -4631,10 +4654,11 @@ function PTrabajo({ actions, sA, risks, user }) {
         draggable=${subView==='board'}
         onDragStart=${()=>setDragAct(a.id)}
         onDragEnd=${()=>{setDragAct(null);setOverCol(null)}}
+        onClick=${()=>setDetailTask({...a})}
         style=${{ background:'#FFF', borderRadius:compact?8:12, padding:compact?'7px 9px':'10px 12px',
           border:'1px solid '+(overdue?'#FF3B3025':'#E5E5EA'),
           borderLeft:'3px solid '+tp.color,
-          boxShadow:'0 1px 3px rgba(0,0,0,.03)', cursor:subView==='board'?'grab':'default',
+          boxShadow:'0 1px 3px rgba(0,0,0,.03)', cursor:'pointer',
           opacity:dragAct===a.id?.4:a.status==='cancelled'?.5:1,
           marginBottom:compact?4:6, transition:'all .12s' }}>
         <div style=${{ display:'flex', alignItems:'flex-start', gap:8 }}>
@@ -4684,8 +4708,7 @@ function PTrabajo({ actions, sA, risks, user }) {
                 style=${{ border:'none', background:'#FF9500', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5 }}>↻ Reanudar</button>`}
               ${a.status!=='done'&&a.status!=='cancelled'&&html`<button onClick=${(e)=>{e.stopPropagation();upSt(a.id,'done')}} title="Completar"
                 style=${{ border:'none', background:'#34C759', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5 }}>✓</button>`}
-              <button onClick=${(e)=>{e.stopPropagation();setDetailTask({...a})}}
-                style=${{ border:'none', background:'none', fontSize:11, color:'#C7C7CC', cursor:'pointer', padding:'2px' }} title="Abrir detalle">✏️</button>
+
               <button onClick=${()=>delA(a.id)}
                 style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer', padding:'2px' }}>✕</button>
             </div>
@@ -5581,7 +5604,7 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
     const hc = typeKey==='problema' ? '#FF3B30' : heatColor(r.impact||'medio', r.prob||'media');
     const idx = riskNum(r);
     return html`
-      <div style=${{ borderRadius:14, background:'#FFF', border:'1.5px solid #E5E5EA',
+      <div onClick=${()=>!fromHist&&onOpenDetail&&onOpenDetail(r)} style=${{ borderRadius:14, background:'#FFF', border:'1.5px solid #E5E5EA', cursor:fromHist?'default':'pointer',
         borderLeft:'4px solid '+hc, padding:'12px 14px', position:'relative', opacity:fromHist?.7:1 }}>
         ${fromHist && html`<div style=${{ position:'absolute', top:8, right:8, fontSize:9, color:'#86868B', background:'#F2F2F7', padding:'1px 6px', borderRadius:4 }}>📚 ${r._fromRetro}</div>`}
         ${eId===r.id ? html`
@@ -5706,6 +5729,7 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
   };
   const [linkModal, setLinkModal] = useState(null);
   const [detailRisk, setDetailRisk] = useState(null);
+  const [showRiskForm, setShowRiskForm] = useState(false);
   // Check if another component wants to open a specific risk
   useEffect(() => {
     if (window.__pendingRiskDetail) {
@@ -5993,55 +6017,68 @@ const addItem = () => {
           `}
         </div>
 
-        <!-- Add form (right panel) -->
+        <!-- Add button (replaces right panel form) -->
         ${subTab!=='mitigados' && subTab!=='historial' && subTab!=='escalado' && subTab!=='sugeridos' && html`
-          <div style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', padding:'16px', position:'sticky', top:0 }}>
-            <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>➕ Nuevo ${subTab==='riesgos'?'riesgo':subTab==='problemas'?'problema':'oportunidad'}</h4>
-            <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
-              <textarea value=${form.text} onInput=${e=>setForm({...form,text:e.target.value,type:subTab==='riesgos'?'riesgo':subTab==='problemas'?'problema':'oportunidad'})}
-                placeholder=${subTab==='oportunidades'?'Describe la oportunidad…':'Describe el riesgo o problema…'}
-                onKeyDown=${e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addItem();}}}
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:10, padding:'9px 12px', fontSize:13, resize:'vertical', fontFamily:'inherit', outline:'none', minHeight:72 }} />
-              ${subTab!=='oportunidades' && html`
-                <div style=${{ display:'grid', gridTemplateColumns:subTab==='problemas'?'1fr':'1fr 1fr', gap:6 }}>
-                  <select value=${form.impact} onChange=${e=>setForm({...form,impact:e.target.value})}
-                    style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, outline:'none', fontFamily:'inherit' }}>
-                    <option value="alto">Impacto: Alto</option>
-                    <option value="medio">Impacto: Medio</option>
-                    <option value="bajo">Impacto: Bajo</option>
-                  </select>
-                  ${subTab!=='problemas' && html`<select value=${form.prob} onChange=${e=>setForm({...form,prob:e.target.value})}
-                    style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, outline:'none', fontFamily:'inherit' }}>
-                    <option value="alta">Prob: Alta</option>
-                    <option value="media">Prob: Media</option>
-                    <option value="baja">Prob: Baja</option>
-                  </select>`}
-                </div>
-              `}
-              <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})}
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }}>
-                <option value="">— Responsable —</option>
-                ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-              </select>
-              <input value=${form.mitigation||''} onInput=${e=>setForm({...form,mitigation:e.target.value})}
-                placeholder=${subTab==='oportunidades'?'¿Cómo aprovecharla?':'Plan de mitigación'}
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 12px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
-              <div>
-                <label style=${{ fontSize:10, color:'#86868B', display:'block', marginBottom:3 }}>Fecha resolución prevista</label>
-                <input type="date" value=${form.deadline||''} onInput=${e=>setForm({...form,deadline:e.target.value})}
-                  style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
-              </div>
-              <button onClick=${addItem}
-                style=${{ padding:'9px', borderRadius:9, border:'none', background:cur.color, color:'#FFF', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-                ${cur.btn}
-              </button>
-            </div>
+          <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+            <button onClick=${()=>{setForm({...form,type:subTab==='riesgos'?'riesgo':subTab==='problemas'?'problema':'oportunidad'}); setShowRiskForm(true);}}
+              style=${{ padding:'12px 16px', borderRadius:12, border:'none', background:cur.color, color:'#FFF', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, position:'sticky', top:0 }}>
+              <${Icon} name="Plus" size=${16} color="#FFF" /> ${cur.btn}
+            </button>
           </div>
         `}
       </div>
       `}
 
       <!-- Link task to risk modal -->
+      <!-- Risk Creation Form Modal -->
+      ${showRiskForm && html`
+        <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}
+          onClick=${e=>{if(e.target===e.currentTarget)setShowRiskForm(false)}}>
+          <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}></div>
+          <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:460,boxShadow:'0 12px 48px rgba(0,0,0,.12)',animation:'fadeIn .2s ease',overflow:'hidden'}}>
+            <div style=${{padding:'20px 24px 12px',borderBottom:'1px solid #F2F2F7',background:'#FAFAFA'}}>
+              <h3 style=${{fontSize:16,fontWeight:700,margin:0}}>Nuevo ${form.type==='problema'?'problema':form.type==='oportunidad'?'oportunidad':'riesgo'}</h3>
+            </div>
+            <div style=${{padding:'16px 24px',display:'flex',flexDirection:'column',gap:10}}>
+              <textarea value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})}
+                placeholder=${form.type==='oportunidad'?'Describe la oportunidad…':'Describe el riesgo o problema…'}
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,resize:'vertical',fontFamily:'inherit',outline:'none',minHeight:72}} />
+              ${form.type!=='oportunidad' && html`
+                <div style=${{display:'grid',gridTemplateColumns:form.type==='problema'?'1fr':'1fr 1fr',gap:8}}>
+                  <select value=${form.impact} onChange=${e=>setForm({...form,impact:e.target.value})}
+                    style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}>
+                    <option value="alto">Impacto: Alto</option><option value="medio">Impacto: Medio</option><option value="bajo">Impacto: Bajo</option>
+                  </select>
+                  ${form.type!=='problema' && html`<select value=${form.prob} onChange=${e=>setForm({...form,prob:e.target.value})}
+                    style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}>
+                    <option value="alta">Prob: Alta</option><option value="media">Prob: Media</option><option value="baja">Prob: Baja</option>
+                  </select>`}
+                </div>`}
+              <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})}
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+                <option value="">— Responsable —</option>
+                ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+              </select>
+              <input value=${form.mitigation||''} onInput=${e=>setForm({...form,mitigation:e.target.value})}
+                placeholder=${form.type==='oportunidad'?'¿Cómo aprovecharla?':'Plan de mitigación'}
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+              <div>
+                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Fecha resolución prevista</label>
+                <input type="date" value=${form.deadline||''} onInput=${e=>setForm({...form,deadline:e.target.value})}
+                  style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+              </div>
+            </div>
+            <div style=${{padding:'12px 24px 20px',display:'flex',gap:8,borderTop:'1px solid #F2F2F7',background:'#FAFAFA'}}>
+              <button onClick=${()=>setShowRiskForm(false)}
+                style=${{flex:1,padding:'10px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',color:'#6E6E73',fontSize:13,fontWeight:500,cursor:'pointer'}}>Cancelar</button>
+              <button onClick=${()=>{addItem();setShowRiskForm(false);}}
+                style=${{flex:1,padding:'10px',borderRadius:10,border:'none',background:cur.color,color:'#FFF',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                ${cur.btn}
+              </button>
+            </div>
+          </div>
+        </div>`}
+
       <!-- RiskDetailModal -->
       ${detailRisk && html`<${RiskDetailModal}
         risk=${detailRisk}
