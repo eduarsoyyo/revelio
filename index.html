@@ -4244,6 +4244,7 @@ function PTrabajo({ actions, sA, risks, user }) {
                 </span>` : html`<span style=${{ fontSize:10, color:'#C7C7CC' }}>Sin asignar</span>`}
               ${a.date && html`<span style=${{ fontSize:9, color:overdue?'#FF3B30':'#86868B', fontWeight:overdue?700:400 }}>📅 ${a.date}</span>`}
               ${overdue && html`<span style=${{ fontSize:8, fontWeight:700, color:'#FF3B30', background:'#FF3B3010', padding:'1px 5px', borderRadius:4 }}>VENCIDO</span>`}
+              ${!compact && html`<span style=${{ fontSize:8, fontWeight:600, color:KAN_COLS.find(s=>s.id===a.status)?.color||'#86868B', background:(KAN_COLS.find(s=>s.id===a.status)?.color||'#86868B')+'12', padding:'1px 5px', borderRadius:4 }}>${KAN_COLS.find(s=>s.id===a.status)?.label||a.status}</span>`}
               ${a.source==='retro' && html`<span style=${{ fontSize:8, fontWeight:600, color:'#FF9500', background:'#FF950010', padding:'1px 5px', borderRadius:4 }}>retro</span>`}
               ${a.source==='risk' && html`<span style=${{ fontSize:8, fontWeight:600, color:'#FF3B30', background:'#FF3B3010', padding:'1px 5px', borderRadius:4 }}>riesgo</span>`}
               <!-- Tag badges -->
@@ -4255,11 +4256,24 @@ function PTrabajo({ actions, sA, risks, user }) {
             </div>
           </div>
           <!-- Actions -->
-          <div style=${{ display:'flex', gap:2, flexShrink:0, alignItems:'flex-start' }}>
-            <button onClick=${()=>{setEId(a.id);setEF({text:a.text,description:a.description||'',owner:a.owner||'',date:a.date||'',priority:a.priority,type:a.type||'tarea'})}}
-              style=${{ border:'none', background:'none', fontSize:11, color:'#C7C7CC', cursor:'pointer', padding:'2px' }}>✏️</button>
-            <button onClick=${()=>delA(a.id)}
-              style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer', padding:'2px' }}>✕</button>
+          <div style=${{ display:'flex', gap:2, flexShrink:0, alignItems:'flex-start', flexDirection:'column' }}>
+            <div style=${{ display:'flex', gap:2 }}>
+              ${a.status==='pending'&&html`<button onClick=${(e)=>{e.stopPropagation();upSt(a.id,'inprogress')}} title="Iniciar — mover al Board"
+                style=${{ border:'none', background:'#007AFF', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5, whiteSpace:'nowrap' }}>▶ Iniciar</button>`}
+              ${a.status==='inprogress'&&html`<button onClick=${(e)=>{e.stopPropagation();upSt(a.id,'done')}} title="Completar tarea"
+                style=${{ border:'none', background:'#34C759', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5 }}>✓ Hecho</button>`}
+              ${a.status==='blocked'&&html`<button onClick=${(e)=>{e.stopPropagation();upSt(a.id,'inprogress')}} title="Desbloquear"
+                style=${{ border:'none', background:'#FF9500', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5 }}>↻ Reanudar</button>`}
+              <button onClick=${()=>{setEId(a.id);setEF({text:a.text,description:a.description||'',owner:a.owner||'',date:a.date||'',priority:a.priority,type:a.type||'tarea'})}}
+                style=${{ border:'none', background:'none', fontSize:11, color:'#C7C7CC', cursor:'pointer', padding:'2px' }}>✏️</button>
+              <button onClick=${()=>delA(a.id)}
+                style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer', padding:'2px' }}>✕</button>
+            </div>
+            ${!compact && a.status!=='done' && a.status!=='cancelled' && html`
+              <select value=${a.status} onChange=${e=>upSt(a.id,e.target.value)}
+                style=${{ fontSize:9, padding:'2px 4px', borderRadius:4, border:'1px solid #E5E5EA', outline:'none', background:'#FAFAFA', color:'#86868B', cursor:'pointer', marginTop:2 }}>
+                ${KAN_COLS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
+              </select>`}
           </div>
         </div>
       </div>`;
@@ -4355,10 +4369,32 @@ function PTrabajo({ actions, sA, risks, user }) {
 
       <!-- ══ BACKLOG VIEW ══ -->
       ${subView==='backlog' && html`
-        <div style=${{ display:'flex', flexDirection:'column', gap:0 }}>
-          ${sortActions(filterActions(openItems)).length===0
-            ? html`<div style=${{ textAlign:'center', padding:40, color:'#C7C7CC' }}><p>Sin tareas en backlog</p></div>`
-            : sortActions(filterActions(openItems)).map(a => renderTask(a, false))}
+        <div>
+          ${(() => {
+            const pending = sortActions(filterActions(openItems.filter(a=>a.status==='pending')));
+            const active = sortActions(filterActions(openItems.filter(a=>a.status!=='pending')));
+            return html`
+              <!-- Pending section: items to pull into board -->
+              <div style=${{ marginBottom:active.length>0?16:0 }}>
+                <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                  <h3 style=${{ fontSize:13, fontWeight:700, color:'#FF9500', margin:0 }}>Pendientes</h3>
+                  <span style=${{ fontSize:10, color:'#86868B' }}>${pending.length} — pulsa "▶ Iniciar" para mover al Board</span>
+                </div>
+                ${pending.length===0
+                  ? html`<div style=${{ textAlign:'center', padding:24, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:12, fontSize:12 }}>Backlog vacío. Crea tareas con el botón "Nueva tarea".</div>`
+                  : pending.map(a => renderTask(a, false))}
+              </div>
+              <!-- Active section: items already on board -->
+              ${active.length>0 && html`
+                <div>
+                  <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                    <h3 style=${{ fontSize:13, fontWeight:700, color:'#007AFF', margin:0 }}>En curso</h3>
+                    <span style=${{ fontSize:10, color:'#86868B' }}>${active.length} — ya en el Board</span>
+                  </div>
+                  ${active.map(a => renderTask(a, false))}
+                </div>`}
+            `;
+          })()}
         </div>`}
 
       <!-- ══ BOARD VIEW ══ -->
