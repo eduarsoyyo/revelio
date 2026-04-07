@@ -1925,7 +1925,23 @@ function CalForm({ cal, setCal, saving, onSave, onCancel }) {
       <!-- Year-view calendar picker -->
       <div>
         <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-          <label style=${{ fontSize:11, color:'#86868B', fontWeight:600 }}>📅 Festivos (${holidays.length}) — Haz clic en un día para añadir/quitar</label>
+          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+            <label style=${{ fontSize:11, color:'#86868B', fontWeight:600 }}>📅 Festivos (${holidays.length})</label>
+            ${holidays.length>0 && html`<button onClick=${()=>{
+              const years = [...new Set(holidays.map(h=>h.date.slice(0,4)))].sort();
+              const lastYear = parseInt(years[years.length-1]);
+              const nextYear = lastYear + 1;
+              const existing = new Set(holidays.map(h=>h.date));
+              const newHols = holidays.filter(h=>h.date.startsWith(String(lastYear))).map(h=>({
+                date: String(nextYear) + h.date.slice(4),
+                name: h.name
+              })).filter(h=>!existing.has(h.date));
+              if(newHols.length===0){alert('Ya existen los festivos para '+nextYear); return;}
+              setCal({...cal, holidays: [...holidays, ...newHols].sort((a,b)=>a.date<b.date?-1:1)});
+            }} style=${{ fontSize:10, fontWeight:600, padding:'4px 10px', borderRadius:7, border:'1.5px solid #5856D620', background:'#F8F5FF', color:'#5856D6', cursor:'pointer' }}>
+              📋 Duplicar a ${(()=>{const yrs=[...new Set(holidays.map(h=>h.date.slice(0,4)))].sort(); return parseInt(yrs[yrs.length-1])+1;})()}
+            </button>`}
+          </div>
           <div style=${{ display:'flex', gap:4 }}>
             <button onClick=${()=>setViewYear(y=>y-1)} style=${{ border:'none', background:'#F2F2F7', borderRadius:8, width:28, height:28, cursor:'pointer', color:'#86868B', display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
             <span style=${{ fontSize:13, fontWeight:700, minWidth:40, textAlign:'center', lineHeight:'28px' }}>${viewYear}</span>
@@ -2862,7 +2878,7 @@ function RoomPicker() {
     const last    = sbSala[0] || null;
     return {
       ...r, rTipo,
-      retros: sbSala.length, // total snapshots saved for this project
+      retros: sbSala.filter(rt=>rt.status==='closed').length || (sbSala.length>0?1:0), // closed retros (min 1 if any data)
       notes, votes, actions, done, parts,
       risksOpen, risksMitigated, risksTotal: risks.length,
       avgP: sbSala.length > 0 ? (parts.length / sbSala.length).toFixed(1) : 0,
@@ -4415,10 +4431,21 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
             <!-- Linked Risk -->
             <div>
               ${fieldLabel('Riesgo vinculado')}
-              <select value=${f.riskId||''} onChange=${e=>{setF({...f, riskId:e.target.value||null, source:e.target.value?'risk':f.source});}}
-                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:f.riskId?'#FFF5F5':'#FAFAFA',color:f.riskId?'#FF3B30':'#6E6E73'}}>
-                <option value="">— Sin riesgo vinculado —</option>
-                ${(window.__currentRisks||[]).filter(r=>r.status!=='mitigated').map((r,i)=>{
+              ${f.riskId ? html`
+                <div style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#FFF5F5',border:'1.5px solid #FF3B3015',marginBottom:6}}>
+                  ${(()=>{const allR=window.__currentRisks||[]; const rsk=allR.find(r=>r.id===f.riskId); const rNum=rsk?allR.filter(x=>(x.type||'riesgo')===(rsk.type||'riesgo')).indexOf(rsk)+1:0; const prefix=(rsk?.type||'riesgo')==='problema'?'P':'R'; return html`
+                    <span style=${{fontSize:11,fontWeight:800,color:'#FF3B30'}}>${prefix}${rNum||'?'}</span>`;})()}
+                  <div onClick=${()=>{if(onGoToRisk)onGoToRisk(f.riskId);onClose();}} style=${{flex:1,cursor:'pointer',minWidth:0}}>
+                    <div style=${{fontSize:12,fontWeight:600,color:'#FF3B30'}}>${(()=>{const rsk=(window.__currentRisks||[]).find(r=>r.id===f.riskId); return rsk?rsk.text:'Riesgo';})()}</div>
+                    <div style=${{fontSize:10,color:'#86868B'}}>Clic para ir al riesgo</div>
+                  </div>
+                  <button onClick=${()=>setF({...f,riskId:null,source:'manual'})}
+                    style=${{border:'none',background:'#FF3B3010',color:'#FF3B30',fontSize:9,fontWeight:700,padding:'3px 7px',borderRadius:6,cursor:'pointer'}}>✕ Desvincular</button>
+                </div>` : null}
+              <select value="" onChange=${e=>{if(e.target.value)setF({...f, riskId:e.target.value, source:'risk'}); e.target.value='';}}
+                style=${{width:'100%',border:'1.5px dashed #FF950040',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',color:'#FF9500',background:'#FFF9E6',cursor:'pointer'}}>
+                <option value="">${f.riskId?'Cambiar riesgo vinculado…':'+ Vincular a un riesgo…'}</option>
+                ${(window.__currentRisks||[]).filter(r=>r.status!=='mitigated'&&r.id!==f.riskId).map((r,i)=>{
                   const px=(r.type||'riesgo')==='problema'?'P':'R';
                   const n=(window.__currentRisks||[]).filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
                   return html`<option key=${r.id} value=${r.id}>${px}${n}: ${r.text.slice(0,45)}${r.text.length>45?'…':''}</option>`;
@@ -4469,6 +4496,11 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
                 ${f.owner && !teamMembers.some(m=>m.name===f.owner) && html`<option value=${f.owner}>${f.owner}</option>`}
                 ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
               </select>
+            </div>
+            <div>
+              ${fieldLabel('Fecha inicio')}
+              <input type="date" value=${f.startDate||''} onInput=${e=>setF({...f,startDate:e.target.value})}
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
             </div>
             <div>
               ${fieldLabel('Fecha límite')}
@@ -4719,7 +4751,7 @@ function PTrabajo({ actions, sA, risks, user }) {
               ${a.status!=='done'&&a.status!=='cancelled'&&html`<button onClick=${(e)=>{e.stopPropagation();upSt(a.id,'done')}} title="Completar"
                 style=${{ border:'none', background:'#34C759', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5 }}>✓</button>`}
 
-              <button onClick=${()=>delA(a.id)}
+              <button onClick=${(e)=>{e.stopPropagation();if(confirm('¿Eliminar esta tarea?'))delA(a.id)}}
                 style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer', padding:'2px' }}>✕</button>
             </div>
             ${!compact && a.status!=='done' && a.status!=='cancelled' && html`
@@ -5619,26 +5651,7 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
       <div onClick=${()=>!fromHist&&onOpenDetail&&onOpenDetail(r)} style=${{ borderRadius:14, background:'#FFF', border:'1.5px solid #E5E5EA', cursor:fromHist?'default':'pointer',
         borderLeft:'4px solid '+hc, padding:'12px 14px', position:'relative', opacity:fromHist?.7:1 }}>
         ${fromHist && html`<div style=${{ position:'absolute', top:8, right:8, fontSize:9, color:'#86868B', background:'#F2F2F7', padding:'1px 6px', borderRadius:4 }}>📚 ${r._fromRetro}</div>`}
-        ${eId===r.id ? html`
-          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-            <textarea value=${eF.text} onInput=${e=>setEF({...eF,text:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px', fontSize:12, resize:'vertical', fontFamily:'inherit', outline:'none', minHeight:60 }} />
-            <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-              <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})}
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
-                <option value="">— Responsable —</option>
-                ${eF.owner && !(teamMembers||[]).some(m=>m.name===eF.owner) && html`<option value=${eF.owner}>${eF.owner}</option>`}
-                ${(teamMembers||[]).map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-              </select>
-              <input value=${eF.mitigation||''} onInput=${e=>setEF({...eF,mitigation:e.target.value})} placeholder="Mitigación"
-                style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }} />
-            </div>
-            <div style=${{ display:'flex', gap:6 }}>
-              <button onClick=${saveE} style=${{ padding:'6px 14px', borderRadius:7, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>Guardar</button>
-              <button onClick=${()=>setEId(null)} style=${{ padding:'6px 12px', borderRadius:7, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>Cancelar</button>
-            </div>
-          </div>
-        ` : html`
+        ${html`
           <div>
             <div style=${{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
               <span onClick=${()=>!fromHist&&onOpenDetail&&onOpenDetail(r)} style=${{ fontSize:13, fontWeight:800, color:hc, minWidth:30, cursor:fromHist?'default':'pointer' }}>${prefix}${idx}</span>
@@ -5690,18 +5703,11 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
                   </button>`)}
               </div>`}
               ${!fromHist && html`
-                <div style=${{ display:'flex', gap:3, marginLeft:'auto' }}>
-                  <select value=${r.status||'open'} onChange=${e=>upd(r.id,{status:e.target.value})}
-                    style=${{ fontSize:9, padding:'3px 6px', borderRadius:5, border:'1px solid #E5E5EA', outline:'none', background:'#FFF', cursor:'pointer' }}>
-                    <option value="open">Abierto</option>
-                    <option value="mitigated">Mitigado</option>
-                    <option value="accepted">Aceptado</option>
-                  </select>
-                  <button onClick=${()=>{setEId(r.id);setEF({text:r.text,owner:r.owner||'',mitigation:r.mitigation||'',opportunity:r.opportunity||''})}}
-                    style=${{ border:'none', background:'none', fontSize:12, color:'#86868B', cursor:'pointer' }}>✏️</button>
-                  <button onClick=${()=>del(r.id)}
-                    style=${{ border:'none', background:'none', fontSize:12, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
-                </div>
+                <span style=${{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:6, marginLeft:'auto',
+                  background:r.status==='mitigated'?'#34C75915':'#FF950015',
+                  color:r.status==='mitigated'?'#34C759':'#FF9500' }}>
+                  ${r.status==='mitigated'?'Mitigado':'Abierto'}
+                </span>
               `}
             </div>
           </div>
