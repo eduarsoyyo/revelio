@@ -4447,7 +4447,7 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
                 <div style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#FFF5F5',border:'1.5px solid #FF3B3015',marginBottom:6}}>
                   ${(()=>{const allR=window.__currentRisks||[]; const rsk=allR.find(r=>r.id===f.riskId); const rNum=rsk?allR.filter(x=>(x.type||'riesgo')===(rsk.type||'riesgo')).indexOf(rsk)+1:0; const prefix=(rsk?.type||'riesgo')==='problema'?'P':'R'; return html`
                     <span style=${{fontSize:11,fontWeight:800,color:'#FF3B30'}}>${prefix}${rNum||'?'}</span>`;})()}
-                  <div onClick=${()=>{if(onGoToRisk)onGoToRisk(f.riskId);onClose();}} style=${{flex:1,cursor:'pointer',minWidth:0}}>
+                  <div onClick=${()=>{window.__pendingRiskDetail=f.riskId;if(onGoToRisk)onGoToRisk(f.riskId);onClose();}} style=${{flex:1,cursor:'pointer',minWidth:0}}>
                     <div style=${{fontSize:12,fontWeight:600,color:'#FF3B30'}}>${(()=>{const rsk=(window.__currentRisks||[]).find(r=>r.id===f.riskId); return rsk?rsk.text:'Riesgo';})()}</div>
                     <div style=${{fontSize:10,color:'#86868B'}}>Clic para ir al riesgo</div>
                   </div>
@@ -5699,9 +5699,16 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
                 ${lt.map(a=>html`<span key=${a.id} style=${{ fontSize:9, padding:'1px 6px', borderRadius:6, background:a.status==='done'?'#34C75915':'#007AFF10', color:a.status==='done'?'#34C759':'#007AFF', fontWeight:600, textDecoration:a.status==='done'?'line-through':'none' }}>${a.text.slice(0,35)}${a.text.length>35?'…':''}</span>`)}
               </div>`:null;})()}
             <!-- Tag badges -->
-            ${(()=>{const tgs=entityTagList('risk',r.id); return tgs.length>0?html`
-              <div style=${{ display:'flex', gap:3, flexWrap:'wrap', marginTop:4 }}>
-                ${tgs.map(t=>html`<span key=${t.id} style=${{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:10, background:t.color, color:'#FFF' }}>${t.name}</span>`)}
+            ${(()=>{const tgs=entityTagList('risk',r.id); const avail=tags.filter(t=>!hasTag(t.id,'risk',r.id)); return (tgs.length>0||(!fromHist&&avail.length>0))?html`
+              <div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6 }}>
+                ${tgs.map(t=>html`<span key=${t.id} onClick=${(e)=>{e.stopPropagation();!fromHist&&quickToggleTag(t.id,'risk',r.id)}}
+                  style=${{ fontSize:10, fontWeight:600, padding:'3px 10px', borderRadius:12, background:t.color+'15', color:t.color, border:'1.5px solid '+t.color+'40', cursor:fromHist?'default':'pointer' }}>
+                  ${t.name}${!fromHist?' ✕':''}
+                </span>`)}
+                ${!fromHist&&avail.slice(0,3).map(t=>html`<span key=${t.id} onClick=${(e)=>{e.stopPropagation();quickToggleTag(t.id,'risk',r.id)}}
+                  style=${{ fontSize:10, padding:'3px 10px', borderRadius:12, border:'1.5px dashed '+t.color+'50', color:t.color, cursor:'pointer' }}>
+                  + ${t.name}
+                </span>`)}
               </div>`:null;})()}
             <!-- Impact + Prob vote buttons -->
             <div style=${{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
