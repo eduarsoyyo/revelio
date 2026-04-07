@@ -264,6 +264,14 @@ const ITEM_TYPES = [
   { id:'accion_retro', label:'Acción de retro', icon:'🔄', color:'#FF9500', lucide:'RotateCcw' },
 ];
 const ITEM_TYPE_MAP = Object.fromEntries(ITEM_TYPES.map(t=>[t.id,t]));
+const DEMAND_ORIGINS = [
+  { id:'negocio',     label:'Negocio',         color:'#007AFF' },
+  { id:'incidencia',  label:'Incidencia',      color:'#FF3B30' },
+  { id:'legal',       label:'Legal',           color:'#5856D6' },
+  { id:'mejora_tec',  label:'Mejora técnica',  color:'#34C759' },
+  { id:'operativa',   label:'Operativa',       color:'#FF9500' },
+];
+
 const DEFAULT_ITEM_TYPE = 'tarea';
 
 const PHASES = [
@@ -4195,6 +4203,154 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
 /* ═══ PHASE 8 — VACACIONES (calendar view) ═══ */
 
 /* ═══ PACCIONABLES — Gestión entre retros ═══ */
+/* ═══ TASK DETAIL MODAL — JIRA-style ═══ */
+function TaskDetailModal({ task, onSave, onClose, onDelete, teamMembers, tags, tagAssignments, onToggleTag }) {
+  const [f, setF] = useState({...task});
+  const tp = ITEM_TYPE_MAP[f.type||'tarea']||ITEM_TYPES[0];
+  const pr = PRIS.find(p=>p.id===f.priority)||PRIS[1];
+  const st = STS.find(s=>s.id===f.status)||STS[0];
+  const entityTags = tags.filter(t=>(tagAssignments||[]).some(a=>a.tag_id===t.id&&a.entity_type==='action'&&a.entity_id===task.id));
+  const availTags = tags.filter(t=>!entityTags.some(et=>et.id===t.id));
+
+  const save = () => { onSave({...f, updatedAt:new Date().toISOString()}); };
+
+  const fieldLabel = (text) => html`<label style=${{fontSize:10,color:'#86868B',fontWeight:700,textTransform:'uppercase',letterSpacing:.4,display:'block',marginBottom:4}}>${text}</label>`;
+  const fieldSelect = (value, onChange, options, placeholder) => html`
+    <select value=${value||''} onChange=${onChange}
+      style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#FAFAFA'}}>
+      ${placeholder&&html`<option value="">${placeholder}</option>`}
+      ${options.map(o=>html`<option key=${o.id||o} value=${o.id||o}>${o.icon||''} ${o.label||o}</option>`)}
+    </select>`;
+
+  return html`
+    <div style=${{position:'fixed',inset:0,zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center'}}
+      onClick=${e=>{if(e.target===e.currentTarget)onClose()}}>
+      <!-- Backdrop -->
+      <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.45)',backdropFilter:'blur(4px)'}}></div>
+      <!-- Modal -->
+      <div style=${{position:'relative',background:'#FFF',borderRadius:20,width:'90%',maxWidth:780,maxHeight:'90vh',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,.2)',animation:'fadeIn .2s ease',display:'flex',flexDirection:'column'}}>
+        <!-- Header -->
+        <div style=${{padding:'16px 20px',borderBottom:'1px solid #E5E5EA',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+          <span style=${{fontSize:18,flexShrink:0}}>${tp.icon}</span>
+          <div style=${{flex:1}}>
+            <div style=${{display:'flex',alignItems:'center',gap:8}}>
+              <span style=${{fontSize:10,fontWeight:700,color:tp.color,background:tp.color+'12',padding:'2px 8px',borderRadius:6}}>${tp.label}</span>
+              <span style=${{fontSize:10,fontWeight:700,color:st.color,background:st.bg,padding:'2px 8px',borderRadius:6}}>${st.label}</span>
+              <span style=${{fontSize:10,fontWeight:700,color:pr.color}}>${pr.icon} ${pr.label}</span>
+            </div>
+          </div>
+          <button onClick=${onClose} style=${{border:'none',background:'#F2F2F7',borderRadius:10,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:16,color:'#86868B'}}>✕</button>
+        </div>
+
+        <!-- Body: 2-column layout -->
+        <div style=${{display:'flex',flex:1,overflow:'hidden'}}>
+          <!-- Left: main content -->
+          <div style=${{flex:1,padding:'20px',overflowY:'auto',display:'flex',flexDirection:'column',gap:14}}>
+            <!-- Title -->
+            <div>
+              ${fieldLabel('Título')}
+              <input value=${f.text||''} onInput=${e=>setF({...f,text:e.target.value})}
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:15,fontWeight:600,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+            </div>
+            <!-- Description -->
+            <div>
+              ${fieldLabel('Descripción')}
+              <textarea value=${f.description||''} onInput=${e=>setF({...f,description:e.target.value})}
+                placeholder="Describe la tarea en detalle…"
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none',resize:'vertical',minHeight:100,boxSizing:'border-box'}} />
+            </div>
+            <!-- Tags -->
+            <div>
+              ${fieldLabel('Etiquetas')}
+              <div style=${{display:'flex',gap:4,flexWrap:'wrap'}}>
+                ${entityTags.map(t=>html`
+                  <span key=${t.id} onClick=${()=>onToggleTag&&onToggleTag(t.id,task.id)}
+                    style=${{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:12,background:t.color,color:'#FFF',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                    ${t.name} <span style=${{fontSize:9,opacity:.7}}>✕</span>
+                  </span>`)}
+                ${availTags.map(t=>html`
+                  <span key=${t.id} onClick=${()=>onToggleTag&&onToggleTag(t.id,task.id)}
+                    style=${{fontSize:11,padding:'3px 10px',borderRadius:12,border:'1.5px dashed '+t.color+'60',color:t.color,cursor:'pointer'}}>
+                    + ${t.name}
+                  </span>`)}
+              </div>
+            </div>
+            <!-- Meta info -->
+            <div style=${{fontSize:10,color:'#C7C7CC',display:'flex',gap:16,paddingTop:8,borderTop:'1px solid #F2F2F7'}}>
+              ${f.createdAt&&html`<span>Creado: ${fd(f.createdAt)}</span>`}
+              ${f.updatedAt&&html`<span>Actualizado: ${fd(f.updatedAt)}</span>`}
+              ${f.source&&html`<span>Origen: ${f.source}</span>`}
+            </div>
+          </div>
+
+          <!-- Right sidebar: fields -->
+          <div style=${{width:240,borderLeft:'1px solid #E5E5EA',padding:'16px',overflowY:'auto',background:'#FAFAFA',display:'flex',flexDirection:'column',gap:12,flexShrink:0}}>
+            <div>
+              ${fieldLabel('Estado')}
+              ${fieldSelect(f.status, e=>setF({...f,status:e.target.value}), STS.filter(s=>!['discarded','progress'].includes(s.id)), null)}
+            </div>
+            <div>
+              ${fieldLabel('Tipo')}
+              ${fieldSelect(f.type||'tarea', e=>setF({...f,type:e.target.value}), ITEM_TYPES, null)}
+            </div>
+            <div>
+              ${fieldLabel('Prioridad')}
+              ${fieldSelect(f.priority, e=>setF({...f,priority:e.target.value}), PRIS, null)}
+            </div>
+            <div>
+              ${fieldLabel('Responsable')}
+              <select value=${f.owner||''} onChange=${e=>setF({...f,owner:e.target.value})}
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#FFF'}}>
+                <option value="">— Sin asignar —</option>
+                ${f.owner && !teamMembers.some(m=>m.name===f.owner) && html`<option value=${f.owner}>${f.owner}</option>`}
+                ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
+              </select>
+            </div>
+            <div>
+              ${fieldLabel('Fecha límite')}
+              <input type="date" value=${f.date||''} onInput=${e=>setF({...f,date:e.target.value})}
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+            </div>
+            <!-- Extended JIRA fields -->
+            <div style=${{borderTop:'1px solid #E5E5EA',paddingTop:12}}>
+              ${fieldLabel('Story Points')}
+              <input type="number" min="0" step="1" value=${f.storyPoints||''} onInput=${e=>setF({...f,storyPoints:e.target.value?parseInt(e.target.value):null})}
+                placeholder="—"
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+            </div>
+            <div>
+              ${fieldLabel('Sprint')}
+              <input value=${f.sprint||''} onInput=${e=>setF({...f,sprint:e.target.value})}
+                placeholder="Ej: Sprint 3"
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+            </div>
+            <div>
+              ${fieldLabel('Epic Link')}
+              <input value=${f.epicLink||''} onInput=${e=>setF({...f,epicLink:e.target.value})}
+                placeholder="Ej: Migración v2"
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+            </div>
+            <div>
+              ${fieldLabel('Origen de demanda')}
+              ${fieldSelect(f.demandOrigin||'', e=>setF({...f,demandOrigin:e.target.value}), DEMAND_ORIGINS, '— Sin especificar —')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style=${{padding:'12px 20px',borderTop:'1px solid #E5E5EA',display:'flex',gap:8,justifyContent:'space-between',flexShrink:0}}>
+          <button onClick=${()=>{if(confirm('¿Eliminar esta tarea?'))onDelete(task.id)}}
+            style=${{padding:'8px 16px',borderRadius:9,border:'1.5px solid #FF3B3025',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
+          <div style=${{display:'flex',gap:8}}>
+            <button onClick=${onClose} style=${{padding:'8px 18px',borderRadius:9,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer'}}>Cancelar</button>
+            <button onClick=${save} style=${{padding:'8px 22px',borderRadius:9,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+
 /* ═══════════════════════════════════════════════════════════
    PTrabajo — JIRA-like work management module
    Sub-views: Backlog, Board, Lista, Mis tareas, Historial
@@ -4222,10 +4378,12 @@ function PTrabajo({ actions, sA, risks, user }) {
 
   // ── State ──
   const [subView, setSubView] = useState('board');
-  const [form, setForm] = useState({text:'',description:'',owner:'',date:'',priority:'medium',type:'tarea'});
+  const [form, setForm] = useState({text:'',description:'',owner:'',date:'',priority:'medium',type:'tarea',demandOrigin:'',storyPoints:null,sprint:'',epicLink:''});
   const [showForm, setShowForm] = useState(false);
   const [eId, setEId] = useState(null);
   const [eF, setEF] = useState({});
+  const [detailTask, setDetailTask] = useState(null); // Task for modal view
+  const [showTagManager, setShowTagManager] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [sortBy, setSortBy] = useState('priority'); // priority | date | type | status
   const [dragAct, setDragAct] = useState(null);
@@ -4246,6 +4404,7 @@ function PTrabajo({ actions, sA, risks, user }) {
       owner: form.owner||'Sin asignar', date: form.date||'',
       status: 'pending', priority: form.priority, type: form.type||'tarea',
       voteScore: 0, createdBy: user.id, source: 'manual',
+      storyPoints: form.storyPoints||null, sprint: form.sprint||'', epicLink: form.epicLink||'', demandOrigin: form.demandOrigin||'',
       fromCategory: null, noteId: null, riskId: null, parentId: null,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     }]);
@@ -4305,37 +4464,7 @@ function PTrabajo({ actions, sA, risks, user }) {
     const memberAvatar = teamMembers.find(m=>m.name===a.owner)?.avatar||'👤';
     const isEditing = eId===a.id;
 
-    if (isEditing) return html`
-      <div key=${a.id} style=${{ padding:'12px', borderRadius:12, background:'#F9F9FB', border:'2px solid #007AFF30', marginBottom:6 }}>
-        <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-          <input autofocus value=${eF.text||''} onInput=${e=>setEF({...eF,text:e.target.value})}
-            style=${{ border:'1.5px solid #007AFF40', borderRadius:8, padding:'8px 10px', fontSize:13, fontFamily:'inherit', outline:'none' }} />
-          <textarea value=${eF.description||''} onInput=${e=>setEF({...eF,description:e.target.value})} placeholder="Descripción (opcional)"
-            style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'6px 10px', fontSize:12, fontFamily:'inherit', outline:'none', resize:'vertical', minHeight:48 }} />
-          <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
-            <select value=${eF.type||'tarea'} onChange=${e=>setEF({...eF,type:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
-              ${ITEM_TYPES.map(t=>html`<option key=${t.id} value=${t.id}>${t.icon} ${t.label}</option>`)}
-            </select>
-            <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
-              <option value="">— Responsable —</option>
-              ${eF.owner && !teamMembers.some(m=>m.name===eF.owner) && html`<option value=${eF.owner}>${eF.owner}</option>`}
-              ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-            </select>
-            <select value=${eF.priority||'medium'} onChange=${e=>setEF({...eF,priority:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
-              ${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}
-            </select>
-          </div>
-          <input type="date" value=${eF.date||''} onInput=${e=>setEF({...eF,date:e.target.value})}
-            style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none', width:150 }} />
-          <div style=${{ display:'flex', gap:4 }}>
-            <button onClick=${saveEdit} style=${{ flex:1, padding:'6px', borderRadius:7, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>Guardar</button>
-            <button onClick=${()=>setEId(null)} style=${{ padding:'6px 10px', borderRadius:7, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>✕</button>
-          </div>
-        </div>
-      </div>`;
+    // Inline edit removed — uses TaskDetailModal instead
 
     return html`
       <div key=${a.id}
@@ -4372,6 +4501,10 @@ function PTrabajo({ actions, sA, risks, user }) {
               ${!compact && html`<span style=${{ fontSize:8, fontWeight:600, color:KAN_COLS.find(s=>s.id===a.status)?.color||'#86868B', background:(KAN_COLS.find(s=>s.id===a.status)?.color||'#86868B')+'12', padding:'1px 5px', borderRadius:4 }}>${KAN_COLS.find(s=>s.id===a.status)?.label||a.status}</span>`}
               ${a.source==='retro' && html`<span style=${{ fontSize:8, fontWeight:600, color:'#FF9500', background:'#FF950010', padding:'1px 5px', borderRadius:4 }}>retro</span>`}
               ${a.source==='risk' && html`<span style=${{ fontSize:8, fontWeight:600, color:'#FF3B30', background:'#FF3B3010', padding:'1px 5px', borderRadius:4 }}>riesgo</span>`}
+              ${a.storyPoints && html`<span style=${{ fontSize:8, fontWeight:700, color:'#5856D6', background:'#5856D610', padding:'1px 5px', borderRadius:4 }}>${a.storyPoints} SP</span>`}
+              ${a.sprint && html`<span style=${{ fontSize:8, fontWeight:600, color:'#007AFF', background:'#007AFF10', padding:'1px 5px', borderRadius:4 }}>${a.sprint}</span>`}
+              ${a.epicLink && !compact && html`<span style=${{ fontSize:8, fontWeight:600, color:'#AF52DE', background:'#AF52DE10', padding:'1px 5px', borderRadius:4 }}>${a.epicLink}</span>`}
+              ${a.demandOrigin && !compact && html`<span style=${{ fontSize:8, fontWeight:600, color:DEMAND_ORIGINS.find(d=>d.id===a.demandOrigin)?.color||'#86868B', background:(DEMAND_ORIGINS.find(d=>d.id===a.demandOrigin)?.color||'#86868B')+'10', padding:'1px 5px', borderRadius:4 }}>${DEMAND_ORIGINS.find(d=>d.id===a.demandOrigin)?.label||a.demandOrigin}</span>`}
               <!-- Tag badges -->
               ${actionTagList(a.id).map(t=>html`
                 <span key=${t.id} style=${{ fontSize:8, fontWeight:700, padding:'1px 5px', borderRadius:8, background:t.color, color:'#FFF', cursor:'pointer' }}
@@ -4416,6 +4549,10 @@ function PTrabajo({ actions, sA, risks, user }) {
         ${overdueCount>0&&html`<span style=${{ fontSize:11, background:'#FF3B30', color:'#FFF', fontWeight:700, padding:'3px 8px', borderRadius:8 }}>⚠ ${overdueCount} vencidas</span>`}
         ${blockedCount>0&&html`<span style=${{ fontSize:11, background:'#FF3B3012', color:'#FF3B30', fontWeight:600, padding:'3px 8px', borderRadius:8 }}>🚫 ${blockedCount} bloqueadas</span>`}
         <div style=${{ flex:1 }}/>
+        <button onClick=${()=>setShowTagManager(true)}
+          style=${{ padding:'8px 14px', borderRadius:10, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5, color:'#6E6E73' }}>
+          <${Icon} name="Tag" size=${14} color="#86868B" /> Etiquetas
+        </button>
         <button onClick=${()=>setShowForm(!showForm)}
           style=${{ padding:'8px 16px', borderRadius:10, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
           <${Icon} name="Plus" size=${14} color="#FFF" /> Nueva tarea
@@ -4487,6 +4624,14 @@ function PTrabajo({ actions, sA, risks, user }) {
             </select>
             <input type="date" value=${form.date} onInput=${e=>setForm({...form,date:e.target.value})}
               style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, fontFamily:'inherit', outline:'none', width:140 }} />
+            <select value=${form.demandOrigin||''} onChange=${e=>setForm({...form,demandOrigin:e.target.value})}
+              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, fontFamily:'inherit', outline:'none', width:140 }}>
+              <option value="">— Origen —</option>
+              ${DEMAND_ORIGINS.map(d=>html`<option key=${d.id} value=${d.id}>${d.label}</option>`)}
+            </select>
+            <input value=${form.storyPoints||''} onInput=${e=>setForm({...form,storyPoints:e.target.value})} placeholder="SP"
+              type="number" min="0" step="1"
+              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, fontFamily:'inherit', outline:'none', width:60 }} />
             <button onClick=${addTask} style=${{ padding:'8px 18px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer' }}>Crear</button>
             <button onClick=${()=>setShowForm(false)} style=${{ padding:'8px 12px', borderRadius:9, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:12, cursor:'pointer' }}>Cancelar</button>
           </div>
@@ -4571,7 +4716,7 @@ function PTrabajo({ actions, sA, risks, user }) {
                     </td>
                     <td style=${{ padding:'8px 10px' }}>
                       <span style=${{ fontWeight:600, textDecoration:a.status==='done'?'line-through':'none', color:a.status==='done'?'#86868B':'#1D1D1F', cursor:'pointer' }}
-                        onClick=${()=>{setEId(a.id);setEF({text:a.text,description:a.description||'',owner:a.owner||'',date:a.date||'',priority:a.priority,type:a.type||'tarea'})}}>${a.text}</span>
+                        onClick=${()=>setDetailTask(a)}>${a.text}</span>
                       ${a.source==='retro'&&html`<span style=${{ fontSize:8, marginLeft:6, color:'#FF9500', fontWeight:600 }}>retro</span>`}
                     </td>
                     <td style=${{ padding:'8px 10px', color:'#007AFF', fontSize:11 }}>${a.owner||'—'}</td>
@@ -4603,6 +4748,31 @@ function PTrabajo({ actions, sA, risks, user }) {
                 <p style=${{ marginTop:10, fontSize:13, color:'#34C759', fontWeight:600 }}>¡Todo al día!</p>
               </div>`
             : sortActions(filterActions(myItems)).map(a => renderTask(a, false))}
+        </div>`}
+
+      <!-- TaskDetailModal -->
+      ${detailTask && html`<${TaskDetailModal}
+        task=${detailTask}
+        teamMembers=${teamMembers}
+        tags=${tags}
+        tagAssignments=${tagAssignments}
+        onToggleTag=${(tagId, taskId) => quickToggleActionTag(tagId, taskId)}
+        onSave=${(updated) => { sA(actions.map(a=>a.id===updated.id?{...a,...updated}:a)); setDetailTask(null); }}
+        onDelete=${(id) => { delA(id); setDetailTask(null); }}
+        onClose=${() => setDetailTask(null)} />`}
+
+      <!-- Tag Manager Modal -->
+      ${showTagManager && html`
+        <div style=${{position:'fixed',inset:0,zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}}
+          onClick=${e=>{if(e.target===e.currentTarget)setShowTagManager(false)}}>
+          <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.4)',backdropFilter:'blur(4px)'}}></div>
+          <div style=${{position:'relative',background:'#FFF',borderRadius:20,width:'90%',maxWidth:900,maxHeight:'85vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.2)',padding:'24px',animation:'fadeIn .2s ease'}}>
+            <div style=${{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <h2 style=${{fontSize:18,fontWeight:700,margin:0}}>Gestión de etiquetas</h2>
+              <button onClick=${()=>setShowTagManager(false)} style=${{border:'none',background:'#F2F2F7',borderRadius:10,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:16,color:'#86868B'}}>✕</button>
+            </div>
+            <${PTags} teamMembers=${teamMembers} risks=${risks} actions=${actions} />
+          </div>
         </div>`}
 
       <!-- ══ HISTORIAL VIEW ══ -->
