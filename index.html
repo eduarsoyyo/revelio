@@ -2376,10 +2376,12 @@ function AdminCalendarios() {
     setNewCal({name:'',holidays:[]});
   };
   const deleteCal = async (id) => {
-    if (!confirm('¿Eliminar este calendario?')) return;
-    await sbDeleteCalendar(id);
-    setCals(prev => prev.filter(c=>c.id!==id));
-    window.__calendars = cals.filter(c=>c.id!==id);
+    window.__confirm({icon:'📅',title:'Eliminar calendario',message:'¿Eliminar este calendario y todos sus festivos?',onConfirm:async()=>{
+      await sbDeleteCalendar(id);
+      setCals(prev=>prev.filter(c=>c.id!==id));
+      window.__calendars = (window.__calendars||[]).filter(c=>c.id!==id);
+      if(editCal?.id===id) setEditCal(null);
+    }});
   };
 
   // CalForm is top-level — see above AdminCalendarios
@@ -2487,9 +2489,10 @@ function AdminUsuarios({ rooms }) {
     setNewMember({name:'',email:'',username:'',pin:'',avatar:'👤',color:'#007AFF',rooms:[]});
   };
   const deleteMember = async (id) => {
-    if (!confirm('¿Eliminar este miembro?')) return;
-    await sbDeleteTeamMember(id);
-    setMembers(prev => prev.filter(m=>m.id!==id));
+    window.__confirm({icon:'👤',title:'Eliminar miembro',message:'¿Eliminar este miembro del equipo?',onConfirm:async()=>{
+      await sbDeleteTeamMember(id);
+      setMembers(prev => prev.filter(m=>m.id!==id));
+    }});
   };
   const toggleRoom = (m, slug) => {
     const rs = m.rooms||[];
@@ -2599,7 +2602,7 @@ function SalaCard({ r, sbRetros, go, onRemove, setEditRoom }) {
         <button onClick=${()=>navigator.clipboard.writeText(link)} title="Copiar enlace" style=${{ padding:'5px 8px', borderRadius:8, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:12, cursor:'pointer' }}>📋</button>
         <button onClick=${()=>go(r.slug,r.tipo)} title="Entrar" style=${{ padding:'5px 8px', borderRadius:8, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:12, cursor:'pointer' }}>→</button>
         <button onClick=${()=>setEditRoom({slug:r.slug,name:r.name,tipo:r.tipo||'agile'})} style=${{ padding:'4px', border:'none', background:'none', fontSize:14, color:'#86868B', cursor:'pointer' }}>✏️</button>
-        <button onClick=${()=>onRemove(r.slug)} style=${{ padding:'4px', border:'none', background:'none', fontSize:14, color:'#FF3B30', cursor:'pointer', opacity:.6 }}>🗑</button>
+        <button onClick=${()=>window.__confirm({icon:'📁',title:'Eliminar proyecto',message:'¿Eliminar este proyecto? Se perderán todos los datos asociados.',confirmLabel:'Sí, eliminar proyecto',onConfirm:()=>onRemove(r.slug)})} style=${{ padding:'4px', border:'none', background:'none', fontSize:14, color:'#FF3B30', cursor:'pointer', opacity:.6 }}>🗑</button>
       </div>
       <div style=${{ padding:'0 14px 12px', display:'flex', gap:14, flexWrap:'wrap', alignItems:'center', borderTop:'1px solid #F9F9FB' }}>
         ${retroCount>0 ? html`
@@ -4042,7 +4045,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
                             style=${{ fontSize:9, padding:'3px 6px', borderRadius:5, border:'1px solid #E5E5EA', outline:'none', color:st.color, background:st.color+'10' }}>
                             ${STATUS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
                           </select>
-                          <button onClick=${()=>removeEscalation(r.id)} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:12, cursor:'pointer' }}>✕</button>
+                          <button onClick=${()=>window.__confirm({icon:'📈',title:'Quitar escalado',message:'¿Quitar el escalado de este riesgo?',confirmLabel:'Sí, quitar',onConfirm:()=>removeEscalation(r.id)})} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:12, cursor:'pointer' }}>✕</button>
                         </div>
                         <!-- Level chain visual -->
                         <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:6 }}>
@@ -4360,10 +4363,28 @@ function ConfirmModal({ title, message, confirmLabel, cancelLabel, confirmColor,
 }
 
 
+/* ═══ GLOBAL CONFIRM — any component can call window.__confirm({...}) ═══ */
+const __confirmState = { set: null };
+function GlobalConfirm() {
+  const [cfg, setCfg] = useState(null);
+  __confirmState.set = setCfg;
+  if (!cfg) return null;
+  return html`<${ConfirmModal}
+    icon=${cfg.icon||'🗑️'}
+    title=${cfg.title||'Confirmar'}
+    message=${cfg.message||'¿Estás seguro?'}
+    confirmLabel=${cfg.confirmLabel||'Sí, eliminar'}
+    cancelLabel=${cfg.cancelLabel||'Cancelar'}
+    confirmColor=${cfg.confirmColor||'#FF3B30'}
+    onConfirm=${()=>{setCfg(null);cfg.onConfirm&&cfg.onConfirm();}}
+    onCancel=${()=>{setCfg(null);cfg.onCancel&&cfg.onCancel();}} />`;
+}
+window.__confirm = (opts) => __confirmState.set && __confirmState.set(opts);
+
+
 /* ═══ TASK DETAIL MODAL — JIRA-style ═══ */
 function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGoToRisk, teamMembers, tags, tagAssignments, onToggleTag }) {
   const [f, setF] = useState({...task});
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const tp = ITEM_TYPE_MAP[f.type||'tarea']||ITEM_TYPES[0];
   const pr = PRIS.find(p=>p.id===f.priority)||PRIS[1];
   const st = STS.find(s=>s.id===f.status)||STS[0];
@@ -4534,7 +4555,7 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
 
         <!-- Footer -->
         <div style=${{padding:'14px 24px',borderTop:'1px solid #F2F2F7',display:'flex',gap:8,justifyContent:'space-between',flexShrink:0,background:'#FAFAFA'}}>
-          <button onClick=${()=>setShowDeleteConfirm(true)}
+          <button onClick=${()=>window.__confirm({title:'Eliminar tarea',message:html`¿Eliminar <b>${task.text?.slice(0,50)}</b>?<br/>Esta acción no se puede deshacer.`,onConfirm:()=>onDelete(task.id)})}
             style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
           <div style=${{display:'flex',gap:8}}>
             <button onClick=${onClose} style=${{padding:'8px 20px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:500,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
@@ -4542,15 +4563,7 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
           </div>
         </div>
       </div>
-      ${showDeleteConfirm && html`<${ConfirmModal}
-        icon="🗑️"
-        title="Eliminar tarea"
-        message=${html`¿Eliminar <b>${task.text?.slice(0,50)}</b>?<br/>Esta acción no se puede deshacer.`}
-        confirmLabel="Sí, eliminar"
-        cancelLabel="Cancelar"
-        confirmColor="#FF3B30"
-        onConfirm=${()=>{setShowDeleteConfirm(false);onDelete(task.id)}}
-        onCancel=${()=>setShowDeleteConfirm(false)} />`}
+
     </div>`;
 }
 
@@ -4760,7 +4773,7 @@ function PTrabajo({ actions, sA, risks, user }) {
               ${a.status!=='done'&&a.status!=='cancelled'&&html`<button onClick=${(e)=>{e.stopPropagation();upSt(a.id,'done')}} title="Completar"
                 style=${{ border:'none', background:'#34C759', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5 }}>✓</button>`}
 
-              <button onClick=${(e)=>{e.stopPropagation();setDeleteConfirm({id:a.id,text:a.text,type:'task'})}}
+              <button onClick=${(e)=>{e.stopPropagation();window.__confirm({title:'Eliminar tarea',message:'¿Eliminar esta tarea?',onConfirm:()=>delA(a.id)})}}
                 style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer', padding:'2px' }}>✕</button>
             </div>
             ${!compact && a.status!=='done' && a.status!=='cancelled' && html`
@@ -5025,16 +5038,6 @@ function PTrabajo({ actions, sA, risks, user }) {
         onConfirm=${()=>{ window.__goMitigateRisk && window.__goMitigateRisk(mitigateModal.riskId); setMitigateModal(null); }}
         onCancel=${()=>setMitigateModal(null)} />`}
 
-      <!-- Delete confirmation modal -->
-      ${deleteConfirm && html`<${ConfirmModal}
-        icon="🗑️"
-        title="Eliminar elemento"
-        message=${html`¿Eliminar <b>${deleteConfirm.text?.slice(0,50)}${(deleteConfirm.text?.length||0)>50?'…':''}</b>?<br/>Esta acción no se puede deshacer.`}
-        confirmLabel="Sí, eliminar"
-        cancelLabel="Cancelar"
-        confirmColor="#FF3B30"
-        onConfirm=${()=>{ delA(deleteConfirm.id); setDeleteConfirm(null); }}
-        onCancel=${()=>setDeleteConfirm(null)} />`}
 
       <!-- ══ HISTORIAL VIEW ══ -->
       ${subView==='history' && html`
@@ -5506,7 +5509,6 @@ function heatColor(imp, prob) {
 /* ═══ RISK DETAIL MODAL ═══ */
 function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToTask }) {
   const [f, setF] = useState({...risk});
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const typeKey = f.type||'riesgo';
   const prefix = typeKey==='problema'?'P':typeKey==='oportunidad'?'O':'R';
   const hc = typeKey==='problema' ? '#FF3B30' : heatColor(f.impact||'medio', f.prob||'media');
@@ -5667,7 +5669,7 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
 
         <!-- Footer -->
         <div style=${{padding:'14px 24px',borderTop:'1px solid #F2F2F7',display:'flex',gap:8,justifyContent:'space-between',flexShrink:0,background:'#FAFAFA'}}>
-          <button onClick=${()=>setShowDeleteConfirm(true)}
+          <button onClick=${()=>window.__confirm({icon:'⚠️',title:'Eliminar riesgo',message:html`¿Eliminar <b>${risk.text?.slice(0,50)}</b>?<br/>Esta acción no se puede deshacer.`,onConfirm:()=>onDelete(risk.id)})}
             style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
           <div style=${{display:'flex',gap:8}}>
             <button onClick=${onClose} style=${{padding:'8px 20px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:500,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
@@ -8035,7 +8037,7 @@ function P4({ notes, actions, risks, sA, user }) {
                       <div style=${{ display:'flex', gap:3, flexShrink:0 }}>
                         <button onClick=${()=>{setEId(a.id);setEF({text:a.text,owner:a.owner||'',date:a.date||'',priority:a.priority})}}
                           style=${{ border:'none', background:'none', fontSize:11, color:'#C7C7CC', cursor:'pointer' }}>✏️</button>
-                        <button onClick=${()=>delA(a.id)}
+                        <button onClick=${(e)=>{e.stopPropagation();window.__confirm({title:'Eliminar acción',message:'¿Eliminar esta acción de la retro?',onConfirm:()=>delA(a.id)})}}
                           style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer' }}>✕</button>
                       </div>
                     </div>`;
@@ -8306,7 +8308,8 @@ function P5Risks({ risks, sR, notes, user }) {
                         ${RISK_STATUS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
                       </select>
                       <button onClick=${()=>{setEId(r.id);setEF({text:r.text,mitigation:r.mitigation,owner:r.owner})}} style=${{ border:'none', background:'none', fontSize:12, color:'#86868B', cursor:'pointer' }}>✏️</button>
-                      <button onClick=${()=>delRisk(r.id)} style=${{ border:'none', background:'none', fontSize:12, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
+                      <button onClick=${(e)=>{e.stopPropagation();window.__confirm({icon:'⚠️',title:'Eliminar riesgo',message:html`¿Eliminar este riesgo de la retro?`,onConfirm:()=>delRisk(r.id)})}}
+                style=${{ border:'none', background:'none', fontSize:12, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
                     </div>
                   </div>
                 </div>`;
@@ -8770,7 +8773,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
 }
 
 
-render(html`<${App} />`, document.getElementById('app'));
+render(html`<div><${App} /><${GlobalConfirm} /></div>`, document.getElementById('app'));
 </script>
 </body>
 </html>
