@@ -2849,14 +2849,12 @@ function RoomPicker() {
       .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
     // Use LATEST snapshot for current state (actions/risks), all snapshots for history
     const latest  = sbSala[0];
-    // Count only CLOSED retros for cumulative metrics
-    const closedRetros = sbSala.filter(rt => rt.status === 'closed');
-    const notes   = closedRetros.reduce((s, rt) => s + (rt.data?.notes?.length || 0), 0);
-    const votes   = closedRetros.reduce((s, rt) => s + ((rt.data?.notes || []).reduce((a, n) => a + (n.voters?.length || 0), 0)), 0);
-    // Actions and risks from LATEST snapshot only
+    // ALL metrics from LATEST snapshot only (avoids double-counting from autosaves)
+    const notes   = latest?.data?.notes?.length || 0;
+    const votes   = (latest?.data?.notes || []).reduce((a, n) => a + (n.voters?.length || 0), 0);
     const actions = latest?.data?.actions?.length || 0;
     const done    = (latest?.data?.actions || []).filter(a => a.status === 'done').length;
-    const parts   = [...new Set(closedRetros.flatMap(rt => (rt.data?.notes || []).map(n => n.userName)))];
+    const parts   = [...new Set((latest?.data?.notes || []).map(n => n.userName))];
     const risks   = latest?.data?.risks || [];
     const risksOpen      = risks.filter(x => x.status !== 'mitigated').length;
     const risksMitigated = risks.filter(x => x.status === 'mitigated').length;
@@ -2864,7 +2862,7 @@ function RoomPicker() {
     const last    = sbSala[0] || null;
     return {
       ...r, rTipo,
-      retros: sbSala.filter(rt=>rt.status==='closed').length, // only 'Nueva retro' events count
+      retros: sbSala.length, // total snapshots saved for this project
       notes, votes, actions, done, parts,
       risksOpen, risksMitigated, risksTotal: risks.length,
       avgP: sbSala.length > 0 ? (parts.length / sbSala.length).toFixed(1) : 0,
@@ -4415,6 +4413,18 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
               </div>
             </div>
             <!-- Linked Risk -->
+            <div>
+              ${fieldLabel('Riesgo vinculado')}
+              <select value=${f.riskId||''} onChange=${e=>{setF({...f, riskId:e.target.value||null, source:e.target.value?'risk':f.source});}}
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:f.riskId?'#FFF5F5':'#FAFAFA',color:f.riskId?'#FF3B30':'#6E6E73'}}>
+                <option value="">— Sin riesgo vinculado —</option>
+                ${(window.__currentRisks||[]).filter(r=>r.status!=='mitigated').map((r,i)=>{
+                  const px=(r.type||'riesgo')==='problema'?'P':'R';
+                  const n=(window.__currentRisks||[]).filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
+                  return html`<option key=${r.id} value=${r.id}>${px}${n}: ${r.text.slice(0,45)}${r.text.length>45?'…':''}</option>`;
+                })}
+              </select>
+            </div>
             ${task.riskId && html`
               <div style=${{background:'#FFF5F5',borderRadius:12,border:'1.5px solid #FF3B3015',padding:'14px 16px',cursor:'pointer',transition:'all .15s'}}
                 onClick=${()=>{ window.__pendingRiskDetail = task.riskId; if(onGoToRisk) onGoToRisk(task.riskId); onClose(); }}
@@ -5504,25 +5514,27 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
             <!-- Linked Tasks -->
             <div>
               ${fieldLabel('Tareas vinculadas')}
-              ${linkedTasks.length===0
-                ? html`<p style=${{fontSize:12,color:'#C7C7CC',padding:'8px 0'}}>Sin tareas vinculadas a este riesgo</p>`
-                : html`<div style=${{display:'flex',flexDirection:'column',gap:5}}>
-                    ${linkedTasks.map(a=>{
-                      const st=STS.find(s=>s.id===a.status)||STS[0];
-                      return html`
-                        <div key=${a.id} onClick=${()=>{if(onGoToTask)onGoToTask(a);onClose();}}
-                          style=${{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,background:'#F9F9FB',border:'1.5px solid #E5E5EA',cursor:'pointer',transition:'border-color .15s'}}
-                          onMouseOver=${e=>e.currentTarget.style.borderColor='#007AFF'}
-                          onMouseOut=${e=>e.currentTarget.style.borderColor='#E5E5EA'}>
-                          <span style=${{fontSize:10,fontWeight:700,color:st.color,background:st.bg,padding:'2px 7px',borderRadius:5}}>${st.label}</span>
-                          <div style=${{flex:1,minWidth:0}}>
-                            <div style=${{fontSize:12,fontWeight:600,textDecoration:a.status==='done'?'line-through':'none'}}>${a.text}</div>
-                            <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${a.owner||'Sin asignar'}${a.date?' · '+fd(a.date):''}</div>
-                          </div>
-                          <span style=${{fontSize:11,color:'#007AFF',fontWeight:600,flexShrink:0}}>Abrir →</span>
-                        </div>`;
-                    })}
-                  </div>`}
+              ${linkedTasks.length>0&&html`<div style=${{display:'flex',flexDirection:'column',gap:5,marginBottom:8}}>
+                ${linkedTasks.map(a=>{
+                  const st=STS.find(s=>s.id===a.status)||STS[0];
+                  return html`
+                    <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#F9F9FB',border:'1.5px solid #E5E5EA'}}>
+                      <span style=${{fontSize:10,fontWeight:700,color:st.color,background:st.bg,padding:'2px 6px',borderRadius:5}}>${st.label}</span>
+                      <div onClick=${()=>{if(onGoToTask)onGoToTask(a);onClose();}} style=${{flex:1,minWidth:0,cursor:'pointer'}}>
+                        <div style=${{fontSize:12,fontWeight:600,textDecoration:a.status==='done'?'line-through':'none',color:'#007AFF'}}>${a.text}</div>
+                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${a.owner||'Sin asignar'}${a.date?' · '+fd(a.date):''}</div>
+                      </div>
+                      <button onClick=${(e)=>{e.stopPropagation(); const updated=(window.__currentActions||[]).map(x=>x.id===a.id?{...x,riskId:null,source:x.source==='risk'?'manual':x.source}:x); if(window.__updateActions)window.__updateActions(updated);}}
+                        style=${{border:'none',background:'#FF3B3010',color:'#FF3B30',fontSize:9,fontWeight:700,padding:'3px 7px',borderRadius:6,cursor:'pointer'}} title="Desvincular">✕</button>
+                    </div>`;
+                })}
+              </div>`}
+              <!-- Add task dropdown -->
+              <select onChange=${e=>{if(!e.target.value)return; const updated=(window.__currentActions||[]).map(x=>x.id===e.target.value?{...x,riskId:risk.id,source:'risk'}:x); if(window.__updateActions)window.__updateActions(updated); e.target.value='';}}
+                style=${{width:'100%',border:'1.5px dashed #007AFF40',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',color:'#007AFF',background:'#F0F7FF',cursor:'pointer'}}>
+                <option value="">+ Vincular tarea existente…</option>
+                ${(window.__currentActions||[]).filter(a=>!a.riskId&&a.status!=='done'&&a.status!=='cancelled').map(a=>html`<option key=${a.id} value=${a.id}>${a.text.slice(0,50)}</option>`)}
+              </select>
             </div>
 
             <!-- Meta -->
@@ -6022,7 +6034,7 @@ const addItem = () => {
           <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
             <button onClick=${()=>{setForm({...form,type:subTab==='riesgos'?'riesgo':subTab==='problemas'?'problema':'oportunidad'}); setShowRiskForm(true);}}
               style=${{ padding:'12px 16px', borderRadius:12, border:'none', background:cur.color, color:'#FFF', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, position:'sticky', top:0 }}>
-              <${Icon} name="Plus" size=${16} color="#FFF" /> ${cur.btn}
+              ${cur.btn}
             </button>
           </div>
         `}
@@ -6062,10 +6074,17 @@ const addItem = () => {
               <input value=${form.mitigation||''} onInput=${e=>setForm({...form,mitigation:e.target.value})}
                 placeholder=${form.type==='oportunidad'?'¿Cómo aprovecharla?':'Plan de mitigación'}
                 style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
-              <div>
-                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Fecha resolución prevista</label>
-                <input type="date" value=${form.deadline||''} onInput=${e=>setForm({...form,deadline:e.target.value})}
-                  style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+              <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <div>
+                  <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Fecha identificación</label>
+                  <input type="date" value=${form.createdAt||(new Date().toISOString().slice(0,10))} onInput=${e=>setForm({...form,createdAt:e.target.value})}
+                    style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+                </div>
+                <div>
+                  <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Fecha resolución</label>
+                  <input type="date" value=${form.deadline||''} onInput=${e=>setForm({...form,deadline:e.target.value})}
+                    style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+                </div>
               </div>
             </div>
             <div style=${{padding:'12px 24px 20px',display:'flex',gap:8,borderTop:'1px solid #F2F2F7',background:'#FAFAFA'}}>
