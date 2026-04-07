@@ -7816,20 +7816,7 @@ function P5Risks({ risks, sR, notes, user }) {
                       ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
                     </select>
                   </div>
-                  <!-- Tag badges on risk card -->
-                  ${tags.length>0 && html`
-                    <div style=${{display:'flex',gap:3,flexWrap:'wrap',marginTop:6}}>
-                      ${entityTagList('risk',r.id).map(t=>html`
-                        <span key=${t.id} onClick=${()=>quickToggleTag(t.id,'risk',r.id)}
-                          style=${{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10,background:t.color,color:'#FFF',cursor:'pointer'}}>
-                          ${t.name} ✕
-                        </span>`)}
-                      ${tags.filter(t=>!hasTag(t.id,'risk',r.id)).map(t=>html`
-                        <span key=${t.id} onClick=${()=>quickToggleTag(t.id,'risk',r.id)}
-                          style=${{fontSize:9,padding:'1px 6px',borderRadius:10,border:'1px dashed '+t.color+'70',color:t.color,cursor:'pointer'}}>
-                          + ${t.name}
-                        </span>`)}
-                    </div>`}
+
                   <!-- Voting -->  <!-- Voting -->
                   <div style=${{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
