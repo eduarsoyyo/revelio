@@ -2554,6 +2554,7 @@ function AdminUsuarios({ rooms }) {
 /* ═══ SALA CARD COMPONENT ═══ */
 function SalaCard({ r, sbRetros, go, onRemove, setEditRoom }) {
   const rm    = sbRetros.filter(rt => rt.sala === r.slug);
+  const retroCount = [...new Set(rm.map(rt=>(rt.created_at||'').slice(0,10)))].length;
   const users = loadUserRegistry(r.slug);
   const link  = window.location.origin + window.location.pathname + '?sala=' + r.slug + '&tipo=' + (r.tipo||'agile');
   const rTipo = TASK_TEMPLATES[r.tipo] || TASK_TEMPLATES.agile;
@@ -2574,8 +2575,8 @@ function SalaCard({ r, sbRetros, go, onRemove, setEditRoom }) {
         <button onClick=${()=>onRemove(r.slug)} style=${{ padding:'4px', border:'none', background:'none', fontSize:14, color:'#FF3B30', cursor:'pointer', opacity:.6 }}>🗑</button>
       </div>
       <div style=${{ padding:'0 14px 12px', display:'flex', gap:14, flexWrap:'wrap', alignItems:'center', borderTop:'1px solid #F9F9FB' }}>
-        ${rm.length>0 ? html`
-          <span style=${{ fontSize:11, color:'#86868B' }}>📊 ${rm.length} retros</span>
+        ${retroCount>0 ? html`
+          <span style=${{ fontSize:11, color:'#86868B' }}>📊 ${retroCount} retros</span>
           <span style=${{ fontSize:11, color:'#86868B' }}>📝 ${rm.reduce((s,rt)=>s+(rt.data?.notes?.length||0),0)} notas</span>
           <span style=${{ fontSize:11, color:'#86868B' }}>👥 ${[...new Set(rm.flatMap(rt=>(rt.data?.notes||[]).map(n=>n.userName)))].length} personas</span>
         ` : html`<span style=${{ fontSize:11, color:'#C7C7CC' }}>Sin retros guardadas</span>`}
@@ -2589,6 +2590,43 @@ function SalaCard({ r, sbRetros, go, onRemove, setEditRoom }) {
     </div>`;
 }
 
+
+
+/* ═══ VACPAGINATED — vacation bars with dot pagination ═══ */
+function VacPaginated({ members, cntD, thisYr }) {
+  const PAGE_SIZE = 4;
+  const totalPages = Math.ceil(members.length / PAGE_SIZE);
+  const [page, setPage] = useState(0);
+  const visible = members.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  return html`
+    <div style=${{ marginBottom:8 }}>
+      <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
+        ${visible.map(m => {
+          const cap = (m.annual_vac_days ?? 22) + (m.prev_year_pending ?? 0);
+          const used = cntD(m.vacations || [], m.id, thisYr);
+          const mp = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
+          return html`
+            <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style=${{ fontSize:13, width:18, textAlign:'center' }}>${m.avatar || '👤'}</span>
+              <span style=${{ fontSize:9, color:'#1D1D1F', fontWeight:500, minWidth:60, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>${m.name?.split(' ')[0] || '—'}</span>
+              <div style=${{ flex:1 }}>
+                <div style=${{ background:'#F2F2F7', borderRadius:3, height:5, overflow:'hidden' }}>
+                  <div style=${{ width:mp + '%', height:'100%', background:mp > 90 ? '#FF3B30' : mp > 70 ? '#FF9500' : '#34C759', borderRadius:3, transition:'width .3s' }}></div>
+                </div>
+              </div>
+              <span style=${{ fontSize:9, color:'#86868B', minWidth:40, textAlign:'right' }}>${used}/${cap}d</span>
+            </div>`;
+        })}
+      </div>
+      ${totalPages > 1 && html`
+        <div style=${{ display:'flex', justifyContent:'center', gap:5, marginTop:6 }}>
+          ${Array.from({length:totalPages}).map((_,i) => html`
+            <button key=${i} onClick=${() => setPage(i)}
+              style=${{ width:page===i?16:6, height:6, borderRadius:3, border:'none', cursor:'pointer', transition:'all .2s',
+                background:page===i ? '#007AFF' : '#D1D1D6' }}></button>`)}
+        </div>`}
+    </div>`;
+}
 
 
 function RoomPicker() {
@@ -2828,7 +2866,7 @@ function RoomPicker() {
     const last    = sbSala[0] || null;
     return {
       ...r, rTipo,
-      retros: sbSala.length,
+      retros: [...new Set(sbSala.map(rt=>(rt.created_at||'').slice(0,10)))].length, // unique days = unique sessions
       notes, votes, actions, done, parts,
       risksOpen, risksMitigated, risksTotal: risks.length,
       avgP: sbSala.length > 0 ? (parts.length / sbSala.length).toFixed(1) : 0,
@@ -3037,26 +3075,8 @@ function RoomPicker() {
                             <span>${totalCapacity}d totales</span>
                           </div>
                         </div>
-                        <!-- Per-member mini bars -->
-                        <div style=${{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
-                          ${salaMembers.slice(0,6).map(m=>{
-                            const cap = (m.annual_vac_days??ANNUAL_VAC_DAYS)+(m.prev_year_pending??0);
-                            const used = cntD(m.vacations||[],m.id,thisYr);
-                            const mp = cap>0?Math.min(100,Math.round((used/cap)*100)):0;
-                            return html`
-                              <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:6 }}>
-                                <span style=${{ fontSize:13, width:18, textAlign:'center' }}>${m.avatar||'👤'}</span>
-                                <span style=${{ fontSize:9, color:'#1D1D1F', fontWeight:500, minWidth:60, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>${m.name?.split(' ')[0]||'—'}</span>
-                                <div style=${{ flex:1 }}>
-                                  <div style=${{ background:'#F2F2F7', borderRadius:3, height:5, overflow:'hidden' }}>
-                                    <div style=${{ width:mp+'%', height:'100%', background:mp>90?'#FF3B30':mp>70?'#FF9500':'#34C759', borderRadius:3, transition:'width .3s' }}></div>
-                                  </div>
-                                </div>
-                                <span style=${{ fontSize:9, color:'#86868B', minWidth:40, textAlign:'right' }}>${used}/${cap}d</span>
-                              </div>`;
-                          })}
-                          ${salaMembers.length>6&&html`<span style=${{ fontSize:9, color:'#C7C7CC', textAlign:'center' }}>+${salaMembers.length-6} más</span>`}
-                        </div>
+                        <!-- Per-member mini bars (paginated) -->
+                        <${VacPaginated} members=${salaMembers} cntD=${cntD} thisYr=${thisYr} />
                         ${vacToday.length>0&&html`<div style=${{ fontSize:10, color:'#FF9500', fontWeight:700 }}>Hoy: ${vacToday.map(m=>m.name).join(', ')}</div>`}
                         ${vacSoon.length>0&&html`<div style=${{ fontSize:10, color:'#86868B', marginTop:4 }}>Próx. mes: ${vacSoon.slice(0,2).map(m=>m.name).join(', ')}${vacSoon.length>2?' +'+vacSoon.length-2:''}</div>`}
                       `;
