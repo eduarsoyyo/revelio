@@ -4228,6 +4228,33 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
 /* ═══ PHASE 8 — VACACIONES (calendar view) ═══ */
 
 /* ═══ PACCIONABLES — Gestión entre retros ═══ */
+/* ═══ CONFIRM MODAL — custom replacement for browser confirm() ═══ */
+function ConfirmModal({ title, message, confirmLabel, cancelLabel, confirmColor, icon, onConfirm, onCancel }) {
+  return html`
+    <div style=${{position:'fixed',inset:0,zIndex:20000,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}
+      onClick=${e=>{if(e.target===e.currentTarget)onCancel&&onCancel()}}>
+      <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.15)',backdropFilter:'blur(6px)',WebkitBackdropFilter:'blur(6px)'}}></div>
+      <div style=${{position:'relative',background:'#FFF',borderRadius:18,width:'100%',maxWidth:420,boxShadow:'0 12px 40px rgba(0,0,0,.12), 0 0 0 1px rgba(0,0,0,.04)',animation:'fadeIn .15s ease',overflow:'hidden'}}>
+        <div style=${{padding:'24px 24px 16px',textAlign:'center'}}>
+          ${icon&&html`<div style=${{fontSize:36,marginBottom:12}}>${icon}</div>`}
+          <h3 style=${{fontSize:16,fontWeight:700,margin:'0 0 8px',color:'#1D1D1F'}}>${title||'Confirmar'}</h3>
+          <p style=${{fontSize:13,color:'#6E6E73',lineHeight:1.5,margin:0}}>${message||''}</p>
+        </div>
+        <div style=${{padding:'12px 24px 20px',display:'flex',gap:10,justifyContent:'center'}}>
+          <button onClick=${onCancel}
+            style=${{flex:1,padding:'10px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',color:'#6E6E73',fontSize:13,fontWeight:500,cursor:'pointer'}}>
+            ${cancelLabel||'No'}
+          </button>
+          <button onClick=${onConfirm}
+            style=${{flex:1,padding:'10px 16px',borderRadius:10,border:'none',background:confirmColor||'#007AFF',color:'#FFF',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+            ${confirmLabel||'Sí'}
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+
 /* ═══ TASK DETAIL MODAL — JIRA-style ═══ */
 function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGoToRisk, teamMembers, tags, tagAssignments, onToggleTag }) {
   const [f, setF] = useState({...task});
@@ -4239,13 +4266,10 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
 
   const save = () => {
     const updated = {...f, updatedAt:new Date().toISOString()};
-    // If completing a task linked to a risk, prompt about mitigation
+    onSave(updated);
+    // If completing a task linked to a risk, trigger parent's mitigation modal
     if (updated.status==='done' && task.riskId && task.status!=='done') {
-      const mitigate = confirm('Esta tarea está vinculada a un riesgo.\n¿Quieres marcar el riesgo como mitigado?');
-      onSave(updated);
-      if (mitigate && onMitigateRisk) onMitigateRisk(task.riskId);
-    } else {
-      onSave(updated);
+      if (onMitigateRisk) onMitigateRisk(task.riskId);
     }
   };
 
@@ -4433,6 +4457,7 @@ function PTrabajo({ actions, sA, risks, user }) {
   const [eId, setEId] = useState(null);
   const [eF, setEF] = useState({});
   const [detailTask, setDetailTask] = useState(null); // Task for modal view
+  const [mitigateModal, setMitigateModal] = useState(null); // {riskId, taskText}
   const [showTagManager, setShowTagManager] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [sortBy, setSortBy] = useState('priority'); // priority | date | type | status
@@ -4452,14 +4477,14 @@ function PTrabajo({ actions, sA, risks, user }) {
 
   // ── Helpers ──
   const upSt = (id,st) => {
-    const task = actions.find(a=>a.id===id);
-    // If completing a task linked to a risk, prompt mitigation
-    if (st==='done' && task?.riskId) {
-      const mitigate = confirm('Esta tarea está vinculada a un riesgo.\n¿Quieres marcar el riesgo como mitigado?');
-      sA(actions.map(a=>a.id===id?{...a,status:st,updatedAt:new Date().toISOString()}:a));
-      if (mitigate) window.__goMitigateRisk && window.__goMitigateRisk(task.riskId);
-    } else {
-      sA(actions.map(a=>a.id===id?{...a,status:st,updatedAt:new Date().toISOString()}:a));
+    sA(actions.map(a=>a.id===id?{...a,status:st,updatedAt:new Date().toISOString()}:a));
+    // If completing a task linked to a risk, show mitigation modal
+    if (st==='done') {
+      const task = actions.find(a=>a.id===id);
+      if (task?.riskId) {
+        const rsk = (window.__currentRisks||[]).find(r=>r.id===task.riskId);
+        setMitigateModal({riskId:task.riskId, riskText:rsk?.text||'Riesgo vinculado'});
+      }
     }
   };
   const delA = id => sA(actions.filter(a=>a.id!==id));
@@ -4831,7 +4856,7 @@ function PTrabajo({ actions, sA, risks, user }) {
         onSave=${(updated) => { sA(actions.map(a=>a.id===updated.id?{...a,...updated}:a)); setDetailTask(null); }}
         onDelete=${(id) => { delA(id); setDetailTask(null); }}
         onClose=${() => setDetailTask(null)}
-        onMitigateRisk=${(riskId) => { window.__goMitigateRisk && window.__goMitigateRisk(riskId); }}
+        onMitigateRisk=${(riskId) => { const rsk=(window.__currentRisks||[]).find(r=>r.id===riskId); setMitigateModal({riskId, riskText:rsk?.text||'Riesgo vinculado'}); }}
         onGoToRisk=${(riskId) => { window.__goToRisk && window.__goToRisk(riskId); }} />`}
 
       <!-- Tag Manager Modal -->
@@ -4847,6 +4872,17 @@ function PTrabajo({ actions, sA, risks, user }) {
             <${PTags} teamMembers=${teamMembers} risks=${risks} actions=${actions} />
           </div>
         </div>`}
+
+      <!-- Mitigation confirmation modal -->
+      ${mitigateModal && html`<${ConfirmModal}
+        icon="⚠️"
+        title="Riesgo vinculado"
+        message=${html`La tarea completada está vinculada al riesgo:<br/><b>${mitigateModal.riskText}</b><br/><br/>¿Quieres marcar el riesgo como mitigado?`}
+        confirmLabel="Sí, mitigar"
+        cancelLabel="No, mantener abierto"
+        confirmColor="#34C759"
+        onConfirm=${()=>{ window.__goMitigateRisk && window.__goMitigateRisk(mitigateModal.riskId); setMitigateModal(null); }}
+        onCancel=${()=>setMitigateModal(null)} />`}
 
       <!-- ══ HISTORIAL VIEW ══ -->
       ${subView==='history' && html`
@@ -5444,6 +5480,7 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
     const idx = ESCAL_CHAIN.indexOf(current);
     return idx >= 0 && idx < ESCAL_CHAIN.length - 1 ? ESCAL_CHAIN[idx + 1] : null;
   };
+  const [linkModal, setLinkModal] = useState(null); // {riskId, riskText} - post-creation link dialog
   const [form,   setForm]   = useState({type:'riesgo', text:'', impact:'medio', prob:'media', owner:'', mitigation:'', status:'open', opportunity:'', deadline:''});
   const [eId,    setEId]    = useState(null);
   const [eF,     setEF]     = useState({});
@@ -5510,8 +5547,10 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
   const PROB_LEVELS   = {alta:'#FF3B30', media:'#FF9500', baja:'#34C759'};
 const addItem = () => {
     if (!form.text.trim()) return;
+    const newId = uid();
+    const riskText = form.text.trim();
     sR([...allRisks, {
-      id: uid(), type: form.type, text: form.text.trim(),
+      id: newId, type: form.type, text: riskText,
       impact: form.impact, prob: form.prob,
       owner: form.owner, mitigation: form.mitigation,
       opportunity: form.opportunity, deadline: form.deadline||'',
@@ -5519,6 +5558,8 @@ const addItem = () => {
       createdAt: new Date().toISOString()
     }]);
     setForm({type:form.type, text:'', impact:'medio', prob:'media', owner:'', mitigation:'', status:'open', opportunity:''});
+    // Offer to create/link task
+    setLinkModal({riskId:newId, riskText});
   };
   const upd = (id, patch) => sR(allRisks.map(r=>r.id===id?{...r,...patch}:r));
   const del = (id) => sR(allRisks.filter(r=>r.id!==id));
@@ -5765,6 +5806,22 @@ const addItem = () => {
         `}
       </div>
       `}
+
+      <!-- Link task to risk modal -->
+      ${linkModal && html`<${ConfirmModal}
+        icon="📋"
+        title="¿Crear tarea vinculada?"
+        message=${html`Has creado el riesgo:<br/><b>${linkModal.riskText}</b><br/><br/>¿Quieres crear una tarea de mitigación vinculada a este riesgo?`}
+        confirmLabel="Sí, crear tarea"
+        cancelLabel="No, solo el riesgo"
+        confirmColor="#007AFF"
+        onConfirm=${()=>{
+          const rId=linkModal.riskId; const rText=linkModal.riskText;
+          setLinkModal(null);
+          // Create mitigation task via window callback
+          if(window.__createLinkedTask) window.__createLinkedTask(rId, rText);
+        }}
+        onCancel=${()=>setLinkModal(null)} />`}
     </div>`;
 }
 
@@ -6500,6 +6557,11 @@ function RetroBoard({ user, onLogout }) {
 
   // Risk navigation + mitigation callbacks for TaskDetailModal
   useEffect(() => {
+    window.__createLinkedTask = (riskId, riskText) => {
+      const currentActions = stRef.current.actions || [];
+      const newTask = {id:uid(),text:'Mitigar: '+riskText,description:'Tarea vinculada al riesgo',owner:'Sin asignar',date:'',status:'backlog',priority:'high',voteScore:0,createdBy:user?.id||'',fromCategory:null,noteId:null,riskId:riskId,source:'risk',type:'tarea',createdAt:new Date().toISOString()};
+      sA([...currentActions, newTask]);
+    };
     window.__goToRisk = (riskId) => {
       setMainTab('riesgos');
     };
@@ -6508,7 +6570,7 @@ function RetroBoard({ user, onLogout }) {
       const updated = currentRisks.map(r => r.id === riskId ? {...r, status:'mitigated'} : r);
       sR(updated);
     };
-    return () => { window.__goToRisk = null; window.__goMitigateRisk = null; };
+    return () => { window.__goToRisk = null; window.__goMitigateRisk = null; window.__createLinkedTask = null; };
   }, []);
 
   const saveRetro = () => {
