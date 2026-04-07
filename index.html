@@ -247,12 +247,14 @@ const STS = [
   { id:'blocked', label:'Bloqueado', color:'#FF3B30', bg:'#FFF5F5' },
   { id:'done', label:'Completado', color:'#34C759', bg:'#F0FFF4' },
   { id:'cancelled', label:'Cancelado', color:'#8E8E93', bg:'#F2F2F7' },
+  { id:'discarded', label:'Descartado', color:'#8E8E93', bg:'#F2F2F7' },
+  { id:'progress', label:'En progreso', color:'#007AFF', bg:'#EBF5FF' },
 ];
 const PRIS = [
-  { id:'critical', label:'Crítica', icon:'▲▲', color:'#8B0000' },
   { id:'high', label:'Alta', icon:'▲', color:'#FF3B30' },
   { id:'medium', label:'Media', icon:'—', color:'#FF9500' },
   { id:'low', label:'Baja', icon:'▽', color:'#34C759' },
+  { id:'critical', label:'Crítica', icon:'▲▲', color:'#8B0000' },
 ];
 const ITEM_TYPES = [
   { id:'tarea',        label:'Tarea',         icon:'☐',  color:'#007AFF', lucide:'CheckSquare' },
@@ -278,7 +280,6 @@ const MAIN_TABS = [
   { id:'retro',       label:'Retro',       lucide:'RotateCcw' },
   { id:'riesgos',     label:'Riesgos',     lucide:'AlertTriangle' },
   { id:'equipo',      label:'Equipo',      lucide:'Users' },
-  { id:'docs',        label:'Documentación', lucide:'FileText' },
 ];
 const AVATARS = ['🦊','🐻','🐼','🦁','🦉','🐍','🦡','🦅','🐉','🦄','🧙','⚡','🔮','🏰','🪄','🐺','🦋','🐝'];
 const ROLES = ['Scrum Master','Product Owner','Desarrollador/a','QA / Tester','Diseñador/a','DevOps','Tech Lead','Analista','Project Manager','Stakeholder','Otro'];
@@ -890,6 +891,117 @@ function HomeVacaciones({ profile, user }) {
 
 
 
+/* ═══ PERSONAS PANEL (SM homepage) ═══ */
+function PersonasPanel({ rooms }) {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+  useEffect(() => { sbLoadTeamMembers().then(m=>{ setMembers(m||[]); setLoading(false); }); }, []);
+  const filtered = filter ? members.filter(m=>m.name?.toLowerCase().includes(filter.toLowerCase())||m.role_label?.toLowerCase().includes(filter.toLowerCase())||m.company?.toLowerCase().includes(filter.toLowerCase())) : members;
+  if (loading) return html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando equipo…</div>`;
+  return html`<div>
+    <div style=${{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
+      <input value=${filter} onInput=${e=>setFilter(e.target.value)} placeholder="Buscar personas…"
+        style=${{flex:1,border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 12px',fontSize:13,fontFamily:'inherit',outline:'none'}} />
+      <span style=${{fontSize:11,color:'#86868B'}}>${filtered.length} personas</span>
+    </div>
+    <div style=${{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>
+      ${filtered.map(m=>html`
+        <div key=${m.id} style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',display:'flex',gap:12,alignItems:'flex-start'}}>
+          <div style=${{width:40,height:40,borderRadius:12,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>${m.avatar||'👤'}</div>
+          <div style=${{flex:1,minWidth:0}}>
+            <div style=${{fontSize:13,fontWeight:700}}>${m.name}</div>
+            ${m.role_label&&html`<div style=${{fontSize:11,color:'#5856D6',fontWeight:600,marginTop:1}}>${m.role_label}</div>`}
+            ${m.company&&html`<div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${m.company}</div>`}
+            ${(m.rooms||[]).length>0&&html`<div style=${{display:'flex',gap:3,flexWrap:'wrap',marginTop:6}}>
+              ${(m.rooms||[]).map(slug=>{
+                const room = rooms.find(r=>r.slug===slug);
+                return room?html`<span key=${slug} style=${{fontSize:9,fontWeight:600,padding:'2px 7px',borderRadius:8,background:'#007AFF12',color:'#007AFF'}}>${room.name}</span>`:null;
+              })}
+            </div>`}
+          </div>
+        </div>`)}
+    </div>
+  </div>`;
+}
+
+/* ═══ GOBIERNO PANEL (SM homepage) ═══ */
+function GobiernoPanel({ rooms, allData, myActions, myRisks }) {
+  const totalActions = Object.values(allData).flatMap(d=>d.actions||[]);
+  const openActions = totalActions.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled');
+  const doneActions = totalActions.filter(a=>a.status==='done');
+  const totalRisks = Object.values(allData).flatMap(d=>d.risks||[]);
+  const openRisks = totalRisks.filter(r=>r.status!=='mitigated');
+  const today = new Date().toISOString().slice(0,10);
+  const overdue = openActions.filter(a=>a.date&&a.date<today);
+  const completionRate = totalActions.length>0?Math.round((doneActions.length/totalActions.length)*100):0;
+
+  return html`<div>
+    <!-- KPIs -->
+    <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:18}}>
+      ${[
+        {l:'Tareas abiertas',v:openActions.length,c:'#007AFF',i:'CheckSquare'},
+        {l:'Completadas',v:doneActions.length,c:'#34C759',i:'CheckCircle2'},
+        {l:'Vencidas',v:overdue.length,c:overdue.length>0?'#FF3B30':'#86868B',i:'AlertCircle'},
+        {l:'Riesgos activos',v:openRisks.length,c:openRisks.length>0?'#FF9500':'#86868B',i:'AlertTriangle'},
+      ].map((k,i)=>html`
+        <div key=${i} style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px',textAlign:'center'}}>
+          <div style=${{width:32,height:32,borderRadius:10,background:k.c+'15',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>
+            <${Icon} name=${k.i} size=${16} color=${k.c} />
+          </div>
+          <div style=${{fontSize:24,fontWeight:800,color:k.c,lineHeight:1}}>${k.v}</div>
+          <div style=${{fontSize:10,color:'#86868B',marginTop:4}}>${k.l}</div>
+        </div>`)}
+    </div>
+    <!-- Completion gauge -->
+    <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'18px',marginBottom:14}}>
+      <div style=${{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+        <span style=${{fontSize:13,fontWeight:700}}>Cumplimiento global</span>
+        <span style=${{fontSize:13,fontWeight:800,color:completionRate>=70?'#34C759':completionRate>=40?'#FF9500':'#FF3B30'}}>${completionRate}%</span>
+      </div>
+      <div style=${{background:'#F2F2F7',borderRadius:6,height:10,overflow:'hidden'}}>
+        <div style=${{width:completionRate+'%',height:'100%',borderRadius:6,background:completionRate>=70?'#34C759':completionRate>=40?'#FF9500':'#FF3B30',transition:'width .5s'}}></div>
+      </div>
+      <div style=${{display:'flex',justifyContent:'space-between',fontSize:10,color:'#86868B',marginTop:6}}>
+        <span>${doneActions.length} completadas de ${totalActions.length}</span>
+        <span>${rooms.length} proyectos</span>
+      </div>
+    </div>
+    <!-- Per-project breakdown -->
+    <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'18px'}}>
+      <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Estado por proyecto</h3>
+      ${rooms.map(r=>{
+        const d=allData[r.slug]||{};
+        const acts=d.actions||[];
+        const open=acts.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled').length;
+        const done=acts.filter(a=>a.status==='done').length;
+        const risks=(d.risks||[]).filter(x=>x.status!=='mitigated').length;
+        const pct=acts.length>0?Math.round((done/acts.length)*100):0;
+        return html`
+          <div key=${r.slug} style=${{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #F2F2F7'}}>
+            <div style=${{flex:1}}>
+              <div style=${{fontSize:12,fontWeight:600}}>${r.name}</div>
+              <div style=${{display:'flex',gap:8,fontSize:10,color:'#86868B',marginTop:3}}>
+                <span>${open} abiertas</span>
+                <span style=${{color:'#34C759'}}>${done} hechas</span>
+                ${risks>0&&html`<span style=${{color:'#FF9500'}}>⚠ ${risks} riesgos</span>`}
+              </div>
+            </div>
+            <div style=${{width:80}}>
+              <div style=${{display:'flex',alignItems:'center',gap:4}}>
+                <div style=${{flex:1,height:5,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}>
+                  <div style=${{height:'100%',width:pct+'%',background:pct>=70?'#34C759':pct>=40?'#FF9500':'#FF3B30',borderRadius:3}}></div>
+                </div>
+                <span style=${{fontSize:10,fontWeight:700,color:pct>=70?'#34C759':pct>=40?'#FF9500':'#FF3B30',minWidth:28}}>${pct}%</span>
+              </div>
+            </div>
+          </div>`;
+      })}
+    </div>
+  </div>`;
+}
+
+
 function UserHomePage({ user, onLogout, onSelectProject }) {
   const [section,      setSection]      = useState('dashboard');
   const [rooms,        setRooms]        = useState([]);
@@ -897,7 +1009,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
   const [allData,      setAllData]      = useState({});
   const [roomsLoaded,  setRoomsLoaded]  = useState(false);
   const [profileLoaded,setProfileLoaded]= useState(false);
-  const [editProfile,  setEditProfile]  = useState(null);
+  const [editProfile,  setEditProfile]  = useState(() => profile ? {...profile} : {name:user.name,username:'',email:'',company:'',phone:'',role_label:''});
   const [savingProfile,setSavingProfile]= useState(false);
   const [showNotifs,   setShowNotifs]   = useState(false);
   const [homeNotifs,   setHomeNotifs]   = useState([]);
@@ -977,7 +1089,9 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
   const logout = () => { clearUser(); window.location.href='/'; };
 
   // Role-based navigation
-  const isSM = isSuperUser; // Service Managers are superusers
+  // SM detection: is_superuser=true in team_members table (set from admin panel)
+  // or _isAdmin=true (logged via Supabase Auth)
+  const isSM = isSuperUser;
   const NAV_USER = [
     {id:'dashboard',  label:'Inicio',        icon:'LayoutDashboard'},
     {id:'proyectos',  label:'Mis proyectos', icon:'FolderOpen'},
@@ -1033,7 +1147,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
           <div style=${{width:32,height:32,borderRadius:10,background:user.color||'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17}}>${user.avatar||'👤'}</div>
           <div style=${{lineHeight:1.2}}>
             <div style=${{fontSize:13,fontWeight:700}}>${user.name}</div>
-            <div style=${{fontSize:10,color:'#86868B'}}>${profile?.role_label||user.role||''}</div>
+            <div style=${{fontSize:10,color:'#86868B'}}>${profile?.role_label||user.role||''}${isSM?' · SM':''}</div>
           </div>
           <button onClick=${logout}
             style=${{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:10,border:'1.5px solid #FF3B3025',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>
@@ -1235,22 +1349,14 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
           ${section==='personas'&&isSM&&html`<div>
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Personas</h1>
             <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Directorio, roles, organigrama y capacidad</p>
-            <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'24px',textAlign:'center',color:'#86868B'}}>
-              <${Icon} name="Users" size=${44} color="#E5E5EA" />
-              <p style=${{fontSize:14,marginTop:12,fontWeight:600}}>Módulo de Personas</p>
-              <p style=${{fontSize:12,marginTop:4}}>Consolidación de directorio, organigrama, FTEs y calendarios · Fase 2</p>
-            </div>
+            <${PersonasPanel} rooms=${rooms} />
           </div>`}
 
           ${/* ═══ GOBIERNO (SM only) ═══ */''} 
           ${section==='gobierno'&&isSM&&html`<div>
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Gobierno</h1>
             <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>KPIs, salud del servicio y reporting</p>
-            <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'24px',textAlign:'center',color:'#86868B'}}>
-              <${Icon} name="BarChart3" size=${44} color="#E5E5EA" />
-              <p style=${{fontSize:14,marginTop:12,fontWeight:600}}>Módulo de Gobierno</p>
-              <p style=${{fontSize:12,marginTop:4}}>KPIs, carga, cumplimiento, participación en retros · Fase 2</p>
-            </div>
+            <${GobiernoPanel} rooms=${rooms} allData=${allData} myActions=${myActions} myRisks=${myRisks} />
           </div>`}
 
           ${/* ═══ ADMIN (SM shortcut) ═══ */''} 
@@ -1272,18 +1378,37 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                 <${Icon} name="Shield" size=${44} color="#34C759" />
                 <p style=${{fontSize:14,marginTop:12,color:'#34C759',fontWeight:600}}>Sin riesgos activos</p>
               </div>`:
-            html`<div style=${{display:'flex',flexDirection:'column',gap:7}}>
-              ${myRisks.map(r=>html`<div key=${r.id||Math.random()} style=${{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',borderRadius:14,background:'#FFF',border:'1.5px solid #E5E5EA',borderLeft:'3px solid #5856D6'}}>
-                <${Icon} name="AlertTriangle" size=${16} color="#FF9500" />
-                <div style=${{flex:1}}>
-                  <div style=${{fontSize:13,fontWeight:600}}>${r.text}</div>
-                  <div style=${{display:'flex',gap:8,marginTop:2,fontSize:10,color:'#86868B'}}>
-                    <span>👤 ${r.owner||'—'}</span>
-                    ${r.escalation?.levelLabel&&html`<span style=${{color:'#5856D6'}}>📈 ${r.escalation.levelLabel}</span>`}
-                  </div>
-                </div>
-                <span style=${{fontSize:10,fontWeight:600,padding:'3px 9px',borderRadius:20,background:'#FF950018',color:'#FF9500',flexShrink:0}}>${r.status||'abierto'}</span>
-              </div>`)}
+            html`<div style=${{display:'flex',flexDirection:'column',gap:14}}>
+              ${(() => {
+                // Group risks by project
+                const risksByProject = {};
+                Object.entries(allData).forEach(([slug,d]) => {
+                  const roomName = rooms.find(r=>r.slug===slug)?.name||slug;
+                  const rr = (d.risks||[]).filter(r=>isSM ? r.status!=='mitigated' : (r.escalation&&(r.escalation.memberName===user.name||r.escalation.memberId===user.id))||r.owner===user.name);
+                  if(rr.length>0) risksByProject[roomName] = rr;
+                });
+                return Object.entries(risksByProject).map(([projName, projRisks]) => html`
+                  <div key=${projName}>
+                    <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                      <${Icon} name="FolderOpen" size=${14} color="#007AFF" />
+                      <h3 style=${{fontSize:14,fontWeight:700,margin:0}}>${projName}</h3>
+                      <span style=${{fontSize:10,color:'#86868B',background:'#F2F2F7',padding:'2px 8px',borderRadius:8}}>${projRisks.length}</span>
+                    </div>
+                    <div style=${{display:'flex',flexDirection:'column',gap:6}}>
+                      ${projRisks.map(r=>html`<div key=${r.id||Math.random()} style=${{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,background:'#FFF',border:'1.5px solid #E5E5EA',borderLeft:'3px solid #FF9500'}}>
+                        <${Icon} name="AlertTriangle" size=${15} color="#FF9500" />
+                        <div style=${{flex:1}}>
+                          <div style=${{fontSize:12,fontWeight:600}}>${r.text}</div>
+                          <div style=${{display:'flex',gap:8,marginTop:2,fontSize:10,color:'#86868B'}}>
+                            <span>👤 ${r.owner||'—'}</span>
+                            ${r.escalation?.levelLabel&&html`<span style=${{color:'#5856D6'}}>📈 ${r.escalation.levelLabel}</span>`}
+                          </div>
+                        </div>
+                        <span style=${{fontSize:10,fontWeight:600,padding:'2px 8px',borderRadius:16,background:'#FF950015',color:'#FF9500',flexShrink:0}}>${r.status||'abierto'}</span>
+                      </div>`)}
+                    </div>
+                  </div>`);
+              })()}
             </div>`}
           </div>`}
 
