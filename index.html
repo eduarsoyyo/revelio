@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>revelio</title>
+<title>revelio — gestión de servicios</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/comfortaa@5.0.18/latin-400.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-36 -36 72 72'><rect x='-36' y='-36' width='72' height='72' rx='18' fill='%235856D6'/><circle cx='0' cy='0' r='6' fill='white'/><circle cx='0' cy='0' r='15' fill='none' stroke='white' stroke-width='2.5' opacity='0.8'/><circle cx='0' cy='0' r='24' fill='none' stroke='white' stroke-width='2' opacity='0.5'/></svg>">
 <style>
@@ -243,31 +243,34 @@ const CATS = [
 ];
 const STS = [
   { id:'pending', label:'Pendiente', color:'#FF9500', bg:'#FFF8EB' },
-  { id:'progress', label:'En progreso', color:'#007AFF', bg:'#EBF5FF' },
+  { id:'inprogress', label:'En progreso', color:'#007AFF', bg:'#EBF5FF' },
+  { id:'blocked', label:'Bloqueado', color:'#FF3B30', bg:'#FFF5F5' },
   { id:'done', label:'Completado', color:'#34C759', bg:'#F0FFF4' },
-  { id:'discarded', label:'Descartado', color:'#8E8E93', bg:'#F2F2F7' },
+  { id:'cancelled', label:'Cancelado', color:'#8E8E93', bg:'#F2F2F7' },
 ];
 const PRIS = [
-  { id:'high', label:'Alta', icon:'🔴', color:'#FF3B30' },
-  { id:'medium', label:'Media', icon:'🟡', color:'#FF9500' },
-  { id:'low', label:'Baja', icon:'🟢', color:'#34C759' },
+  { id:'critical', label:'Crítica', icon:'▲▲', color:'#8B0000' },
+  { id:'high', label:'Alta', icon:'▲', color:'#FF3B30' },
+  { id:'medium', label:'Media', icon:'—', color:'#FF9500' },
+  { id:'low', label:'Baja', icon:'▽', color:'#34C759' },
 ];
 const PHASES = [
   { id:'review',     label:'Repaso',       num:'01' },
   { id:'individual', label:'Individual',   num:'02' },
   { id:'discuss',    label:'En común',     num:'03' },
   { id:'risks',      label:'Riesgos',      num:'04' },
-  { id:'actions',    label:'Accionables',  num:'05' },
+  { id:'actions',    label:'Trabajo',       num:'05' },
   { id:'session',    label:'Resumen',      num:'06' },
 ];
 const MAIN_TABS = [
-  { id:'equipo',      label:'Equipo',      icon:'👥', lucide:'Users' },
-  { id:'retro',       label:'Retro',       icon:'📋', lucide:'RotateCcw' },
-  { id:'accionables', label:'Accionables', icon:'🎯', lucide:'CheckSquare' },
-  { id:'riesgos',     label:'Riesgos',     icon:'⚠️', lucide:'AlertTriangle' },
-  { id:'tags',        label:'Etiquetas',   icon:'🏷️', lucide:'Tag' },
+  { id:'resumen',     label:'Resumen',     lucide:'LayoutDashboard' },
+  { id:'trabajo',     label:'Trabajo',     lucide:'CheckSquare' },
+  { id:'retro',       label:'Retro',       lucide:'RotateCcw' },
+  { id:'riesgos',     label:'Riesgos',     lucide:'AlertTriangle' },
+  { id:'equipo',      label:'Equipo',      lucide:'Users' },
+  { id:'docs',        label:'Documentación', lucide:'FileText' },
 ];
-const AVATARS = ['🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐳','🦋','🐝'];
+const AVATARS = ['🦊','🐻','🐼','🦁','🦉','🐍','🦡','🦅','🐉','🦄','🧙','⚡','🔮','🏰','🪄','🐺','🦋','🐝'];
 const ROLES = ['Scrum Master','Product Owner','Desarrollador/a','QA / Tester','Diseñador/a','DevOps','Tech Lead','Analista','Project Manager','Stakeholder','Otro'];
 
 
@@ -771,8 +774,8 @@ function HomeVacaciones({ profile, user }) {
         ${MONTHS_S.map((mName,mo)=>{
           const dim=new Date(viewYear,mo+1,0).getDate();
           const firstDow=(new Date(viewYear,mo,1).getDay()+6)%7;
-          return html`<div key=${mo}>
-            <div style=${{fontSize:10,fontWeight:700,color:'#86868B',marginBottom:4,textTransform:'uppercase',letterSpacing:.6}}>${mName}</div>
+          return html`<div key=${mo} style=${{background:'#FAFAFA',borderRadius:12,border:'1px solid #E5E5EA',padding:'8px 6px 6px',overflow:'hidden'}}>
+            <div style=${{fontSize:10,fontWeight:700,color:'#86868B',marginBottom:6,textTransform:'uppercase',letterSpacing:.6,textAlign:'center'}}>${mName}</div>
             <div style=${{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:1}}>
               ${['L','M','X','J','V','S','D'].map((d,i)=>html`<div style=${{fontSize:8,color:i>=5?'#C0C0C0':'#A0A0A0',textAlign:'center',marginBottom:2,fontWeight:600}}>${d}</div>`)}
               ${Array.from({length:firstDow},(_,i)=>html`<div key=${'e'+i}></div>`)}
@@ -787,9 +790,9 @@ function HomeVacaciones({ profile, user }) {
                   ? (e.label||info?.label||'Ausencia')+(e.from?' | '+e.from:'')+(e.to&&e.to!==e.from?' → '+e.to:'')+(e.reason?' | '+e.reason:'')
                   : wk?'Fin de semana':hl?holName(mo,d):String(d);
                 return html`<div title=${tip}
-                  style=${{height:26,borderRadius:4,background:bg,display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:9,fontWeight:info||isT?800:500,color:fc,lineHeight:1}}>
-                  ${info?acronym:d}
+                  style=${{height:26,borderRadius:4,background:bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+                    fontSize:info?7:9,fontWeight:info||isT?800:500,color:fc,lineHeight:1,position:'relative',gap:0}}>
+                  ${info?html`<span style=${{fontSize:6,opacity:.7,lineHeight:1}}>${d}</span><span style=${{fontSize:8,fontWeight:800,lineHeight:1}}>${acronym}</span>`:d}
                 </div>`;
               })}
             </div>
@@ -935,7 +938,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
       (d.actions||[]).filter(a=>
         (a.owner===user.name||a.createdBy===user.id) &&
         a.status!=='done' && a.status!=='discarded' && a.date && a.date<today
-      ).forEach(a => notifs.push({id:'adl-'+a.id,msg:'🎯 Vencido en '+roomName+': '+a.text.slice(0,50),type:'overdue',ts:Date.now()}));
+      ).forEach(a => notifs.push({id:'adl-'+a.id,msg:'📋 Tarea vencida en '+roomName+': '+a.text.slice(0,50),type:'overdue',ts:Date.now()}));
       // Escalated risks
       (d.risks||[]).filter(r=>r.escalation&&(r.escalation.memberName===user.name||r.escalation.memberId===user.id||r.owner===user.name)).forEach(r =>
         notifs.push({id:'esc-'+r.id,msg:'📈 Riesgo escalado en '+roomName+': '+r.text.slice(0,50),type:'escalado',ts:Date.now()})
@@ -963,13 +966,25 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
   const goToProject = (sala,tipo) => { (onSelectProject||((s,t)=>{window.location.href='/?sala='+encodeURIComponent(s)+'&tipo='+(t||'agile')}))(sala,tipo); };
   const logout = () => { clearUser(); window.location.href='/'; };
 
-  const NAV = [
-    {id:'dashboard', label:'Dashboard',  icon:'LayoutDashboard'},
-    {id:'proyectos', label:'Proyectos',  icon:'FolderOpen'},
-    {id:'perfil',    label:'Mi perfil',  icon:'UserCircle'},
-    {id:'vacaciones',label:'Vacaciones', icon:'Palmtree'},
-    {id:'actividad', label:'Actividad',  icon:'Activity'},
+  // Role-based navigation
+  const isSM = isSuperUser; // Service Managers are superusers
+  const NAV_USER = [
+    {id:'dashboard',  label:'Inicio',        icon:'LayoutDashboard'},
+    {id:'proyectos',  label:'Mis proyectos', icon:'FolderOpen'},
+    {id:'mi_trabajo', label:'Mi trabajo',    icon:'CheckSquare'},
+    {id:'riesgos',    label:'Riesgos',       icon:'AlertTriangle'},
+    {id:'equipo',     label:'Equipo',        icon:'Users'},
+    {id:'perfil',     label:'Mi perfil',     icon:'UserCircle'},
   ];
+  const NAV_SM = [
+    {id:'dashboard',  label:'Inicio',         icon:'LayoutDashboard'},
+    {id:'proyectos',  label:'Proyectos',      icon:'FolderOpen'},
+    {id:'personas',   label:'Personas',       icon:'Users'},
+    {id:'riesgos',    label:'Riesgos',        icon:'AlertTriangle'},
+    {id:'gobierno',   label:'Gobierno',       icon:'BarChart3'},
+    {id:'admin',      label:'Administración', icon:'Settings'},
+  ];
+  const NAV = isSM ? NAV_SM : NAV_USER;
 
   return html`
     <div style=${{minHeight:'100vh',background:'#F5F5F7',display:'flex',flexDirection:'column'}}>
@@ -979,7 +994,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
         <div style=${{display:'flex',alignItems:'center',gap:8}}>
           ${(user.isSuperuser||user._isAdmin)&&html`
             <a href="/?admin" style=${{display:'flex',alignItems:'center',gap:4,padding:'6px 12px',borderRadius:9,border:'1.5px solid #5856D630',background:'#5856D608',color:'#5856D6',fontSize:12,fontWeight:700,textDecoration:'none'}}>
-              ← Admin
+              ← Centro de control
             </a>`}
           <!-- Notification bell -->
           <div style=${{position:'relative'}}>
@@ -1039,11 +1054,11 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>
               ${new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]} 👋
             </h1>
-            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Tu resumen del día</p>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>${isSM?'Vista ejecutiva del servicio':'Tu resumen del día'}</p>
             <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
               ${[
                 {v:roomsLoaded&&profileLoaded?myRooms.length:'—',    l:'Proyectos',    i:'FolderOpen',   c:'#007AFF'},
-                {v:profileLoaded?pendingAct.length:'—',               l:'Accionables',  i:'CheckSquare',  c:'#34C759'},
+                {v:profileLoaded?pendingAct.length:'—',               l:'Tareas pend.',  i:'CheckSquare',  c:'#34C759'},
                 {v:profileLoaded?overdueAct.length:'—',               l:'Vencidos',     i:'AlertCircle',  c:overdueAct.length?'#FF3B30':'#86868B'},
                 {v:profileLoaded?myRisks.length:'—',                  l:'Escalados',    i:'TrendingUp',   c:myRisks.length?'#5856D6':'#86868B'},
               ].map((k,i)=>html`
@@ -1060,8 +1075,8 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             ${pendingAct.length>0&&html`
               <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px',marginBottom:14}}>
                 <div style=${{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                  <h3 style=${{fontSize:14,fontWeight:700}}>Accionables pendientes</h3>
-                  <button onClick=${()=>setSection('actividad')} style=${{border:'none',background:'none',color:'#007AFF',fontSize:12,cursor:'pointer'}}>Ver todos →</button>
+                  <h3 style=${{fontSize:14,fontWeight:700}}>Tareas pendientes</h3>
+                  <button onClick=${()=>setSection(isSM?'gobierno':'mi_trabajo')} style=${{border:'none',background:'none',color:'#007AFF',fontSize:12,cursor:'pointer'}}>Ver todos →</button>
                 </div>
                 ${[...pendingAct].sort((a,b)=>a.date>b.date?1:-1).slice(0,4).map(a=>{
                   const ov=a.date&&a.date<today;
@@ -1141,10 +1156,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                       ['Usuario',       'username',     editProfile?.username||''],
                       ['Email',         'email',        editProfile?.email||''],
                       ['Empresa',       'company',      editProfile?.company||''],
-
-                      ['Microsoft Teams','teams_handle', editProfile?.teams_handle||''],
                       ['Teléfono',      'phone',        editProfile?.phone||''],
-                      ['Slack handle',  'slack_handle', editProfile?.slack_handle||''],
                     ].map(([label,field,val])=>html`
                       <div key=${field}>
                         <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>${label}</label>
@@ -1167,18 +1179,22 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                     ${savingProfile?'Guardando…':'Guardar cambios'}
                   </button>
                 </div>
+                <!-- Vacaciones y ausencias (integrado en Mi perfil) -->
+                <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px'}}>
+                  <h3 style=${{fontSize:15,fontWeight:700,marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+                    <${Icon} name="CalendarDays" size=${18} color="#5856D6" /> Vacaciones y ausencias
+                  </h3>
+                  <${HomeVacaciones} profile=${profile||{id:user.id,name:user.name,annual_vac_days:22,prev_year_pending:0,vacations:[]}} user=${user} />
+                </div>
                 <!-- Notification preferences -->
                 <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px'}}>
                   <h3 style=${{fontSize:13,fontWeight:700,marginBottom:3,color:'#86868B',textTransform:'uppercase',letterSpacing:.5}}>Preferencias de notificación</h3>
                   <p style=${{fontSize:11,color:'#C7C7CC',marginBottom:14}}>¿Cómo y cuándo quieres recibir avisos?</p>
                   <div style=${{display:'flex',flexDirection:'column',gap:0}}>
                     ${[
-                      {icon:'Bell',          label:'Notif. in-app',       field:'notif_inapp',      desc:'Campana en el proyecto'},
-                      {icon:'MessageSquare', label:'Microsoft Teams',      field:'notif_teams',      desc:'Mensajes directos'},
-                      {icon:'Mail',          label:'Email',                field:'notif_email',      desc:'Correo electrónico'},
-                      {icon:'Send',          label:'Slack',                field:'notif_slack',      desc:'Canal de Slack'},
+                      {icon:'Bell',          label:'Notif. in-app',       field:'notif_inapp',      desc:'Campana dentro del proyecto'},
                       {icon:'AlertTriangle', label:'Riesgos escalados',    field:'notif_escalado',   desc:'Cuando un riesgo se escala a ti'},
-                      {icon:'CheckSquare',   label:'Accionables vencidos', field:'notif_accionable', desc:'Tareas que pasan su fecha'},
+                      {icon:'CheckSquare',   label:'Tareas vencidas',      field:'notif_accionable', desc:'Tareas que superan su fecha límite'},
                       {icon:'FileText',      label:'Resumen semanal',      field:'notif_resumen',    desc:'Digest de actividad'},
                     ].map((row,i)=>html`
                       <div key=${row.field} style=${{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:i<6?'1px solid #F9F9FB':'none'}}>
@@ -1203,15 +1219,78 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
               </div>`}
           </div>`}
 
-          ${section==='vacaciones'&&html`<div>
-            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Vacaciones y ausencias</h1>
-            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Registro y calendario de ausencias</p>
-            <${HomeVacaciones} profile=${profile||{id:user.id,name:user.name,annual_vac_days:22,prev_year_pending:0,vacations:[]}} user=${user} />
+          ${/* Vacaciones is now integrated into Mi perfil section below */''}
+
+          ${/* ═══ PERSONAS (SM only) ═══ */''} 
+          ${section==='personas'&&isSM&&html`<div>
+            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Personas</h1>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Directorio, roles, organigrama y capacidad</p>
+            <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'24px',textAlign:'center',color:'#86868B'}}>
+              <${Icon} name="Users" size=${44} color="#E5E5EA" />
+              <p style=${{fontSize:14,marginTop:12,fontWeight:600}}>Módulo de Personas</p>
+              <p style=${{fontSize:12,marginTop:4}}>Consolidación de directorio, organigrama, FTEs y calendarios · Fase 2</p>
+            </div>
           </div>`}
 
-          ${section==='actividad'&&html`<div>
-            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Mi actividad</h1>
-            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Todos tus accionables</p>
+          ${/* ═══ GOBIERNO (SM only) ═══ */''} 
+          ${section==='gobierno'&&isSM&&html`<div>
+            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Gobierno</h1>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>KPIs, salud del servicio y reporting</p>
+            <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'24px',textAlign:'center',color:'#86868B'}}>
+              <${Icon} name="BarChart3" size=${44} color="#E5E5EA" />
+              <p style=${{fontSize:14,marginTop:12,fontWeight:600}}>Módulo de Gobierno</p>
+              <p style=${{fontSize:12,marginTop:4}}>KPIs, carga, cumplimiento, participación en retros · Fase 2</p>
+            </div>
+          </div>`}
+
+          ${/* ═══ ADMIN (SM shortcut) ═══ */''} 
+          ${section==='admin'&&isSM&&html`<div>
+            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Administración</h1>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Gestión de usuarios, proyectos, roles y configuración</p>
+            <a href="/?admin" style=${{display:'inline-flex',alignItems:'center',gap:8,padding:'14px 24px',background:'linear-gradient(135deg,#007AFF,#5856D6)',color:'#FFF',borderRadius:14,fontSize:14,fontWeight:600,textDecoration:'none'}}>
+              <${Icon} name="Settings" size=${18} color="#FFF" />
+              Abrir Centro de control
+            </a>
+          </div>`}
+
+          ${/* ═══ RIESGOS (cross-project) ═══ */''} 
+          ${section==='riesgos'&&html`<div>
+            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>${isSM?'Mapa global de riesgos':'Mis riesgos'}</h1>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>${isSM?'Riesgos de todos los proyectos':'Riesgos que te afectan y escalados'}</p>
+            ${myRisks.length===0?html`
+              <div style=${{textAlign:'center',padding:'60px 20px',color:'#C7C7CC',border:'2px dashed #E5E5EA',borderRadius:20}}>
+                <${Icon} name="Shield" size=${44} color="#34C759" />
+                <p style=${{fontSize:14,marginTop:12,color:'#34C759',fontWeight:600}}>Sin riesgos activos</p>
+              </div>`:
+            html`<div style=${{display:'flex',flexDirection:'column',gap:7}}>
+              ${myRisks.map(r=>html`<div key=${r.id||Math.random()} style=${{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',borderRadius:14,background:'#FFF',border:'1.5px solid #E5E5EA',borderLeft:'3px solid #5856D6'}}>
+                <${Icon} name="AlertTriangle" size=${16} color="#FF9500" />
+                <div style=${{flex:1}}>
+                  <div style=${{fontSize:13,fontWeight:600}}>${r.text}</div>
+                  <div style=${{display:'flex',gap:8,marginTop:2,fontSize:10,color:'#86868B'}}>
+                    <span>👤 ${r.owner||'—'}</span>
+                    ${r.escalation?.levelLabel&&html`<span style=${{color:'#5856D6'}}>📈 ${r.escalation.levelLabel}</span>`}
+                  </div>
+                </div>
+                <span style=${{fontSize:10,fontWeight:600,padding:'3px 9px',borderRadius:20,background:'#FF950018',color:'#FF9500',flexShrink:0}}>${r.status||'abierto'}</span>
+              </div>`)}
+            </div>`}
+          </div>`}
+
+          ${/* ═══ EQUIPO (cross-project) ═══ */''} 
+          ${section==='equipo'&&html`<div>
+            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Mi equipo</h1>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Equipo de tus proyectos</p>
+            <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'24px',textAlign:'center',color:'#86868B'}}>
+              <${Icon} name="Users" size=${44} color="#E5E5EA" />
+              <p style=${{fontSize:14,marginTop:12,fontWeight:600}}>Vista consolidada de equipo</p>
+              <p style=${{fontSize:12,marginTop:4}}>Accede desde cada proyecto para ver equipo, roles y disponibilidad</p>
+            </div>
+          </div>`}
+
+          ${section==='mi_trabajo'&&html`<div>
+            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Mi trabajo</h1>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Todas tus tareas asignadas</p>
             ${myActions.length===0?html`
               <div style=${{textAlign:'center',padding:'60px 20px',color:'#C7C7CC',border:'2px dashed #E5E5EA',borderRadius:20}}>
                 <${Icon} name="CheckCircle" size=${44} color="#34C759" />
@@ -1424,7 +1503,7 @@ function MemberForm({ m, setM, rooms, saving, onSave, onCancel }) {
             ${m.avatar||'👤'}
           </div>
           <div id=${'avpick-'+(m.id||'new')} style=${{ display:'none', position:'absolute', top:56, left:0, zIndex:999, background:'#FFF', border:'1.5px solid #E5E5EA', borderRadius:14, padding:8, flexWrap:'wrap', gap:4, width:220, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
-            ${[...AVATARS,'😀','😎','🤓','🦸','🧑‍💻','🧑‍🎨','🧑‍🔬','👩‍💼','👨‍💼'].map(a => html`
+            ${[...AVATARS,'😀','😎','🤓','🦸','🧑‍💻','🧑‍🎨','🧑‍🔬','👩‍💼','👨‍💼','🧝','🧚','🦇','⭐','🌙','🗡️'].map(a => html`
               <button key=${a} onClick=${e=>{ e.stopPropagation(); setM({...m,avatar:a}); document.getElementById('avpick-'+(m.id||'new')).style.display='none'; }}
                 style=${{ width:34, height:34, borderRadius:8, border:m.avatar===a?'2px solid #007AFF':'1px solid #E5E5EA', background:m.avatar===a?'#007AFF10':'#FAFAFA', fontSize:20, cursor:'pointer' }}>${a}</button>`)}
           </div>
@@ -2400,7 +2479,7 @@ function RoomPicker() {
       <div style=${{ background:'#FFF', borderRadius:22, border:'1.5px solid #E5E5EA', padding:'36px 32px', width:'100%', maxWidth:380, boxShadow:'0 8px 40px rgba(0,0,0,.08)' }}>
         <div style=${{ textAlign:'center', marginBottom:28 }}>
           <div style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:28, fontWeight:400, letterSpacing:3, background:'linear-gradient(90deg,#007AFF,#5856D6)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', marginBottom:6 }}>revelio</div>
-          <p style=${{ fontSize:13, color:'#86868B' }}>Panel de Administración</p>
+          <p style=${{ fontSize:13, color:'#86868B' }}>Centro de control</p>
         </div>
         <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
           <div>
@@ -2441,7 +2520,7 @@ function RoomPicker() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [rooms, setRooms] = useState(loadRooms);
   const [tab, setTab] = useState('dashboard');
-  const [filterProject, setFilterProject] = useState('all');
+  const [filterProject, setFilterProject] = useState([]);  // array for multi-select, empty=all
   const [sbRetros, setSbRetros] = useState([]);
   const [loadingSb, setLoadingSb] = useState(true);
   const [orgData, setOrgData] = useState([]);
@@ -2519,7 +2598,17 @@ function RoomPicker() {
     };
   });
 
-  const filteredStats    = filterProject === 'all' ? salaStats : salaStats.filter(s => s.slug === filterProject);
+  const TOOLTIP_MAP = {
+    'Proyectos':'Total de proyectos (salas) registrados en Supabase',
+    'Retros':'Sesiones de retrospectiva guardadas (snapshots en Supabase)',
+    'Notas':'Tarjetas individuales creadas durante las retros (acumulado)',
+    'Votos':'Total de votos emitidos sobre tarjetas (acumulado)',
+    'Tareas':'Tareas abiertas en el último snapshot de cada proyecto',
+    'Completados':'Porcentaje de tareas completadas vs total (último snapshot)',
+    'Riesgos abiertos':'Riesgos no mitigados en el último snapshot de cada proyecto',
+    'Personas':'Personas únicas que han participado en retros',
+  };
+  const filteredStats    = filterProject.length === 0 ? salaStats : salaStats.filter(s => filterProject.includes(s.slug));
   const totalRetros      = filteredStats.reduce((s, x) => s + x.retros, 0);
   const totalNotes       = filteredStats.reduce((s, x) => s + x.notes, 0);
   const totalActions     = filteredStats.reduce((s, x) => s + x.actions, 0);
@@ -2528,7 +2617,8 @@ function RoomPicker() {
   const allParticipants  = [...new Set(filteredStats.flatMap(s => s.parts))];
   const actionRate       = totalActions > 0 ? Math.round((totalActionsDone / totalActions) * 100) : 0;
   const totalRisksOpen   = filteredStats.reduce((s, x) => s + x.risksOpen, 0);
-  const allRisks         = filteredStats.flatMap(s => s.entries.flatMap(rt => rt.data?.risks || []));
+  // Use ONLY latest snapshot risks, not cumulative across all retros
+  const allRisks         = filteredStats.flatMap(s => { const latest=s.entries[0]; return latest?.data?.risks||[]; });
 
   // Trend: chronological retros from Supabase
   const trend = [...sbRetros].sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).slice(-12);
@@ -2541,16 +2631,16 @@ function RoomPicker() {
       <div style=${{ maxWidth:980, margin:'0 auto' }}>
         <div style=${{ position:'relative', textAlign:'center', marginBottom:20 }}>
           <h1 class="wm" style=${{ fontSize:28, marginBottom:2 }}>revelio</h1>
-          <p style=${{ color:'#86868B', fontSize:13 }}>Panel de administración</p>
+          <p style=${{ color:'#86868B', fontSize:13 }}>Centro de control</p>
           <div style=${{ position:'absolute', right:0, top:'50%', transform:'translateY(-50%)', display:'flex', alignItems:'center', gap:8 }}>
             ${authUser && html`<span style=${{ fontSize:11, color:'#86868B' }}>${authUser._member?.name || authUser.email}</span>`}
             <button onClick=${handleSignOut} style=${{ ...bS, padding:'5px 12px', fontSize:11, color:'#FF3B30', borderColor:'#FF3B3030' }}>🔒 Cerrar sesión</button>
           </div>
         </div>
 
-        <div style=${{ display:'flex', gap:16, alignItems:'flex-start' }}>
+        <div style=${{ display:'flex', gap:0, alignItems:'flex-start', minHeight:'calc(100vh - 80px)' }}>
           <!-- Admin sidebar nav -->
-          <aside style=${{ width:170, flexShrink:0, background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', padding:'10px', display:'flex', flexDirection:'column', gap:2, position:'sticky', top:0 }}>
+          <aside style=${{ width:200, flexShrink:0, background:'#FFF', borderRight:'1px solid rgba(0,0,0,.06)', padding:'14px 10px', display:'flex', flexDirection:'column', gap:2, position:'sticky', top:0, minHeight:'calc(100vh - 80px)' }}>
             ${[
               {id:'dashboard',      label:'Dashboard',   lucide:'LayoutDashboard'},
               {id:'salas',          label:'Proyectos',   lucide:'FolderOpen'},
@@ -2571,23 +2661,25 @@ function RoomPicker() {
           </aside>
 
           <!-- Admin content -->
-          <div style=${{ flex:1, minWidth:0 }}>
+          <div style=${{ flex:1, minWidth:0, padding:'16px 20px' }}>
         ${tab === 'escalado_global' ? html`<${AdminEscaladoGlobal} rooms=${rooms} />` : tab === 'convenio' ? html`<${AdminConvenio} />` : tab === 'roles' ? html`<${AdminRoles} />` : tab === 'calendarios' ? html`<${AdminCalendarios} />` : tab === 'usuarios' ? html`<${AdminUsuarios} rooms=${rooms} sbRetros=${sbRetros} />` : tab === 'dashboard' ? html`
           <!-- Project filter -->
           <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:16, flexWrap:'wrap' }}>
             <span style=${{ fontSize:11, color:'#86868B', fontWeight:600 }}>Filtrar:</span>
-            <button onClick=${()=>setFilterProject('all')} style=${{ padding:'5px 12px', borderRadius:8, border:filterProject==='all'?'none':'1.5px solid #E5E5EA', background:filterProject==='all'?'#1D1D1F':'#FFF', color:filterProject==='all'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600 }}>Todos</button>
-            ${rooms.map(r => html`
-              <button key=${r.slug} onClick=${()=>setFilterProject(r.slug)} style=${{ padding:'5px 12px', borderRadius:8, border:filterProject===r.slug?'none':'1.5px solid #E5E5EA', background:filterProject===r.slug?'#007AFF':'#FFF', color:filterProject===r.slug?'#FFF':'#6E6E73', fontSize:11, fontWeight:600 }}>${r.name}</button>
-            `)}
+            <button onClick=${()=>setFilterProject([])} style=${{ padding:'5px 12px', borderRadius:8, border:filterProject.length===0?'none':'1.5px solid #E5E5EA', background:filterProject.length===0?'#1D1D1F':'#FFF', color:filterProject.length===0?'#FFF':'#6E6E73', fontSize:11, fontWeight:600 }}>Todos</button>
+            ${rooms.map(r => {
+              const active = filterProject.includes(r.slug);
+              return html`
+              <button key=${r.slug} onClick=${()=>setFilterProject(prev=>active?prev.filter(s=>s!==r.slug):[...prev,r.slug])} style=${{ padding:'5px 12px', borderRadius:8, border:active?'none':'1.5px solid #E5E5EA', background:active?'#007AFF':'#FFF', color:active?'#FFF':'#6E6E73', fontSize:11, fontWeight:600 }}>${r.name}</button>`;
+            })}
           </div>
 
           ${loadingSb ? html`<div style=${{ textAlign:'center', padding:40, color:'#86868B' }}>⏳ Cargando datos de Supabase…</div>` :
           totalRetros === 0 ? html`
             <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
               ${[{l:'Proyectos',i:'📂'},{l:'Retros',i:'📊'},{l:'Notas',i:'📝'},{l:'Votos',i:'👍'},
-                 {l:'Accionables',i:'🎯'},{l:'Completados',i:'✅'},{l:'Riesgos',i:'⚠️'},{l:'Personas',i:'👥'}].map((k,i) => html`
-                <div key=${i} style=${{ ...cS, padding:'14px 8px', textAlign:'center', opacity:0.5 }}>
+                 {l:'Tareas',i:'🎯'},{l:'Completados',i:'✅'},{l:'Riesgos',i:'⚠️'},{l:'Personas',i:'👥'}].map((k,i) => html`
+                <div key=${i} title=${TOOLTIP_MAP[k.l]||''} style=${{ ...cS, cursor:'help', padding:'14px 8px', textAlign:'center', opacity:0.5 }}>
                   <div style=${{ fontSize:18, marginBottom:4 }}>${k.i}</div>
                   <div style=${{ fontSize:22, fontWeight:800, color:'#C7C7CC' }}>—</div>
                   <div style=${{ fontSize:9, color:'#C7C7CC', marginTop:2 }}>${k.l}</div>
@@ -2617,7 +2709,7 @@ function RoomPicker() {
                     {l:'Proyectos',  v:rooms.length,    i:'📂', c:'#5856D6'},
                     {l:'Retros',     v:totalRetros,     i:'📊', c:'#007AFF'},
                     {l:'Notas',      v:totalNotes,      i:'📝', c:'#FF9500'},
-                    {l:'Accionables',v:totalActions,    i:'🎯', c:'#34C759'},
+                    {l:'Tareas',v:totalActions,    i:'🎯', c:'#34C759'},
                     {l:'% Hecho',    v:Math.round(actionRate)+'%', i:'✅', c:actionRate>=75?'#34C759':actionRate>=40?'#FF9500':'#FF3B30'},
                     {l:'Personas',   v:allParticipants.length, i:'👥', c:'#AF52DE'},
                   ].map((k,i) => html`
@@ -2788,7 +2880,7 @@ function RoomPicker() {
                 <table style=${{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
                   <thead>
                     <tr style=${{ borderBottom:'1.5px solid #E5E5EA', background:'#F9F9FB' }}>
-                      ${['Proyecto','Tipo','Retros','Notas','Accionables','% Hecho','Riesgos','Participantes','% Vacas','% Rotación','Última'].map(h=>html`
+                      ${['Proyecto','Tipo','Retros','Notas','Tareas','% Hecho','Riesgos','Participantes','% Vacas','% Rotación','Última'].map(h=>html`
                         <th key=${h} style=${{ padding:'8px 12px', textAlign:'left', fontWeight:700, color:'#86868B', fontSize:9, textTransform:'uppercase', whiteSpace:'nowrap' }}>${h}</th>
                       `)}
                     </tr>
@@ -3063,7 +3155,7 @@ function Login({ onJoin, isModal }) {
       setLoading(false); setError('Contraseña incorrecta'); return;
     }
 
-    // Build session — EVERYONE goes to homepage (superusers use ← Admin from there)
+    // Build session — EVERYONE goes to homepage (superusers use ← Centro de control from there)
     const userSession = {
       id: member.id, name: member.name,
       avatar: member.avatar || '👤', color: member.color || '#007AFF',
@@ -3974,15 +4066,16 @@ function PAccionables({ actions, sA, risks, user }) {
   const KAN_COLS = [
     {id:'pending',    label:'Pendiente',  color:'#FF9500', bg:'#FFF9E6'},
     {id:'inprogress', label:'En proceso', color:'#007AFF', bg:'#EEF5FF'},
+    {id:'blocked',    label:'Bloqueado',  color:'#FF3B30', bg:'#FFF5F5'},
     {id:'done',       label:'Completado', color:'#34C759', bg:'#F0FFF4'},
-    {id:'discarded',  label:'Descartado', color:'#C7C7CC', bg:'#F9F9F9'},
+    {id:'cancelled',  label:'Cancelado',  color:'#C7C7CC', bg:'#F9F9F9'},
   ];
 
   return html`
     <div style=${{ maxWidth:'100%' }}>
       <!-- Header -->
       <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:14, flexWrap:'wrap' }}>
-        <h2 style=${{ fontSize:18, fontWeight:700 }}>🎯 Accionables</h2>
+        <h2 style=${{ fontSize:18, fontWeight:700 }}>Trabajo</h2>
         <span style=${{ fontSize:11, background:'#F2F2F7', color:'#86868B', padding:'2px 8px', borderRadius:8 }}>
           ${actions.filter(a=>a.status!=='done'&&a.status!=='discarded').length} abiertos
         </span>
@@ -4032,14 +4125,14 @@ function PAccionables({ actions, sA, risks, user }) {
           ${actions.length===0&&html`
             <div style=${{ textAlign:'center', padding:'40px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
               <p style=${{ fontSize:32, marginBottom:8 }}>🎯</p>
-              <p style=${{ fontSize:13 }}>Sin accionables. Añade el primero arriba o crea uno desde la retro.</p>
+              <p style=${{ fontSize:13 }}>Sin tareas. Añade la primera arriba o crea una desde la retro.</p>
             </div>`}
 
           <!-- ── KANBAN ── -->
           ${viewMode==='kanban' && actions.length>0 && html`
             <div style=${{ position:'relative' }}>
               ${touchPos&&html`<div style=${{ position:'fixed', left:touchPos.x-60, top:touchPos.y-30, pointerEvents:'none', zIndex:9999, background:'#007AFF', color:'#FFF', borderRadius:10, padding:'6px 14px', fontSize:11, fontWeight:600, boxShadow:'0 6px 20px rgba(0,122,255,.35)', transform:'rotate(-2deg) scale(1.05)' }}>✋ Moviendo…</div>`}
-              <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, minHeight:200 }}>
+              <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6, minHeight:200 }}>
                 ${KAN_COLS.map(col => {
                   const colActs = tagFilteredActions.filter(a=>{
                     if(actFilter==='mine') return (a.createdBy===user.id||a.owner===user.name)&&a.status===col.id;
@@ -4110,6 +4203,7 @@ function PAccionables({ actions, sA, risks, user }) {
                                   <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})}
                                     style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
                                     <option value="">— Responsable —</option>
+                                    ${eF.owner && !teamMembers.some(m=>m.name===eF.owner) && html`<option value=${eF.owner}>${eF.owner}</option>`}
                                     ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
                                   </select>
                                   <input type="date" value=${eF.date||''} onInput=${e=>setEF({...eF,date:e.target.value})}
@@ -4316,7 +4410,7 @@ function PTags({ teamMembers, risks, actions }) {
           ${[
             {title:'👥 Equipo',items:teamMembers,type:'member',getLabel:m=>m.name,getIcon:m=>m.avatar||'👤'},
             {title:'⚠️ Riesgos',items:(risks||[]).filter(r=>r.status!=='mitigated'),type:'risk',getLabel:r=>r.text.slice(0,50)+(r.text.length>50?'…':''),getIcon:()=>'⚠️'},
-            {title:'🎯 Accionables',items:(actions||[]).filter(a=>a.status!=='done'&&a.status!=='discarded'),type:'action',getLabel:a=>a.text.slice(0,50)+(a.text.length>50?'…':''),getIcon:()=>'🎯'},
+            {title:'📋 Tareas',items:(actions||[]).filter(a=>a.status!=='done'&&a.status!=='discarded'),type:'action',getLabel:a=>a.text.slice(0,50)+(a.text.length>50?'…':''),getIcon:()=>'🎯'},
           ].map(col=>html`
             <div key=${col.type} style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px'}}>
               <h4 style=${{fontSize:13,fontWeight:700,marginBottom:10}}>${col.title} <span style=${{fontSize:10,color:'#86868B',fontWeight:400}}>${col.items.length}</span></h4>
@@ -4369,6 +4463,7 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
               <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})}
                 style=${{ border:'1.5px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
                 <option value="">— Responsable —</option>
+                ${eF.owner && !(teamMembers||[]).some(m=>m.name===eF.owner) && html`<option value=${eF.owner}>${eF.owner}</option>`}
                 ${(teamMembers||[]).map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
               </select>
               <input value=${eF.mitigation||''} onInput=${e=>setEF({...eF,mitigation:e.target.value})} placeholder="Mitigación"
@@ -4465,7 +4560,15 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
     else setTagAssignments(prev=>prev.filter(a=>!(a.tag_id===tagId&&a.entity_type===type&&a.entity_id===entityId)));
   };
   const [subTab,    setSubTab]    = useState('resumen');
-  const [escalForm, setEscalForm] = useState({riskId:'', level:'jp', responsible:'', deadline:'', note:'', status:'pendiente'});
+  const [escalForm, setEscalForm] = useState({riskId:'', level:'equipo', responsible:'', deadline:'', note:'', status:'pendiente'});
+  // Escalation chain: must start from 'equipo' and progress sequentially
+  const ESCAL_CHAIN = ['equipo','jp','sm','comite'];
+  const nextEscalLevel = (risk) => {
+    const current = risk.escalation?.level;
+    if (!current) return 'equipo';
+    const idx = ESCAL_CHAIN.indexOf(current);
+    return idx >= 0 && idx < ESCAL_CHAIN.length - 1 ? ESCAL_CHAIN[idx + 1] : null;
+  };
   const [form,   setForm]   = useState({type:'riesgo', text:'', impact:'medio', prob:'media', owner:'', mitigation:'', status:'open', opportunity:'', deadline:''});
   const [eId,    setEId]    = useState(null);
   const [eF,     setEF]     = useState({});
@@ -4505,7 +4608,7 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
     if (sd !== null && sd >= threshold) alerts.push({ type:'stale', label:`Sin actualizar ${sd}d (límite ${threshold}d)`, color:'#FF9500' });
     const rc = appearsInRetros(r);
     if (rc >= ALERT_THRESHOLDS.retros) alerts.push({ type:'retros', label:`${rc} retros consecutivas`, color:'#FF3B30' });
-    if (hasOverdueAction(r)) alerts.push({ type:'overdue', label:'Accionable vencido', color:'#FF3B30' });
+    if (hasOverdueAction(r)) alerts.push({ type:'overdue', label:'Tarea vencida', color:'#FF3B30' });
     return alerts;
   };
 
@@ -4757,19 +4860,19 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
                 onKeyDown=${e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addItem();}}}
                 style=${{ border:'1.5px solid #E5E5EA', borderRadius:10, padding:'9px 12px', fontSize:13, resize:'vertical', fontFamily:'inherit', outline:'none', minHeight:72 }} />
               ${subTab!=='oportunidades' && html`
-                <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                <div style=${{ display:'grid', gridTemplateColumns:subTab==='problemas'?'1fr':'1fr 1fr', gap:6 }}>
                   <select value=${form.impact} onChange=${e=>setForm({...form,impact:e.target.value})}
                     style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, outline:'none', fontFamily:'inherit' }}>
                     <option value="alto">Impacto: Alto</option>
                     <option value="medio">Impacto: Medio</option>
                     <option value="bajo">Impacto: Bajo</option>
                   </select>
-                  <select value=${form.prob} onChange=${e=>setForm({...form,prob:e.target.value})}
+                  ${subTab!=='problemas' && html`<select value=${form.prob} onChange=${e=>setForm({...form,prob:e.target.value})}
                     style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 10px', fontSize:12, outline:'none', fontFamily:'inherit' }}>
                     <option value="alta">Prob: Alta</option>
                     <option value="media">Prob: Media</option>
                     <option value="baja">Prob: Baja</option>
-                  </select>
+                  </select>`}
                 </div>
               `}
               <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})}
@@ -5316,7 +5419,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                           ${a.date && html`<span style=${{ fontSize:10, color:overdue?'#FF3B30':'#86868B' }}>📅 ${a.date}</span>`}
                           <span style=${{ fontSize:9, fontWeight:700, color:a.status==='done'?'#34C759':a.status==='inprogress'?'#007AFF':'#FF9500',
                             background:a.status==='done'?'#F0FFF4':a.status==='inprogress'?'#EEF5FF':'#FFF9E6', padding:'2px 7px', borderRadius:8 }}>
-                            ${a.status==='done'?'Hecho':a.status==='inprogress'?'En proceso':'Pendiente'}
+                            ${a.status==='done'?'Hecho':a.status==='inprogress'?'En proceso':a.status==='blocked'?'Bloqueado':a.status==='cancelled'?'Cancelado':'Pendiente'}
                           </span>
                         </div>`;
                     })}
@@ -5344,11 +5447,6 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
               <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
                 <p style=${{ fontSize:12, color:'#86868B', marginBottom:4 }}>Configura cómo quieres recibir notificaciones y cómo contactarte</p>
                 <div>
-                  <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Teams / Slack handle</label>
-                  <input value=${profile.teams_handle||''} onInput=${e=>setProfile({...profile,teams_handle:e.target.value})}
-                    placeholder="@usuario o canal" style=${{ ...iS, fontSize:13 }} />
-                </div>
-                <div>
                   <label style=${{ fontSize:11, color:'#86868B', display:'block', marginBottom:3, fontWeight:600 }}>Teléfono</label>
                   <input value=${profile.phone||''} onInput=${e=>setProfile({...profile,phone:e.target.value})}
                     placeholder="+34 6XX XXX XXX" style=${{ ...iS, fontSize:13 }} />
@@ -5357,7 +5455,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                   <p style=${{ fontSize:12, fontWeight:700, marginBottom:10 }}>🔔 Preferencias de notificación</p>
                   ${[
                     ['notif_escalado',  'Riesgo escalado a mí'],
-                    ['notif_accionable','Accionable vencido'],
+                    ['notif_accionable','Tarea vencida'],
                     ['notif_mencion',   'Mención en retro'],
                     ['notif_resumen',   'Resumen de sesión'],
                   ].map(([key,label]) => html`
@@ -5391,7 +5489,7 @@ function RetroBoard({ user, onLogout }) {
     }
   }, []);
   const { state, upd, online, cursors, moveCursor, reset, broadcastTimer, broadcastPhase } = useRealtime(user);
-  const [mainTab, setMainTab] = useState('equipo');
+  const [mainTab, setMainTab] = useState('resumen');
   const [phase, setPhase] = useState(() => loadRetroPhase());
   const [timer,   setTimer]   = useState(900);
   const [running, setRunning] = useState(false);
@@ -5481,7 +5579,7 @@ function RetroBoard({ user, onLogout }) {
         addNotif('rdl-'+r.id, '⚠️ Riesgo vencido: '+r.text.slice(0,50), 'overdue');
     });
     (state.actions||[]).filter(a=>a.owner===user.name&&a.status!=='done'&&a.status!=='discarded'&&a.date&&a.date<today).forEach(a=>{
-      addNotif('adl-'+a.id, '🎯 Accionable vencido: '+a.text.slice(0,50), 'overdue');
+      addNotif('adl-'+a.id, '🎯 Tarea vencida: '+a.text.slice(0,50), 'overdue');
     });
   }, [state.risks, state.actions, addNotif]);
   const [sbRetroHistory, setSbRetroHistory] = useState([]);
@@ -5624,7 +5722,7 @@ function RetroBoard({ user, onLogout }) {
           </div>
           ${(user._isAdmin || user.isSuperuser) && html`
             <a href=${window.location.pathname+'?admin'} style=${{ padding:'5px 12px', borderRadius:8, border:'1.5px solid #5856D630', background:'#5856D608', fontSize:12, color:'#5856D6', cursor:'pointer', display:'flex', alignItems:'center', gap:5, textDecoration:'none', fontWeight:700 }}>
-              ← Admin
+              ← Centro de control
             </a>`}
           <button onClick=${()=>setShowProjectSwitch(true)}
             style=${{ padding:'4px 10px', borderRadius:7, border:'1px solid #E5E5EA', background:'#FFF', fontSize:11, color:'#86868B', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
@@ -5654,7 +5752,61 @@ function RetroBoard({ user, onLogout }) {
 
         <!-- Main content -->
         <div style=${{ flex:1, overflowY:'auto', padding:'18px 20px' }}>
-          ${mainTab==='retro' ? html`<div style=${{display:'flex',flexDirection:'column',height:'100%'}}>
+          ${mainTab==='resumen' ? html`
+            <div>
+              <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:18 }}>
+                <h2 style=${{ fontSize:20, fontWeight:700 }}>Resumen del proyecto</h2>
+                <span style=${{ fontSize:11, background:'#007AFF10', color:'#007AFF', padding:'3px 10px', borderRadius:8, fontWeight:600 }}>${SALA_DISPLAY}</span>
+              </div>
+              <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:16 }}>
+                ${[
+                  {l:'Tareas abiertas', v:state.actions.filter(a=>a.status!=='done'&&a.status!=='discarded').length, c:'#007AFF', i:'CheckSquare'},
+                  {l:'Riesgos abiertos', v:(state.risks||[]).filter(r=>r.status!=='mitigated').length, c:'#FF9500', i:'AlertTriangle'},
+                  {l:'Notas en tablero', v:state.notes.length, c:'#34C759', i:'StickyNote'},
+                  {l:'Participantes', v:[...new Set(state.notes.map(n=>n.userName))].length, c:'#5856D6', i:'Users'},
+                ].map((k,i)=>html`
+                  <div key=${'rs'+i} style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', padding:'16px', display:'flex', flexDirection:'column', gap:8 }}>
+                    <div style=${{ width:32, height:32, borderRadius:10, background:k.c+'15', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <${Icon} name=${k.i} size=${16} color=${k.c} />
+                    </div>
+                    <div>
+                      <div style=${{ fontSize:22, fontWeight:800, color:k.c, lineHeight:1 }}>${k.v}</div>
+                      <div style=${{ fontSize:10, color:'#86868B', marginTop:3 }}>${k.l}</div>
+                    </div>
+                  </div>`)}
+              </div>
+              <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <!-- Quick access cards -->
+                ${[
+                  {tab:'trabajo', icon:'CheckSquare', label:'Trabajo', desc:state.actions.filter(a=>a.status!=='done'&&a.status!=='discarded').length+' tareas abiertas', c:'#007AFF'},
+                  {tab:'retro', icon:'RotateCcw', label:'Retro', desc:'Fase actual: '+PHASES[phase].label, c:'#34C759'},
+                  {tab:'riesgos', icon:'AlertTriangle', label:'Riesgos', desc:(state.risks||[]).filter(r=>r.status!=='mitigated').length+' riesgos activos', c:'#FF9500'},
+                  {tab:'equipo', icon:'Users', label:'Equipo', desc:'Gestión del equipo del proyecto', c:'#5856D6'},
+                ].map(card=>html`
+                  <button key=${card.tab} onClick=${()=>setMainTab(card.tab)}
+                    style=${{ display:'flex', alignItems:'center', gap:14, padding:'18px', background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', cursor:'pointer', textAlign:'left', transition:'all .15s' }}
+                    onMouseOver=${e=>e.currentTarget.style.borderColor=card.c}
+                    onMouseOut=${e=>e.currentTarget.style.borderColor='#E5E5EA'}>
+                    <div style=${{ width:40, height:40, borderRadius:12, background:card.c+'15', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <${Icon} name=${card.icon} size=${20} color=${card.c} />
+                    </div>
+                    <div>
+                      <div style=${{ fontSize:14, fontWeight:700 }}>${card.label}</div>
+                      <div style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>${card.desc}</div>
+                    </div>
+                  </button>`)}
+              </div>
+            </div>
+          ` : mainTab==='docs' ? html`
+            <div>
+              <h2 style=${{ fontSize:20, fontWeight:700, marginBottom:14 }}>Documentación</h2>
+              <div style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', padding:'32px', textAlign:'center', color:'#86868B' }}>
+                <${Icon} name="FileText" size=${44} color="#E5E5EA" />
+                <p style=${{ fontSize:14, marginTop:12, fontWeight:600 }}>Módulo de documentación</p>
+                <p style=${{ fontSize:12, marginTop:4 }}>Gestión documental del proyecto · Fase 2</p>
+              </div>
+            </div>
+          ` : mainTab==='retro' ? html`<div style=${{display:'flex',flexDirection:'column',height:'100%'}}>
             <!-- Phase bar + timer row -->
             <div style=${{background:'#FFF',borderBottom:'1px solid #F2F2F7',padding:'8px 14px',display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
               <div style=${{display:'flex',gap:3,flex:1,flexWrap:'wrap'}}>
@@ -5713,7 +5865,7 @@ function RetroBoard({ user, onLogout }) {
           </div>` : ''}
           ${mainTab==='retro' ? '' : ''}
           ${mainTab==='equipo'     ? html`<${PEquipo} />`  : ''}
-          ${mainTab==='accionables' ? html`<${PAccionables} actions=${state.actions} sA=${sA} risks=${state.risks} user=${user} />` : ''}
+          ${mainTab==='trabajo' ? html`<${PAccionables} actions=${state.actions} sA=${sA} risks=${state.risks} user=${user} />` : ''}
           ${mainTab==='riesgos'    ? html`<${PRiesgos} risks=${state.risks} sR=${sR} notes=${state.notes} actions=${state.actions} retroHistory=${sbRetroHistory} />` : ''}
           ${mainTab==='tags'       ? html`<${PTags} teamMembers=${window.__teamLocal||[]} risks=${state.risks} actions=${state.actions} />` : ''}
         </div>
@@ -5848,7 +6000,7 @@ function RetroBoard({ user, onLogout }) {
                     {i:'✍️',t:'Análisis Individual',d:'Escribe notas en Good/Bad/Start/Stop. Arrastra entre columnas. Las tuyas tienen borde grueso.'},
                     {i:'💬',t:'Puesta en Común',d:'Filtra por categoría o "Mis notas". Vota con 👍. Reacciona con emojis (🔥💡❤️😂🎯🤯).'},
                     {i:'⚠️',t:'Riesgos',d:'Crea riesgos o convierte notas Bad/Stop. Vota impacto y probabilidad. Mapa de calor en tiempo real.'},
-                    {i:'🎯',t:'Accionables',d:'Crea acciones o convierte notas/riesgos. Responsable, fecha y prioridad.'},
+                    {i:'🎯',t:'Tareas',d:'Crea acciones o convierte notas/riesgos. Responsable, fecha y prioridad.'},
                     {i:'📊',t:'Dashboard',d:'Ranking, métricas y descarga del informe PDF.'},
                   ].map((p,i)=>html`<div key=${i} style=${{ padding:'7px 10px', borderRadius:8, background:'#F9F9FB', border:'1px solid #E5E5EA' }}><span style=${{ fontSize:12, fontWeight:700 }}>${p.i} ${p.t}</span><p style=${{ fontSize:11, color:'#6E6E73', margin:'2px 0 0', lineHeight:1.4 }}>${p.d}</p></div>`)}
                 </div>
@@ -5949,7 +6101,7 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
                 ${[
                   ['👥','Personas', parts2.length, '#5856D6'],
                   ['📝','Notas',    (d.notes||[]).length, '#007AFF'],
-                  ['🎯','Accionables', doneA+'/'+totalA, '#34C759'],
+                  ['🎯','Tareas', doneA+'/'+totalA, '#34C759'],
                   ['⚠️','Riesgos',  openR, '#FF9500'],
                 ].map(([ic,lb,val,col]) => html`
                   <div style=${{ background:'#F9F9FB', borderRadius:10, padding:'8px', textAlign:'center', border:'1px solid #E5E5EA' }}>
@@ -6157,7 +6309,7 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
         <!-- Body: current retro summary + action -->
         <div style=${{ padding:'22px 26px 26px' }}>
           <div style=${{ display:'flex', gap:10, marginBottom:16 }}>
-            ${[['📝', state.notes?.length||0, 'Notas'], ['🎯', state.actions?.length||0, 'Accionables'], ['⚠️', (state.risks||[]).filter(r=>r.status!=='mitigated').length, 'Riesgos']].map(([ic,v,l]) => html`
+            ${[['📝', state.notes?.length||0, 'Notas'], ['🎯', state.actions?.length||0, 'Tareas'], ['⚠️', (state.risks||[]).filter(r=>r.status!=='mitigated').length, 'Riesgos']].map(([ic,v,l]) => html`
               <div style=${{ flex:1, textAlign:'center', background:'#F9F9FB', borderRadius:12, padding:'12px 6px', border:'1px solid #E5E5EA' }}>
                 <div style=${{ fontSize:18, marginBottom:3 }}>${ic}</div>
                 <div style=${{ fontSize:20, fontWeight:800, color:'#1D1D1F' }}>${v}</div>
@@ -6418,6 +6570,7 @@ function P3({ notes, sN, user }) {
 
 /* ═══ PHASE 4: ACTIONS ═══ */
 function P4({ notes, actions, risks, sA, user }) {
+  // P4 = Trabajo phase (formerly Accionables)
   const [teamMembers, setTeamMembers] = useState([]);
   useEffect(() => {
     sbLoadTeamMembers().then(data => {
@@ -7008,7 +7161,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
   const TABS = [
     { id:'resumen',     label:'📊 Resumen'     },
     { id:'notas',       label:'📝 Notas'       },
-    { id:'accionables', label:'🎯 Accionables' },
+    { id:'tareas', label:'📋 Tareas' },
     { id:'riesgos',     label:'⚠️ Riesgos'     },
     { id:'ranking',     label:'🏆 Ranking'     },
   ];
@@ -7021,7 +7174,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
         ${[
           {l:'Notas',          v:tN,                   i:'📝', c:'#007AFF'},
           {l:'Votos',          v:tV,                   i:'👍', c:'#FF9500'},
-          {l:'Accionables',    v:aD+'/'+actions.length, i:'🎯', c:'#34C759'},
+          {l:'Tareas',    v:aD+'/'+actions.length, i:'🎯', c:'#34C759'},
           {l:'Riesgos abiertos',v:openRisks.length,    i:'⚠️', c:openRisks.length>0?'#FF3B30':'#34C759'},
           {l:'Objetivo',       v:objL,                 i:'🏁', c:objColor},
         ].map((s,i) => html`
@@ -7072,7 +7225,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
           <div style=${{ ...cS, padding:20, display:'flex', flexDirection:'column', gap:16 }}>
             <div>
               <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>📋 Progreso</h3>
-              ${[{l:'Tareas',d:tD,t:tasks.length,c:'#007AFF'},{l:'Accionables',d:aD,t:actions.length,c:'#34C759'}].map((r,i) => html`
+              ${[{l:'Tareas',d:tD,t:tasks.length,c:'#007AFF'},{l:'Tareas',d:aD,t:actions.length,c:'#34C759'}].map((r,i) => html`
                 <div key=${i} style=${{ marginBottom:12 }}>
                   <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
                     <span style=${{ fontSize:12, fontWeight:600 }}>${r.l}</span>
@@ -7191,7 +7344,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
       `}
 
       <!-- ══ ACCIONABLES ══ -->
-      ${activeTab === 'accionables' && html`
+      ${activeTab === 'tareas' && html`
         <div style=${{ ...cS, padding:20 }}>
           <div style=${{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
             <h3 style=${{ fontSize:15, fontWeight:700 }}>🎯 Accionables (${actions.length})</h3>
