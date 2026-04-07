@@ -4229,7 +4229,7 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
 
 /* ═══ PACCIONABLES — Gestión entre retros ═══ */
 /* ═══ TASK DETAIL MODAL — JIRA-style ═══ */
-function TaskDetailModal({ task, onSave, onClose, onDelete, teamMembers, tags, tagAssignments, onToggleTag }) {
+function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGoToRisk, teamMembers, tags, tagAssignments, onToggleTag }) {
   const [f, setF] = useState({...task});
   const tp = ITEM_TYPE_MAP[f.type||'tarea']||ITEM_TYPES[0];
   const pr = PRIS.find(p=>p.id===f.priority)||PRIS[1];
@@ -4241,12 +4241,9 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, teamMembers, tags, t
     const updated = {...f, updatedAt:new Date().toISOString()};
     // If completing a task linked to a risk, prompt about mitigation
     if (updated.status==='done' && task.riskId && task.status!=='done') {
+      const mitigate = confirm('Esta tarea está vinculada a un riesgo.\n¿Quieres marcar el riesgo como mitigado?');
       onSave(updated);
-      setTimeout(()=>{
-        if(confirm('Esta tarea está vinculada a un riesgo.\n¿Quieres marcar el riesgo como mitigado?')) {
-          window.__mitigateRisk && window.__mitigateRisk(task.riskId);
-        }
-      }, 300);
+      if (mitigate && onMitigateRisk) onMitigateRisk(task.riskId);
     } else {
       onSave(updated);
     }
@@ -4315,13 +4312,17 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, teamMembers, tags, t
             </div>
             <!-- Linked Risk -->
             ${task.riskId && html`
-              <div style=${{background:'#FFF5F5',borderRadius:10,border:'1.5px solid #FF3B3020',padding:'12px 14px'}}>
+              <div style=${{background:'#FFF5F5',borderRadius:10,border:'1.5px solid #FF3B3020',padding:'12px 14px',cursor:'pointer',transition:'all .15s'}}
+                onClick=${()=>{ if(onGoToRisk) onGoToRisk(task.riskId); onClose(); }}
+                onMouseOver=${e=>e.currentTarget.style.borderColor='#FF3B30'}
+                onMouseOut=${e=>e.currentTarget.style.borderColor='#FF3B3020'}>
                 <div style=${{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
                   <${Icon} name="AlertTriangle" size=${14} color="#FF3B30" />
                   <span style=${{fontSize:11,fontWeight:700,color:'#FF3B30'}}>Vinculado a riesgo</span>
+                  <span style=${{marginLeft:'auto',fontSize:10,color:'#FF3B30',fontWeight:600}}>Ver riesgo →</span>
                 </div>
                 <p style=${{fontSize:12,color:'#1D1D1F',margin:0}}>${(()=>{const rsk=(window.__currentRisks||[]).find(r=>r.id===task.riskId); return rsk?rsk.text:'Riesgo ID: '+task.riskId;})()}</p>
-                <p style=${{fontSize:10,color:'#86868B',marginTop:6}}>Al completar esta tarea, se te preguntará si el riesgo puede marcarse como mitigado.</p>
+                <p style=${{fontSize:10,color:'#86868B',marginTop:6}}>Clic para ir al riesgo · Al completar la tarea se preguntará si el riesgo está mitigado</p>
               </div>`}
             <!-- Meta info -->
             <div style=${{fontSize:10,color:'#C7C7CC',display:'flex',gap:16,paddingTop:8,borderTop:'1px solid #F2F2F7'}}>
@@ -4818,7 +4819,9 @@ function PTrabajo({ actions, sA, risks, user }) {
         onToggleTag=${(tagId, taskId) => quickToggleActionTag(tagId, taskId)}
         onSave=${(updated) => { sA(actions.map(a=>a.id===updated.id?{...a,...updated}:a)); setDetailTask(null); }}
         onDelete=${(id) => { delA(id); setDetailTask(null); }}
-        onClose=${() => setDetailTask(null)} />`}
+        onClose=${() => setDetailTask(null)}
+        onMitigateRisk=${(riskId) => { window.__goMitigateRisk && window.__goMitigateRisk(riskId); }}
+        onGoToRisk=${(riskId) => { window.__goToRisk && window.__goToRisk(riskId); }} />`}
 
       <!-- Tag Manager Modal -->
       ${showTagManager && html`
@@ -6483,6 +6486,19 @@ function RetroBoard({ user, onLogout }) {
   const sA = d => upd('actions',d);
   const sO = d => upd('obj',d);
   const sR = d => { upd('risks',d); saveRisks(d); };
+
+  // Risk navigation + mitigation callbacks for TaskDetailModal
+  useEffect(() => {
+    window.__goToRisk = (riskId) => {
+      setMainTab('riesgos');
+    };
+    window.__goMitigateRisk = (riskId) => {
+      const currentRisks = stRef.current.risks || [];
+      const updated = currentRisks.map(r => r.id === riskId ? {...r, status:'mitigated'} : r);
+      sR(updated);
+    };
+    return () => { window.__goToRisk = null; window.__goMitigateRisk = null; };
+  }, []);
 
   const saveRetro = () => {
     const data = { sala: SALA, date: new Date().toISOString(), ...state };
