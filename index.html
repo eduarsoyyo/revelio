@@ -176,7 +176,7 @@ async function sbLoadOrgChart(sala) {
 }
 async function sbLoadAllRetroRisks() {
   try {
-    const {data} = await supabase.from('retro_snapshots').select('sala,data').order('created_at',{ascending:false});
+    const {data} = await supabase.from('retros').select('sala,data').order('created_at',{ascending:false});
     if (!data) return [];
     const bySala = {};
     data.forEach(s => { if (!bySala[s.sala]) bySala[s.sala] = s; });
@@ -1145,7 +1145,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
     // Load from localStorage first (fast path)
     const data={};
     rooms.forEach(r=>{ try{ const s=localStorage.getItem('rf-retro-state-'+r.slug); if(s) data[r.slug]=JSON.parse(s); }catch{} });
-    // Always enrich from Supabase retro_snapshots (covers admins with no localStorage)
+    // Always enrich from Supabase retros (covers admins with no localStorage)
     sbLoadRetros().then(snaps => {
       const bySala={};
       (snaps||[]).forEach(s=>{ if(!bySala[s.sala]||s.created_at>bySala[s.sala].created_at) bySala[s.sala]=s; });
