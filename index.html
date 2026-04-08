@@ -1158,7 +1158,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                   <button onClick=${()=>{setHomeNotifs([]);setShowNotifs(false);}} style=${{border:'none',background:'none',fontSize:11,color:'#86868B',cursor:'pointer'}}>Limpiar</button>
                 </div>
                 ${homeNotifs.length===0
-                  ?html`<div style=${{padding:'24px 16px',textAlign:'center',color:'#C7C7CC',fontSize:12}}>Sin notificaciones</div>`
+                  ?html`<div style=${{padding:'24px 16px',textAlign:'center',color:'#C7C7CC',fontSize:12}}>Todo tranquilo — sin novedades</div>`
                   :html`<div style=${{maxHeight:280,overflowY:'auto'}}>
                     ${homeNotifs.map(n=>html`
                       <div key=${n.id} style=${{padding:'10px 16px',borderBottom:'1px solid #F9F9FB',background:n.type==='overdue'?'#FFF5F5':'#FFF'}}>
@@ -1332,8 +1332,9 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
               ${[1,2,3].map(i=>html`<div key=${i} style=${{height:90,borderRadius:18,background:'linear-gradient(90deg,#F2F2F7,#E5E5EA,#F2F2F7)',backgroundSize:'200% 100%'}}></div>`)}
             </div>`:
             myRooms.length===0?html`<div style=${{textAlign:'center',padding:'60px 20px',color:'#C7C7CC',border:'2px dashed #E5E5EA',borderRadius:20}}>
-              <${Icon} name="FolderOpen" size=${44} color="#E5E5EA" />
-              <p style=${{marginTop:12,fontSize:13}}>Sin proyectos asignados</p>
+              <${Icon} name="FolderOpen" size=${36} color="#C7C7CC" />
+              <p style=${{marginTop:12,fontSize:14,fontWeight:600,color:'#6E6E73'}}>Aún no tienes proyectos</p>
+              <p style=${{fontSize:12,color:'#86868B',marginTop:4}}>Pide a tu Service Manager que te asigne a un proyecto.</p>
             </div>`:
             html`<div style=${{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
               ${myRooms.map(r=>{
@@ -1476,8 +1477,9 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>${isSM?'Riesgos de todos los proyectos':'Riesgos que te afectan y escalados'}</p>
             ${myRisks.length===0?html`
               <div style=${{textAlign:'center',padding:'60px 20px',color:'#C7C7CC',border:'2px dashed #E5E5EA',borderRadius:20}}>
-                <${Icon} name="Shield" size=${44} color="#34C759" />
-                <p style=${{fontSize:14,marginTop:12,color:'#34C759',fontWeight:600}}>Sin riesgos activos</p>
+                <${Icon} name="Shield" size=${36} color="#34C759" />
+                <p style=${{fontSize:14,marginTop:12,color:'#34C759',fontWeight:600}}>Sin riesgos pendientes</p>
+                <p style=${{fontSize:12,color:'#86868B',marginTop:4}}>No tienes riesgos asignados ni escalados. Todo controlado.</p>
               </div>`:
             html`<div style=${{display:'flex',flexDirection:'column',gap:14}}>
               ${(() => {
@@ -1544,7 +1546,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                     <div style=${{fontSize:13,fontWeight:600,textDecoration:a.status==='done'?'line-through':'none',color:a.status==='done'?'#86868B':'#1D1D1F'}}>${a.text}</div>
                     <div style=${{display:'flex',gap:8,marginTop:2,fontSize:10,color:'#86868B'}}>
                       ${a.date&&html`<span style=${{color:ov?'#FF3B30':'inherit'}}>📅 ${fd(a.date)}</span>`}
-                      ${a._room&&html`<span>📂 ${a._room}</span>`}
+                      ${a._room&&html`<span>${a._room}</span>`}
                     </div>
                   </div>
                   <span style=${{fontSize:10,fontWeight:600,padding:'3px 9px',borderRadius:20,background:st.bg,color:st.c,flexShrink:0,whiteSpace:'nowrap'}}>${st.l}</span>
@@ -2329,7 +2331,7 @@ function AdminEscaladoGlobal({ rooms }) {
           <p style=${{fontSize:12,color:'#86868B',marginTop:2}}>${escalatedRisks.length} riesgo${escalatedRisks.length!==1?'s':''} en ${rooms.length} proyectos</p>
         </div>
         <div style=${{display:'flex',gap:0,borderRadius:10,overflow:'hidden',border:'1.5px solid #E5E5EA'}}>
-          ${[['riesgos','⚠️ Riesgos'],['organigrama','🏢 Organigrama']].map(([vid,vl])=>html`
+          ${[['riesgos','Riesgos'],['organigrama','🏢 Organigrama']].map(([vid,vl])=>html`
             <button key=${vid} onClick=${()=>setView(vid)}
               style=${{padding:'7px 16px',fontSize:12,fontWeight:view===vid?700:500,
                 background:view===vid?'#1D1D1F':'#FFF',color:view===vid?'#FFF':'#6E6E73',
@@ -2463,7 +2465,7 @@ function AdminCalendarios() {
     <div>
       <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div>
-          <h3 style=${{ fontSize:16, fontWeight:700 }}>📅 Gestión de calendarios</h3>
+          <h3 style=${{ fontSize:16, fontWeight:700 }}>Gestión de calendarios</h3>
           <p style=${{ fontSize:12, color:'#86868B', marginTop:2 }}>Define plantillas de festivos y asígnalas a los usuarios</p>
         </div>
         <button onClick=${()=>setShowAdd(true)}
@@ -2474,7 +2476,7 @@ function AdminCalendarios() {
 
       ${showAdd && html`
         <div style=${{ ...cS, padding:'18px', marginBottom:12, border:'2px solid #5856D620', background:'#F8F8FF' }}>
-          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>➕ Nuevo calendario</h4>
+          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>Nuevo calendario</h4>
           <${CalForm} cal=${newCal} setCal=${setNewCal}
             onSave=${c=>saveCal({...c, id:crypto.randomUUID()})}
             onCancel=${()=>setShowAdd(false)} />
@@ -2587,7 +2589,7 @@ function AdminUsuarios({ rooms }) {
 
       ${showAdd && html`
         <div style=${{ ...cS, padding:'16px', marginBottom:12, border:'2px solid #007AFF20', background:'#F8FBFF' }}>
-          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>➕ Nuevo miembro</h4>
+          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>Nuevo miembro</h4>
           <${MemberForm} m=${newMember} setM=${setNewMember} rooms=${rooms} saving=${saving}
             onSave=${m=>saveMember({...m, id:crypto.randomUUID()})}
             onCancel=${()=>setShowAdd(false)} />
@@ -2683,7 +2685,7 @@ function SalaCard({ r, sbRetros, go, onRemove, setEditRoom }) {
           <span style=${{ fontSize:11, color:'#86868B' }}>📊 ${retroCount} retros</span>
           <span style=${{ fontSize:11, color:'#86868B' }}>📝 ${rm.reduce((s,rt)=>s+(rt.data?.notes?.length||0),0)} notas</span>
           <span style=${{ fontSize:11, color:'#86868B' }}>👥 ${[...new Set(rm.flatMap(rt=>(rt.data?.notes||[]).map(n=>n.userName)))].length} personas</span>
-        ` : html`<span style=${{ fontSize:11, color:'#C7C7CC' }}>Sin retros guardadas</span>`}
+        ` : html`<span style=${{ fontSize:11, color:'#C7C7CC' }}>Sin retros aún</span>`}
 
       </div>
     </div>`;
@@ -3035,7 +3037,7 @@ function RoomPicker() {
                       ...escalated.slice(0,5).map(r=>({icon:'📈',msg:'Riesgo escalado: '+r.text.slice(0,40),type:'escalation'})),
                     ];
                     return items.length===0
-                      ?html`<div style=${{padding:'24px 16px',textAlign:'center',color:'#C7C7CC',fontSize:12}}>Sin alertas</div>`
+                      ?html`<div style=${{padding:'24px 16px',textAlign:'center',color:'#C7C7CC',fontSize:12}}>Sin alertas — todo en orden</div>`
                       :html`<div style=${{maxHeight:280,overflowY:'auto'}}>
                         ${items.map((n,i)=>html`
                           <div key=${i} style=${{padding:'10px 16px',borderBottom:'1px solid #F9F9FB',background:n.type==='overdue'?'#FFF5F5':'#F8F5FF'}}>
@@ -3359,7 +3361,7 @@ function RoomPicker() {
         ` : html`
           <!-- ── PROYECTOS ── -->
           <div style=${{ ...cS, padding:'20px', marginBottom:12 }}>
-            <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>➕ Nuevo proyecto</h3>
+            <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>Nuevo proyecto</h3>
             <div style=${{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
               <input value=${room} onInput=${e=>{
                 setRoom(e.target.value);
@@ -3778,7 +3780,7 @@ function PEquipo() {
             ${team.length===0 ? html`
               <div style=${{ textAlign:'center', padding:'48px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:16 }}>
                 <p style=${{ fontSize:40, marginBottom:8 }}>👤</p>
-                <p style=${{ fontSize:14 }}>Sin miembros asignados a este proyecto</p>
+                <p style=${{ fontSize:14 }}>No hay miembros asignados aún. Asígnalos desde Centro de control > Proyectos.</p>
                 <p style=${{ fontSize:12, marginTop:6 }}>Añádelos desde Admin → Usuarios</p>
               </div>` :
               (activeTagFilter ? team.filter(m=>hasMemberTag(activeTagFilter,m.id)) : team).map(m => {
@@ -4100,8 +4102,8 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
                     <span style=${{ fontSize:10, color:'#86868B' }}>${items.length} riesgo${items.length>1?'s':''}</span>
                   </div>
                   ${items.length===0 ? html`
-                    <div style=${{ padding:'16px', textAlign:'center', color:'#C7C7CC', border:'1.5px dashed #E5E5EA', borderRadius:10, fontSize:11 }}>
-                      Sin riesgos en este nivel
+                    <div style=${{ padding:'14px 16px', textAlign:'center', color:'#86868B', border:'1.5px dashed #E5E5EA', borderRadius:10, fontSize:11 }}>
+                      Sin riesgos escalados a este nivel — el equipo lo gestiona.
                     </div>` :
                   items.map(r => {
                     const esc = r.escalation;
@@ -4149,7 +4151,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
         <!-- Form -->
         <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', position:'sticky', top:0 }}>
-          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>📈 Escalar riesgo</h4>
+          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Escalar riesgo</h4>
           <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Selecciona el riesgo y el nivel de escalado</p>
           <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
             <select value=${escalForm.riskId} onChange=${e=>setEscalForm({...escalForm,riskId:e.target.value})}
@@ -4821,8 +4823,8 @@ function PTrabajo({ actions, sA, risks, user }) {
               ${a.date && html`<span style=${{ fontSize:9, color:overdue?'#FF3B30':'#86868B', fontWeight:overdue?700:400 }}>📅 ${fd(a.date)}</span>`}
               ${overdue && html`<span style=${{ fontSize:8, fontWeight:700, color:'#FF3B30', background:'#FF3B3010', padding:'1px 5px', borderRadius:4 }}>VENCIDO</span>`}
               ${!compact && html`<span style=${{ fontSize:8, fontWeight:600, color:KAN_COLS.find(s=>s.id===a.status)?.color||'#86868B', background:(KAN_COLS.find(s=>s.id===a.status)?.color||'#86868B')+'12', padding:'1px 5px', borderRadius:4 }}>${KAN_COLS.find(s=>s.id===a.status)?.label||a.status}</span>`}
-              ${a.source==='retro' && html`<span style=${{ fontSize:8, fontWeight:600, color:'#FF9500', background:'#FF950010', padding:'1px 5px', borderRadius:4 }}>retro</span>`}
-              ${a.source==='risk' && html`<span style=${{ fontSize:8, fontWeight:600, color:'#FF3B30', background:'#FF3B3010', padding:'1px 5px', borderRadius:4 }}>🔗 riesgo</span>`}
+              ${a.source==='retro' && html`<span style=${{ fontSize:8, fontWeight:500, color:'#86868B', background:'#F2F2F7', padding:'1px 5px', borderRadius:4 }}>retro</span>`}
+              ${a.source==='risk' && html`<span style=${{ fontSize:8, fontWeight:500, color:'#86868B', background:'#F2F2F7', padding:'1px 5px', borderRadius:4 }}>riesgo</span>`}
               ${a.storyPoints && html`<span style=${{ fontSize:8, fontWeight:700, color:'#5856D6', background:'#5856D610', padding:'1px 5px', borderRadius:4 }}>${a.storyPoints} SP</span>`}
               ${a.sprint && html`<span style=${{ fontSize:8, fontWeight:600, color:'#007AFF', background:'#007AFF10', padding:'1px 5px', borderRadius:4 }}>${a.sprint}</span>`}
               ${a.epicLink && !compact && html`<span style=${{ fontSize:8, fontWeight:600, color:'#AF52DE', background:'#AF52DE10', padding:'1px 5px', borderRadius:4 }}>${a.epicLink}</span>`}
@@ -4967,7 +4969,7 @@ function PTrabajo({ actions, sA, risks, user }) {
                   <span style=${{ fontSize:10, color:'#86868B' }}>${pending.length} — pulsa "▷ Pendiente" para planificar al Board</span>
                 </div>
                 ${pending.length===0
-                  ? html`<div style=${{ textAlign:'center', padding:24, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:12, fontSize:12 }}>Backlog vacío. Crea tareas con el botón "Nueva tarea".</div>`
+                  ? html`<div style=${{ textAlign:'center', padding:24, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:12, fontSize:12 }}>El backlog está vacío — crea tareas o convierte acciones de la retro.</div>`
                   : pending.map(a => renderTask(a, false))}
               </div>
               <!-- Active section: items already on board -->
@@ -5471,7 +5473,7 @@ function PTags({ teamMembers, risks, actions }) {
   return html`
     <div style=${{maxWidth:900}}>
       <div style=${{marginBottom:16}}>
-        <h2 style=${{fontSize:18,fontWeight:700}}>🏷️ Etiquetas del proyecto</h2>
+        <h2 style=${{fontSize:18,fontWeight:700}}>Etiquetas del proyecto</h2>
         <p style=${{fontSize:12,color:'#86868B',marginTop:2}}>Etiqueta personas, riesgos y accionables para filtrar y agrupar</p>
       </div>
 
@@ -5519,12 +5521,12 @@ function PTags({ teamMembers, risks, actions }) {
         <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
           ${[
             {title:'👥 Equipo',items:teamMembers,type:'member',getLabel:m=>m.name,getIcon:m=>m.avatar||'👤'},
-            {title:'⚠️ Riesgos',items:(risks||[]).filter(r=>r.status!=='mitigated'),type:'risk',getLabel:r=>r.text.slice(0,50)+(r.text.length>50?'…':''),getIcon:()=>'⚠️'},
-            {title:'📋 Tareas',items:(actions||[]).filter(a=>a.status!=='done'&&a.status!=='discarded'),type:'action',getLabel:a=>a.text.slice(0,50)+(a.text.length>50?'…':''),getIcon:()=>'🎯'},
+            {title:'Riesgos',items:(risks||[]).filter(r=>r.status!=='mitigated'),type:'risk',getLabel:r=>r.text.slice(0,50)+(r.text.length>50?'…':''),getIcon:()=>'⚠️'},
+            {title:'Tareas',items:(actions||[]).filter(a=>a.status!=='done'&&a.status!=='discarded'),type:'action',getLabel:a=>a.text.slice(0,50)+(a.text.length>50?'…':''),getIcon:()=>'🎯'},
           ].map(col=>html`
             <div key=${col.type} style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px'}}>
               <h4 style=${{fontSize:13,fontWeight:700,marginBottom:10}}>${col.title} <span style=${{fontSize:10,color:'#86868B',fontWeight:400}}>${col.items.length}</span></h4>
-              ${col.items.length===0?html`<p style=${{fontSize:11,color:'#C7C7CC',textAlign:'center',padding:'12px 0'}}>Sin elementos</p>`:
+              ${col.items.length===0?html`<p style=${{fontSize:11,color:'#86868B',textAlign:'center',padding:'12px 0'}}>Sin elementos aún</p>`:
               col.items
                 .filter(item=>activeTag?hasTag(activeTag,col.type,item.id):true)
                 .map(item=>{
@@ -6127,17 +6129,18 @@ const addItem = () => {
           ` : subTab==='historial' ? html`
             <h4 style=${{ fontSize:13, fontWeight:700, color:'#86868B', marginBottom:4 }}>📚 Riesgos de retros anteriores (solo lectura)</h4>
             ${histOnly.length===0
-              ? html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC' }}><p style=${{ fontSize:32 }}>📭</p><p>Sin historial de riesgos</p></div>`
+              ? html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC' }}><${Icon} name="Archive" size=${36} color="#C7C7CC" /><p style=${{ marginTop:8, fontSize:13, fontWeight:600, color:'#6E6E73' }}>Sin historial aún</p><p style=${{ fontSize:12, color:'#86868B', marginTop:4 }}>El historial se genera al cerrar retros o migrar riesgos.</p></div>`
               : histOnly.map(r => renderRisk(r, true))}
           ` : subTab==='mitigados' ? html`
             ${mitigados.length===0
-              ? html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC' }}><p style=${{ fontSize:32 }}>✅</p><p>Sin elementos resueltos aún</p></div>`
+              ? html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC' }}><${Icon} name="CheckCircle2" size=${36} color="#34C759" /><p style=${{ marginTop:8, fontSize:13, fontWeight:600, color:'#6E6E73' }}>Aún no hay elementos mitigados</p><p style=${{ fontSize:12, color:'#86868B', marginTop:4 }}>Los riesgos y problemas resueltos aparecerán aquí.</p></div>`
               : mitigados.map(r => renderRisk(r, false))}
           ` : html`
             ${curItemsFiltered.length===0 && html`
               <div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
-                <p style=${{ fontSize:32, marginBottom:8 }}>${subTab==='riesgos'?'⚠️':subTab==='problemas'?'🔴':'🌟'}</p>
-                <p style=${{ fontSize:14 }}>Sin ${subTab==='riesgos'?'riesgos':subTab==='problemas'?'problemas':'oportunidades'} activos</p>
+                <${Icon} name=${subTab==='riesgos'?'Shield':subTab==='problemas'?'CheckCircle2':'Sparkles'} size=${36} color="#34C759" />
+                <p style=${{ fontSize:14, fontWeight:600, color:'#34C759', marginTop:8 }}>Sin ${subTab==='riesgos'?'riesgos':subTab==='problemas'?'problemas':'oportunidades'} activos</p>
+                <p style=${{ fontSize:12, color:'#86868B', marginTop:4 }}>Usa el botón para registrar uno nuevo cuando sea necesario.</p>
               </div>`}
             ${curItemsFiltered.map(r => renderRisk(r, false))}
           `}
@@ -7142,7 +7145,7 @@ function RetroBoard({ user, onLogout }) {
                   <button onClick=${()=>{ setNotifications([]); setShowNotifs(false); }} style=${{ border:'none', background:'none', fontSize:11, color:'#86868B', cursor:'pointer' }}>Limpiar</button>
                 </div>
                 ${notifications.length===0
-                  ? html`<div style=${{ padding:'24px 16px', textAlign:'center', color:'#C7C7CC', fontSize:12 }}>Sin notificaciones</div>`
+                  ? html`<div style=${{ padding:'24px 16px', textAlign:'center', color:'#C7C7CC', fontSize:12 }}>Todo tranquilo — sin novedades</div>`
                   : html`<div style=${{ maxHeight:300, overflowY:'auto' }}>
                       ${notifications.map(n=>html`
                         <div key=${n.id} style=${{ padding:'10px 16px', borderBottom:'1px solid #F9F9FB', background:n.type==='escalado'?'#FFF9E6':n.type==='overdue'?'#FFF5F5':'#FFF' }}>
@@ -7496,7 +7499,7 @@ function HistorialModal({ onClose }) {
 </div>
 <h2>📝 Notas</h2>
 ${nc.map(c=>c.notes.length===0?'':'<div class="ct" style="border-color:'+c.color+';background:'+c.bg+'"><p style="font-weight:700;font-size:12px;color:'+c.color+';margin-bottom:6px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</p>'+c.notes.map(n=>'<div class="nt"><span>'+n.text+'</span><span style="color:#86868B;font-size:10px;white-space:nowrap;margin-left:8px">'+n.userAvatar+' '+n.userName+' · 👍'+(n.voters?.length||0)+'</span></div>').join('')+'</div>').join('')}
-<h2>🎯 Accionables</h2>
+<h2>Accionables</h2>
 ${sa.length===0?'<p style="color:#86868B">Sin accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status);return'<div class="ac"><span style="font-size:14px">'+pr.icon+'</span><div style="flex:1"><b>'+a.text+'</b><div style="font-size:10px;color:#86868B">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span style="background:'+st.bg+';color:'+st.color+';padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700">'+st.label+'</span></div>';}).join('')}
 ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div class="ac" style="border-left:3px solid #FF9500"><div style="flex:1"><b>'+r.text+'</b>'+(r.mitigation?'<div style="font-size:10px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:10px;color:#86868B">Owner: '+r.owner+'</div></div></div>').join(''):''}
 <p style="text-align:center;color:#C7C7CC;font-size:10px;margin-top:24px">revelio · ${new Date().toLocaleString('es-ES')}</p>
@@ -7617,7 +7620,7 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
           : retros.length === 0 ? html`
             <div style=${{ textAlign:'center', padding:'40px 0', color:'#C7C7CC' }}>
               <p style=${{ fontSize:32, marginBottom:8 }}>📭</p>
-              <p style=${{ fontSize:13 }}>Sin retros guardadas en Supabase</p>
+              <p style=${{ fontSize:13 }}>Aún no hay retros guardadas para este proyecto</p>
               <p style=${{ fontSize:11, marginTop:6 }}>Usa "🆕 Nueva retro" para crear un snapshot</p>
             </div>`
           : retros.map(r => {
@@ -7715,7 +7718,7 @@ ${obj.text ? '<p style="margin-top:8px;font-size:13px">🎯 <b>'+obj.text+'</b> 
 </div>
 <h2>📝 Notas</h2>
 ${nc.map(c=>c.notes.length===0?'':'<div class="ct" style="border-color:'+c.color+';background:'+c.bg+'"><p style="font-weight:700;font-size:12px;color:'+c.color+';margin-bottom:6px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</p>'+c.notes.map(n=>'<div class="nt"><span>'+n.text+'</span><span style="color:#86868B;font-size:10px;white-space:nowrap;margin-left:8px">'+n.userAvatar+' '+n.userName+' · 👍'+(n.voters?.length||0)+'</span></div>').join('')+'</div>').join('')}
-<h2>🎯 Accionables</h2>
+<h2>Accionables</h2>
 ${sa.length===0?'<p style="color:#86868B">Sin accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status);return'<div class="ac"><span style="font-size:14px">'+pr.icon+'</span><div style="flex:1"><b>'+a.text+'</b><div style="font-size:10px;color:#86868B">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span style="background:'+st.bg+';color:'+st.color+';padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700">'+st.label+'</span></div>';}).join('')}
 ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div class="ac" style="border-left:3px solid #FF9500"><div style="flex:1"><b>'+r.text+'</b>'+(r.mitigation?'<div style="font-size:10px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:10px;color:#86868B">Owner: '+r.owner+'</div></div></div>').join(''):''}
 <p style="text-align:center;color:#C7C7CC;font-size:10px;margin-top:24px">revelio · ${new Date().toLocaleString('es-ES')}</p>
@@ -7752,7 +7755,7 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
           <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, fontSize:11, marginBottom:18 }}>
             <div style=${{ padding:10, borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920' }}>
               <p style=${{ fontWeight:700, color:'#34C759', marginBottom:4 }}>✅ Se guarda en historial</p>
-              <p style=${{ color:'#6E6E73', lineHeight:1.5 }}>📝 Notas · 🎯 Accionables · ⚠️ Riesgos · 🎯 Objetivo</p>
+              <p style=${{ color:'#6E6E73', lineHeight:1.5 }}>📝 Notas · Accionables · ⚠️ Riesgos · 🎯 Objetivo</p>
             </div>
             <div style=${{ padding:10, borderRadius:8, background:'#FFF5F5', border:'1px solid #FF3B3020' }}>
               <p style=${{ fontWeight:700, color:'#FF3B30', marginBottom:4 }}>🔄 Se resetea en el tablero</p>
@@ -8107,7 +8110,7 @@ function P4({ notes, actions, risks, sA, user }) {
         <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
           <!-- Top notes -->
           <div style=${{ ...cS, padding:16 }}>
-            <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:8 }}>📝 Notas más votadas</h4>
+            <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:8 }}>Notas más votadas</h4>
             <p style=${{ fontSize:10, color:'#86868B', marginBottom:8 }}>Clic para crear acción</p>
             <div style=${{ display:'flex', flexDirection:'column', gap:5, maxHeight:280, overflowY:'auto' }}>
               ${topN.map(n => {
@@ -8130,7 +8133,7 @@ function P4({ notes, actions, risks, sA, user }) {
           <!-- Risks -->
           ${openRisks.length>0 && html`
             <div style=${{ ...cS, padding:16 }}>
-              <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>⚠️ Riesgos abiertos</h4>
+              <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>Riesgos abiertos</h4>
               <p style=${{ fontSize:10, color:'#86868B', marginBottom:8 }}>Clic para crear acción de mitigación</p>
               <div style=${{ display:'flex', flexDirection:'column', gap:5, maxHeight:200, overflowY:'auto' }}>
                 ${openRisks.map(r => {
@@ -8223,7 +8226,7 @@ function P5Risks({ risks, sR, notes, user }) {
     <div style=${{ maxWidth:'100%', margin:'0 auto' }}>
       <!-- Heat map full width -->
       <div style=${{ ...cS, padding:'22px', marginBottom:14 }}>
-        <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:14 }}>⚠️ Mapa de calor de riesgos</h3>
+        <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:14 }}>Mapa de calor</h3>
         <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, alignItems:'start' }}>
           <div style=${{ position:'relative', paddingLeft:40 }}>
             <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:3 }}>
@@ -8480,7 +8483,7 @@ ${obj.text?'<p style="margin-top:8px;font-size:13px">🎯 <b>'+obj.text+'</b> �
 ${tasks.map(t=>'<div style="padding:3px 0;font-size:12px;'+(t.done?'text-decoration:line-through;color:#86868B;':'')+'">'+( t.done?'✅':'⬜')+' '+t.text+'</div>').join('')}
 <h2>📝 Notas</h2>
 ${nc.map(c=>c.notes.length===0?'':'<div class="ct" style="border-color:'+c.color+';background:'+c.bg+'"><p style="font-weight:700;font-size:12px;color:'+c.color+';margin-bottom:7px">'+c.emoji+' '+c.label+' ('+c.notes.length+')</p>'+c.notes.map(n=>'<div class="nt"><div style="flex:1">'+n.text+'</div><div style="font-size:10px;color:#86868B;white-space:nowrap">'+n.userAvatar+' '+n.userName+' · 👍'+(n.voters?.length||0)+'</div></div>').join('')+'</div>').join('')}
-<h2>🎯 Accionables (${actions.length})</h2>
+<h2>Accionables (${actions.length})</h2>
 ${sa.length===0?'<p style="color:#86868B;font-size:12px">Sin accionables</p>':sa.map(a=>{const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];const st=STS.find(s=>s.id===a.status)||STS[0];return'<div class="ac"><div style="font-size:15px;min-width:22px">'+pr.icon+'</div><div style="flex:1"><b style="font-size:12px">'+a.text+'</b><div style="font-size:10px;color:#86868B;margin-top:1px">'+a.owner+(a.date?' · 📅 '+fd(a.date):'')+'</div></div><span class="bg" style="background:'+st.bg+';color:'+st.color+'">'+st.label+'</span></div>';}).join('')}
 <h2>⚠️ Riesgos</h2>
 ${risks.length===0?'<p style="color:#86868B;font-size:12px">Sin riesgos identificados</p>':risks.map((r,i)=>{const imp=getRiskLevel(r.impactVotes);const prob=getRiskLevel(r.probVotes);const hc=getHeatColor(imp,prob);const st=RISK_STATUS.find(s=>s.id===r.status)||RISK_STATUS[0];return'<div class="rsk" style="border-left-color:'+hc+';margin-bottom:4px"><div style="font-weight:800;color:'+hc+';min-width:28px;font-size:12px">R'+(i+1)+'</div><div style="flex:1"><b style="font-size:12px">'+r.text+'</b>'+(r.mitigation?'<div style="font-size:10px;color:#86868B">🛡️ '+r.mitigation+'</div>':'')+'<div style="font-size:10px;color:#86868B">Impacto: '+imp.label+' · Prob: '+prob.label+' · '+r.owner+'</div></div><span class="bg" style="background:'+st.color+'20;color:'+st.color+'">'+st.label+'</span></div>';}).join('')}
@@ -8493,11 +8496,11 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
   };
 
   const TABS = [
-    { id:'resumen',     label:'📊 Resumen'     },
-    { id:'notas',       label:'📝 Notas'       },
-    { id:'tareas', label:'📋 Tareas' },
-    { id:'riesgos',     label:'⚠️ Riesgos'     },
-    { id:'ranking',     label:'🏆 Ranking'     },
+    { id:'resumen',     label:'Resumen'     },
+    { id:'notas',       label:'Notas'       },
+    { id:'tareas', label:'Tareas' },
+    { id:'riesgos',     label:'Riesgos'     },
+    { id:'ranking',     label:'Ranking'     },
   ];
 
   return html`
@@ -8538,7 +8541,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
 
           <!-- Notas por categoría -->
           <div style=${{ ...cS, padding:20 }}>
-            <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>📊 Notas por categoría</h3>
+            <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>Notas por categoría</h3>
             ${CATS.map(c => {
               const cnt = notes.filter(n=>n.category===c.id).length;
               const pct = tN>0 ? (cnt/tN)*100 : 0;
@@ -8558,7 +8561,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
           <!-- Progreso -->
           <div style=${{ ...cS, padding:20, display:'flex', flexDirection:'column', gap:16 }}>
             <div>
-              <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>📋 Progreso</h3>
+              <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>Progreso</h3>
               <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
                 <div style=${{ textAlign:'center', padding:12, borderRadius:10, background:'#F0F7FF', border:'1.5px solid #007AFF20' }}>
                   <div style=${{ fontSize:24, fontWeight:800, color:'#007AFF' }}>${tasks.filter(t=>t.done).length}/${tasks.length}</div>
@@ -8737,7 +8740,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
           <!-- Lista riesgos abiertos -->
           ${openRisks.length > 0 && html`
             <div style=${{ ...cS, padding:20 }}>
-              <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:12, color:'#FF3B30' }}>⚠️ Riesgos abiertos (${openRisks.length})</h3>
+              <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:12, color:'#FF3B30' }}>Riesgos abiertos (${openRisks.length})</h3>
               ${[...openRisks].sort((a,b) => riskScore(b)-riskScore(a)).map((r,idx) => {
                 const imp  = getRiskLevel(r.impactVotes);
                 const prob = getRiskLevel(r.probVotes);
