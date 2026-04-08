@@ -8428,9 +8428,8 @@ function Board({ notes, sN, user, filter, hideOthers, showReactions }) {
     </div>
 
     ${noteModal && html`
-      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}
-        onClick=${e=>{if(e.target===e.currentTarget)setNoteModal(null)}}>
-        <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}></div>
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+        <div onClick=${()=>setNoteModal(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}></div>
         <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:480,boxShadow:'0 12px 48px rgba(0,0,0,.12)',animation:'fadeIn .15s ease',overflow:'hidden'}}>
           <div style=${{padding:'20px 24px 12px',borderBottom:'1px solid #F2F2F7',background:noteModal._cat?.bg||'#FAFAFA',display:'flex',alignItems:'center',gap:10}}>
             <div style=${{width:8,height:8,borderRadius:4,background:noteModal._cat?.color||'#007AFF'}}></div>
@@ -8480,138 +8479,96 @@ function P4({ notes, actions, risks, sA, user }) {
       setTeamMembers(filtered.length > 0 ? filtered : data);
     });
   }, []);
-  const [form, setForm] = useState({text:'',owner:'',date:'',priority:'medium'});
-  const [eId, setEId] = useState(null);
-  const [eF, setEF] = useState({});
 
-  const topN = [...notes].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0)).slice(0,12);
+  const topN = [...notes].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0)).slice(0,15);
   const openRisks = (risks||[]).filter(r => r.status !== 'mitigated');
-
-  const addA = fn => {
-    const t=fn?fn.text:form.text; if(!t.trim())return;
-    const vs=fn?(fn.voters?.length||0):0; const pri=fn?(vs>=5?'high':vs>=2?'medium':'low'):form.priority;
-    sA([...actions,{id:uid(),text:t.trim(),owner:form.owner||'Sin asignar',date:form.date||'',status:'backlog',priority:pri,voteScore:vs,createdBy:user.id,fromCategory:fn?.category||null,noteId:fn?.id||null,riskId:null,source:fn?'retro':'manual',type:'accion_retro',createdAt:new Date().toISOString()}]);
-    if(!fn)setForm({text:'',owner:'',date:'',priority:'medium'});
-  };
-  const addAFromRisk = r => {
-    const imp = getRiskLevel(r.impactVotes);
-    const pri = imp.id==='alto'?'high':imp.id==='medio'?'medium':'low';
-    sA([...actions,{id:uid(),text:'Mitigar: '+r.text,owner:r.owner||'Sin asignar',date:'',status:'backlog',priority:pri,voteScore:0,createdBy:user.id,fromCategory:null,noteId:null,riskId:r.id,source:'risk',type:'tarea',createdAt:new Date().toISOString()}]);
-  };
-  const togN = n => { const ex=actions.find(a=>a.noteId===n.id); if(ex)sA(actions.filter(a=>a.noteId!==n.id)); else addA(n); };
-  const togR = r => { const ex=actions.find(a=>a.riskId===r.id); if(ex)sA(actions.filter(a=>a.riskId!==r.id)); else addAFromRisk(r); };
-  const delA = id => sA(actions.filter(a=>a.id!==id));
-  const saveEA = () => { sA(actions.map(a=>a.id===eId?{...a,...eF}:a)); setEId(null); };
   const priO = {critical:4,high:3,medium:2,low:1};
 
+  const createAction = (text, source, sourceId, priority) => {
+    sA([...actions,{id:uid(),text:text.trim(),owner:'',date:'',status:'backlog',priority:priority||'medium',voteScore:0,createdBy:user.id,fromCategory:null,noteId:sourceId||null,riskId:null,source:source||'manual',type:'accion_retro',createdAt:new Date().toISOString()}]);
+  };
+  const createFromRisk = (r) => {
+    const pri = (r.impact||'medio')==='alto'?'high':(r.impact||'medio')==='medio'?'medium':'low';
+    sA([...actions,{id:uid(),text:'Mitigar: '+r.text,owner:r.owner||'',date:'',status:'backlog',priority:pri,voteScore:0,createdBy:user.id,riskId:r.id,source:'risk',type:'tarea',createdAt:new Date().toISOString()}]);
+  };
+  const togNote = n => { const ex=actions.find(a=>a.noteId===n.id); if(ex)sA(actions.filter(a=>a.noteId!==n.id)); else createAction(n.text,'retro',n.id,n.voters?.length>=5?'high':n.voters?.length>=2?'medium':'low'); };
+  const togRisk = r => { const ex=actions.find(a=>a.riskId===r.id); if(ex)sA(actions.filter(a=>a.riskId!==r.id)); else createFromRisk(r); };
+  const delA = id => window.__confirm({title:'Eliminar accionable',message:'Se eliminara de la retro.',onConfirm:()=>sA(actions.filter(a=>a.id!==id))});
+
   return html`
-    <div style=${{ maxWidth:'100%' }}>
-      <div style=${{ display:'grid', gridTemplateColumns:'1fr 300px', gap:14, alignItems:'start' }}>
+    <div data-p="actions" style=${{ maxWidth:'100%' }}>
+      <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+        <h3 style=${{ fontSize:16, fontWeight:700, margin:0 }}>Accionables</h3>
+        <span style=${{ fontSize:11, background:'#007AFF12', color:'#007AFF', padding:'2px 8px', borderRadius:8, fontWeight:600 }}>${actions.filter(a=>a.status!=='done').length} abiertos</span>
+        <div style=${{ flex:1 }}></div>
+        <button onClick=${()=>{
+          const text=prompt('Nuevo accionable:');
+          if(text?.trim()) createAction(text,'manual');
+        }} style=${{ padding:'7px 14px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer' }}>+ Crear accionable</button>
+      </div>
 
-        <div style=${{ ...cS, padding:20 }}>
-          <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:4 }}>Acciones de la retro</h3>
-          <p style=${{ fontSize:11, color:'#86868B', marginBottom:14 }}>Se añadirán al backlog del proyecto para su seguimiento</p>
-
-          <div style=${{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap', padding:'10px 12px', borderRadius:12, background:'#F9F9FB', border:'1.5px solid #E5E5EA' }}>
-            <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Nueva acción…"
-              onKeyDown=${e=>e.key==='Enter'&&addA(null)}
-              style=${{ ...iS, flex:2, minWidth:150, background:'#FFF' }} />
-            <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})} style=${{ ...iS, flex:1, minWidth:100, background:'#FFF' }}>
-              <option value="">— Responsable —</option>
-              ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-            </select>
-            <select value=${form.priority} onChange=${e=>setForm({...form,priority:e.target.value})} style=${{ ...iS, width:90, flex:'none', background:'#FFF' }}>
-              ${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}
-            </select>
-            <button onClick=${()=>addA(null)} style=${bP}>+ Añadir</button>
-          </div>
-
-          ${actions.length===0
-            ? html`<div style=${{ textAlign:'center', padding:'28px 0', color:'#C7C7CC' }}><p style=${{ fontSize:13 }}>Crea acciones o selecciona notas/riesgos del panel derecho</p></div>`
-            : html`<div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
-                ${[...actions].sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0)).map(a=>{
-                  const pr=PRIS.find(p=>p.id===a.priority)||PRIS[1];
-                  const ct=a.fromCategory?CATS.find(cc=>cc.id===a.fromCategory):null;
-                  const isEdit=eId===a.id;
-                  return isEdit ? html`
-                    <div key=${a.id} style=${{ padding:'10px 12px', borderRadius:10, background:'#F9F9FB', border:'2px solid #007AFF30' }}>
-                      <div style=${{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                        <input autofocus value=${eF.text||''} onInput=${e=>setEF({...eF,text:e.target.value})}
-                          style=${{ flex:2, minWidth:140, border:'1.5px solid #007AFF40', borderRadius:8, padding:'6px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
-                        <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})}
-                          style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'6px 8px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
-                          <option value="">— Responsable —</option>
-                          ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-                        </select>
-                        <button onClick=${saveEA} style=${{ padding:'6px 14px', borderRadius:8, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer' }}>Guardar</button>
-                        <button onClick=${()=>setEId(null)} style=${{ padding:'6px 10px', borderRadius:8, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:11, cursor:'pointer' }}>✕</button>
-                      </div>
-                    </div>`
-                  : html`
-                    <div key=${a.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:10, background:'#FFF', border:'1.5px solid #E5E5EA' }}>
-                      <span style=${{ fontSize:12, fontWeight:800, color:pr.color, minWidth:18 }}>${pr.icon}</span>
-                      ${ct&&html`<span style=${{ fontSize:8, color:ct.color, background:ct.color+'10', padding:'1px 5px', borderRadius:4, fontWeight:700, flexShrink:0 }}>${ct.emoji} ${ct.label}</span>`}
-                      <div style=${{ flex:1, minWidth:0 }}>
-                        <p style=${{ fontSize:12, fontWeight:600, margin:0 }}>${a.text}</p>
-                        <div style=${{ display:'flex', gap:8, marginTop:2, fontSize:10, color:'#86868B' }}>
-                          <span style=${{ color:'#007AFF', fontWeight:600 }}>${a.owner}</span>
-                          ${a.date&&html`<span>📅 ${fd(a.date)}</span>`}
-                          ${a.source==='retro'&&html`<span style=${{ color:'#FF9500' }}>retro</span>`}
-                          ${a.source==='risk'&&html`<span style=${{ color:'#FF3B30' }}>riesgo</span>`}
-                        </div>
-                      </div>
-                      <div style=${{ display:'flex', gap:3, flexShrink:0 }}>
-                        <button onClick=${()=>{setEId(a.id);setEF({text:a.text,owner:a.owner||'',date:a.date||'',priority:a.priority})}}
-                          style=${{ border:'none', background:'none', fontSize:11, color:'#C7C7CC', cursor:'pointer' }}>✏️</button>
-                        <button onClick=${(e)=>{e.stopPropagation();window.__confirm({title:'Eliminar acción',message:'¿Eliminar esta acción de la retro?',onConfirm:()=>delA(a.id)})}}
-                          style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer' }}>✕</button>
-                      </div>
-                    </div>`;
-                })}
-              </div>`}
+      <div style=${{ display:'grid', gridTemplateColumns:'1fr 280px', gap:14, alignItems:'start' }}>
+        <div data-col="list" style=${{ display:'flex', flexDirection:'column', gap:5 }}>
+          ${actions.length===0 && html`<div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:12 }}>
+            <p style=${{ fontSize:13, marginBottom:4 }}>Sin accionables</p>
+            <p style=${{ fontSize:11 }}>Crea uno o selecciona notas/riesgos del panel derecho</p>
+          </div>`}
+          ${[...actions].sort((a,b)=>(priO[b.priority]||0)-(priO[a.priority]||0)).map(a => {
+            const pr = PRIS.find(p=>p.id===a.priority)||PRIS[1];
+            const ct = a.fromCategory?CATS.find(cc=>cc.id===a.fromCategory):null;
+            return html`
+              <div key=${a.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:10, background:'#FFF', border:'1.5px solid #E5E5EA', borderLeft:'3px solid '+pr.color }}>
+                <span style=${{ fontSize:14 }}>${pr.icon}</span>
+                ${ct && html`<span style=${{ fontSize:8, color:ct.color, background:ct.color+'10', padding:'1px 5px', borderRadius:4, fontWeight:700, flexShrink:0 }}>${ct.emoji}</span>`}
+                <div style=${{ flex:1, minWidth:0 }}>
+                  <p style=${{ fontSize:12, fontWeight:600, margin:0 }}>${a.text}</p>
+                  <div style=${{ display:'flex', gap:6, marginTop:2, fontSize:10, color:'#86868B' }}>
+                    ${a.owner && html`<span style=${{ color:'#007AFF', fontWeight:600 }}>${a.owner}</span>`}
+                    ${a.source==='retro' && html`<span style=${{ color:'#FF9500' }}>retro</span>`}
+                    ${a.source==='risk' && html`<span style=${{ color:'#FF3B30' }}>riesgo</span>`}
+                  </div>
+                </div>
+                <button onClick=${()=>delA(a.id)} style=${{ border:'none', background:'none', fontSize:11, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
+              </div>`;
+          })}
         </div>
 
-        <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
-
-          <div style=${{ ...cS, padding:16 }}>
-            <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:8 }}>Notas más votadas</h4>
-            <p style=${{ fontSize:10, color:'#86868B', marginBottom:8 }}>Clic para crear acción</p>
-            <div style=${{ display:'flex', flexDirection:'column', gap:5, maxHeight:280, overflowY:'auto' }}>
+        <div data-col="sources" style=${{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:14 }}>
+            <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:6 }}>Notas mas votadas</h4>
+            <p style=${{ fontSize:10, color:'#86868B', marginBottom:8 }}>Clic para crear accionable</p>
+            <div style=${{ display:'flex', flexDirection:'column', gap:4, maxHeight:240, overflowY:'auto' }}>
               ${topN.map(n => {
                 const linked = actions.some(a=>a.noteId===n.id);
                 const ct = CATS.find(cc=>cc.id===n.category);
-                return html`<button key=${n.id} onClick=${()=>togN(n)}
-                  style=${{ padding:'7px 9px', borderRadius:8, border:'1px solid '+(linked?'#34C759':'#E5E5EA'),
-                    background:linked?'#F0FFF4':'#FFF', textAlign:'left', cursor:'pointer', transition:'all .15s' }}>
+                return html`<button key=${n.id} onClick=${()=>togNote(n)}
+                  style=${{ padding:'6px 8px', borderRadius:8, border:'1px solid '+(linked?'#34C759':'#E5E5EA'), background:linked?'#F0FFF4':'#FFF', textAlign:'left', cursor:'pointer' }}>
                   <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:2 }}>
-                    ${ct&&html`<span style=${{ fontSize:8, color:ct.color, fontWeight:700 }}>${ct.emoji}</span>`}
+                    ${ct && html`<span style=${{ fontSize:8 }}>${ct.emoji}</span>`}
                     <span style=${{ fontSize:9, color:'#86868B' }}>👍 ${n.voters?.length||0}</span>
-                    ${linked&&html`<span style=${{ fontSize:8, color:'#34C759', fontWeight:700, marginLeft:'auto' }}>✓ Añadida</span>`}
+                    ${linked && html`<span style=${{ fontSize:8, color:'#34C759', fontWeight:700, marginLeft:'auto' }}>✓</span>`}
                   </div>
-                  <p style=${{ fontSize:11, lineHeight:1.3, color:linked?'#86868B':'#1D1D1F' }}>${n.text}</p>
+                  <p style=${{ fontSize:10, lineHeight:1.3, color:linked?'#86868B':'#1D1D1F', margin:0 }}>${n.text}</p>
                 </button>`;
               })}
             </div>
           </div>
 
           ${openRisks.length>0 && html`
-            <div style=${{ ...cS, padding:16 }}>
-              <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>Riesgos abiertos</h4>
-              <p style=${{ fontSize:10, color:'#86868B', marginBottom:8 }}>Clic para crear acción de mitigación</p>
-              <div style=${{ display:'flex', flexDirection:'column', gap:5, maxHeight:200, overflowY:'auto' }}>
+            <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:14 }}>
+              <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:6 }}>Riesgos abiertos</h4>
+              <p style=${{ fontSize:10, color:'#86868B', marginBottom:8 }}>Clic para crear mitigacion</p>
+              <div style=${{ display:'flex', flexDirection:'column', gap:4, maxHeight:200, overflowY:'auto' }}>
                 ${openRisks.map(r => {
                   const linked = actions.some(a=>a.riskId===r.id);
-                  const imp = getRiskLevel(r.impactVotes);
-                  const hc = getHeatColor(imp, getRiskLevel(r.probVotes));
-                  return html`<button key=${r.id} onClick=${()=>togR(r)}
-                    style=${{ padding:'7px 9px', borderRadius:8, border:'1px solid '+(linked?'#34C759':hc+'30'),
-                      borderLeft:'3px solid '+(linked?'#34C759':hc), background:linked?'#F0FFF4':'#FFF',
-                      textAlign:'left', cursor:'pointer' }}>
+                  const hc = heatColor(r.impact||'medio', r.prob||'media');
+                  return html`<button key=${r.id} onClick=${()=>togRisk(r)}
+                    style=${{ padding:'6px 8px', borderRadius:8, border:'1px solid '+(linked?'#34C759':hc+'30'), borderLeft:'3px solid '+(linked?'#34C759':hc), background:linked?'#F0FFF4':'#FFF', textAlign:'left', cursor:'pointer' }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:2 }}>
-                      <span style=${{ fontSize:9, fontWeight:700, color:hc }}>${imp.label}</span>
-                      ${linked&&html`<span style=${{ fontSize:8, color:'#34C759', fontWeight:700, marginLeft:'auto' }}>✓ Mitigación</span>`}
+                      <span style=${{ fontSize:9, fontWeight:700, color:hc }}>\u26A0\uFE0F</span>
+                      ${linked && html`<span style=${{ fontSize:8, color:'#34C759', fontWeight:700, marginLeft:'auto' }}>\u2713 Mitigacion</span>`}
                     </div>
-                    <p style=${{ fontSize:11, lineHeight:1.3, color:linked?'#86868B':'#1D1D1F' }}>${r.text}</p>
+                    <p style=${{ fontSize:10, lineHeight:1.3, color:linked?'#86868B':'#1D1D1F', margin:0 }}>${r.text}</p>
                   </button>`;
                 })}
               </div>
@@ -8629,253 +8586,159 @@ function P5Risks({ risks, sR, notes, user }) {
       setTeamMembers(filtered.length > 0 ? filtered : data);
     });
   }, []);
-  const [form, setForm] = useState({ text:'', mitigation:'', owner:'' });
-  const [eId, setEId] = useState(null);
-  const [eF, setEF] = useState({});
-  const [riskFilter, setRiskFilter] = useState('all');
+  const [detailRisk, setDetailRisk] = useState(null);
+  const [showNewRisk, setShowNewRisk] = useState(false);
+  const [newType, setNewType] = useState('riesgo');
 
-  const badStopNotes = notes.filter(n => n.category === 'bad' || n.category === 'stop' || n.category === 'start').sort((a,b) => (b.voters?.length||0) - (a.voters?.length||0));
+  const allNotes = [...notes].sort((a,b)=>(b.voters?.length||0)-(a.voters?.length||0));
+  const openRisks = risks.filter(r => r.status !== 'mitigated');
 
-  const addRisk = (fromNote) => {
-    const text = fromNote ? fromNote.text : form.text;
+  const addRisk = (text, type) => {
     if (!text.trim()) return;
-    sR([...risks, { id:uid(), text:text.trim(), mitigation:form.mitigation||'', owner:form.owner||'Sin asignar', status:'open', impactVotes:{}, probVotes:{}, fromNote:fromNote?.id||null, createdBy:user.id }]);
-    if (!fromNote) setForm({ text:'', mitigation:'', owner:'' });
+    sR([...risks, { id:uid(), text:text.trim(), type:type||'riesgo', impact:'medio', prob:'media', mitigation:'', owner:'', status:'open', impactVotes:{}, probVotes:{}, createdBy:user.id, createdAt:new Date().toISOString() }]);
   };
-
-  const toggleFromNote = (note) => {
+  const addFromNote = (note) => {
     const ex = risks.find(r => r.fromNote === note.id);
     if (ex) sR(risks.filter(r => r.fromNote !== note.id));
-    else addRisk(note);
+    else sR([...risks, { id:uid(), text:note.text, type:'riesgo', impact:'medio', prob:'media', mitigation:'', owner:'', status:'open', impactVotes:{}, probVotes:{}, fromNote:note.id, createdBy:user.id, createdAt:new Date().toISOString() }]);
   };
+  const upd = (id, patch) => sR(risks.map(r=>r.id===id?{...r,...patch}:r));
 
-  const voteImpact = (riskId, level) => {
-    sR(risks.map(r => {
-      if (r.id !== riskId) return r;
-      const v = { ...(r.impactVotes||{}) };
-      v[user.id] = v[user.id] === level ? undefined : level;
-      if (!v[user.id]) delete v[user.id];
-      return { ...r, impactVotes: v };
-    }));
-  };
-
-  const voteProb = (riskId, level) => {
-    sR(risks.map(r => {
-      if (r.id !== riskId) return r;
-      const v = { ...(r.probVotes||{}) };
-      v[user.id] = v[user.id] === level ? undefined : level;
-      if (!v[user.id]) delete v[user.id];
-      return { ...r, probVotes: v };
-    }));
-  };
-
-  const updateStatus = (id, st) => sR(risks.map(r => r.id===id ? {...r, status:st} : r));
-  const delRisk = (id) => sR(risks.filter(r => r.id !== id));
-  const saveEdit = () => { sR(risks.map(r => r.id===eId ? {...r,...eF} : r)); setEId(null); };
-
-  const allOpen = risks.filter(r => r.status !== 'mitigated');
-  const allMitigated = risks.filter(r => r.status === 'mitigated');
-  const openRisks = riskFilter === 'mine' ? allOpen.filter(r => r.createdBy === user.id) : allOpen;
-  const mitigatedRisks = riskFilter === 'mine' ? allMitigated.filter(r => r.createdBy === user.id) : allMitigated;
-
-  // Heat map data
-  const heatData = openRisks.map(r => ({
-    ...r,
-    impLvl: getRiskLevel(r.impactVotes),
-    probLvl: getRiskLevel(r.probVotes),
-  }));
+  const heatData = openRisks.map(r => ({ ...r, impLvl:getRiskLevel(r.impactVotes), probLvl:getRiskLevel(r.probVotes) }));
+  const IMPACT_BTNS = [{id:'alto',label:'Alto',color:'#FF3B30'},{id:'medio',label:'Medio',color:'#FF9500'},{id:'bajo',label:'Bajo',color:'#34C759'}];
+  const PROB_BTNS = [{id:'alta',label:'Alta',color:'#FF3B30'},{id:'media',label:'Media',color:'#FF9500'},{id:'baja',label:'Baja',color:'#34C759'}];
 
   return html`
-    <div style=${{ maxWidth:'100%', margin:'0 auto' }}>
+    <div data-p="risks" style=${{ display:'grid', gridTemplateColumns:'260px 1fr 240px', gap:12, maxWidth:'100%' }}>
 
-      <div style=${{ ...cS, padding:'22px', marginBottom:14 }}>
-        <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:14 }}>Mapa de calor</h3>
-        <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, alignItems:'start' }}>
-          <div style=${{ position:'relative', paddingLeft:40 }}>
-            <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:3 }}>
+      <div data-col="heatmap" style=${{ display:'flex', flexDirection:'column', gap:10 }}>
+        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:14 }}>
+          <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10 }}>Mapa de calor</h4>
+          <div style=${{ position:'relative', paddingLeft:24 }}>
+            <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2 }}>
               ${['alto','medio','bajo'].map(prob =>
                 ['bajo','medio','alto'].map(imp => {
                   const probLvl = RISK_LEVELS.find(l=>l.id===prob);
                   const impLvl = RISK_LEVELS.find(l=>l.id===imp);
                   const color = getHeatColor(impLvl, probLvl);
                   const inCell = heatData.filter(r => r.impLvl.id===imp && r.probLvl.id===prob);
-                  return html`
-                    <div key=${prob+imp} style=${{ background:color+'20', border:'1.5px solid '+color+'30', borderRadius:10, padding:10, minHeight:90, display:'flex', flexWrap:'wrap', gap:5, alignContent:'flex-start' }}>
-                      ${inCell.map((r,i) => {
-                        const rn = risks.indexOf(r)+1;
-                        return html`
-                          <div key=${r.id} style=${{ position:'relative' }}
-                            onMouseEnter=${e=>{ const t=e.currentTarget.querySelector('.rtip'); if(t) t.style.display='block'; }}
-                            onMouseLeave=${e=>{ const t=e.currentTarget.querySelector('.rtip'); if(t) t.style.display='none'; }}>
-                            <div style=${{ width:32, height:32, borderRadius:16, background:color, color:'#FFF', fontSize:10, fontWeight:800,
-                              display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #FFF',
-                              boxShadow:'0 2px 6px '+color+'40', cursor:'pointer' }}>R${rn}</div>
-                            <div class="rtip" style=${{ display:'none', position:'absolute', bottom:36, left:'50%', transform:'translateX(-50%)',
-                              background:'#1D1D1F', color:'#FFF', borderRadius:10, padding:'8px 10px', fontSize:11,
-                              zIndex:9999, width:180, boxShadow:'0 4px 16px rgba(0,0,0,.25)', pointerEvents:'none', lineHeight:1.4 }}>
-                              <div style=${{ fontWeight:700, marginBottom:3, color:color }}>R${rn}</div>
-                              <div style=${{ marginBottom:4 }}>${r.text}</div>
-                              ${r.owner && html`<div style=${{ fontSize:10, color:'#86868B' }}>👤 ${r.owner}</div>`}
-                              ${r.mitigation && html`<div style=${{ fontSize:10, color:'#86868B' }}>🛡️ ${r.mitigation}</div>`}
-                              <div style=${{ position:'absolute', bottom:-5, left:'50%', transform:'translateX(-50%)',
-                                width:0, height:0, borderLeft:'5px solid transparent', borderRight:'5px solid transparent', borderTop:'5px solid #1D1D1F' }}></div>
-                            </div>
-                          </div>`;
-                      })}
-                    </div>`;
+                  return html`<div key=${prob+imp} style=${{ background:color+'20', border:'1px solid '+color+'25', borderRadius:6, padding:4, minHeight:42, display:'flex', flexWrap:'wrap', gap:3, alignContent:'flex-start' }}>
+                    ${inCell.map(r => {
+                      const rn = openRisks.indexOf(r)+1;
+                      const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+                      return html`<div key=${r.id} title=${r.text} onClick=${()=>setDetailRisk({...r})}
+                        style=${{ width:24, height:24, borderRadius:12, background:color, color:'#FFF', fontSize:8, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'1.5px solid #FFF' }}>${pf}${rn}</div>`;
+                    })}
+                  </div>`;
                 })
               )}
             </div>
-            <div style=${{ display:'flex', justifyContent:'space-between', marginTop:8, fontSize:11, color:'#86868B', fontWeight:600, paddingLeft:0 }}>
+            <div style=${{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:9, color:'#86868B', fontWeight:600 }}>
               <span>Bajo</span><span>Medio</span><span>Alto</span>
             </div>
-            <div style=${{ position:'absolute', left:8, top:0, bottom:28, display:'flex', flexDirection:'column', justifyContent:'space-between', fontSize:11, color:'#86868B', fontWeight:600 }}>
-              <span>Alta</span><span>Media</span><span>Baja</span>
+            <div style=${{ position:'absolute', left:0, top:0, bottom:20, display:'flex', flexDirection:'column', justifyContent:'space-between', fontSize:9, color:'#86868B', fontWeight:600 }}>
+              <span>A</span><span>M</span><span>B</span>
             </div>
-            <div style=${{ textAlign:'center', fontSize:11, color:'#86868B', marginTop:4, fontWeight:600 }}>IMPACTO →</div>
-            <div style=${{ position:'absolute', left:-8, top:'40%', transform:'rotate(-90deg)', fontSize:11, color:'#86868B', fontWeight:600 }}>PROB. →</div>
+            <div style=${{ textAlign:'center', fontSize:9, color:'#86868B', marginTop:2, fontWeight:600 }}>IMPACTO</div>
           </div>
-
-          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-            ${heatData.length === 0 ? html`<p style=${{ fontSize:13, color:'#C7C7CC', padding:'20px 0' }}>No hay riesgos abiertos</p>` :
-              heatData.map((r, i) => {
-                const hc = getHeatColor(r.impLvl, r.probLvl);
-                return html`
-                  <div key=${r.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:8, background:'#F9F9FB', borderLeft:'3px solid '+hc }}>
-                    <span style=${{ fontSize:12, fontWeight:800, color:hc, minWidth:28 }}>R${risks.indexOf(r)+1}</span>
-                    <span style=${{ fontSize:12, flex:1 }}>${r.text}</span>
-                    <span style=${{ fontSize:9, padding:'2px 6px', borderRadius:4, background:hc+'15', color:hc, fontWeight:700 }}>${r.impLvl.label} × ${r.probLvl.label}</span>
-                  </div>`;
-              })
-            }
+        </div>
+        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:12 }}>
+          <div style=${{ display:'flex', flexDirection:'column', gap:4, fontSize:10, color:'#6E6E73' }}>
+            ${[{c:'#FF3B30',l:'Critico'},{c:'#FF9500',l:'Moderado'},{c:'#34C759',l:'Bajo'}].map(x=>html`
+              <div key=${x.l} style=${{ display:'flex', alignItems:'center', gap:6 }}><div style=${{ width:10, height:10, borderRadius:5, background:x.c }}></div> ${x.l}</div>`)}
           </div>
         </div>
       </div>
 
-      <div style=${{ display:'grid', gridTemplateColumns:'1fr 320px', gap:14, marginBottom:14 }}>
-        <div style=${{ ...cS, padding:'18px' }}>
-          <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-            <h3 style=${{ fontSize:14, fontWeight:700 }}>📋 Registro de riesgos (${openRisks.length} abiertos)</h3>
-            <div style=${{ display:'flex', gap:4 }}>
-              ${[{id:'all',label:'Todos'},{id:'mine',label:'👤 Mis riesgos'}].map(f => html`
-                <button key=${f.id} onClick=${()=>setRiskFilter(f.id)} style=${{ padding:'4px 10px', borderRadius:7, border:riskFilter===f.id?'none':'1px solid #E5E5EA', background:riskFilter===f.id?'#1D1D1F':'#FFF', color:riskFilter===f.id?'#FFF':'#6E6E73', fontSize:10, fontWeight:600 }}>${f.label}</button>
-              `)}
-            </div>
-          </div>
-
-          <div style=${{ display:'flex', gap:5, marginBottom:14, flexWrap:'wrap' }}>
-            <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Descripción del riesgo..." style=${{ ...iS, flex:2, minWidth:140, fontSize:13 }} />
-            <input value=${form.mitigation} onInput=${e=>setForm({...form,mitigation:e.target.value})} placeholder="Mitigación" style=${{ ...iS, flex:1, minWidth:100, fontSize:13 }} />
-            <select value=${form.owner} onChange=${e=>setForm({...form,owner:e.target.value})} style=${{ ...iS, width:120, flex:'none', fontSize:12 }}>
-              <option value="">— Owner —</option>
-              ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-            </select>
-            <button onClick=${()=>addRisk(null)} style=${bP}>+ Riesgo</button>
-          </div>
-
-          <div style=${{ display:'flex', flexDirection:'column', gap:6, maxHeight:400, overflowY:'auto' }}>
-            ${openRisks.map((r, idx) => {
-              const imp = getRiskLevel(r.impactVotes);
-              const prob = getRiskLevel(r.probVotes);
-              const hc = getHeatColor(imp, prob);
-              const st = RISK_STATUS.find(s=>s.id===r.status) || RISK_STATUS[0];
-
-              if (eId===r.id) return html`
-                <div key=${r.id} style=${{ padding:'12px', borderRadius:12, background:'#F9F9FB', border:'2px solid #007AFF30', animation:'fadeIn .2s' }}>
-                  <div style=${{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:6 }}>
-                    <input autofocus value=${eF.text} onInput=${e=>setEF({...eF,text:e.target.value})} style=${{ ...iS, flex:2, minWidth:140, fontSize:12 }} />
-                    <input value=${eF.mitigation} onInput=${e=>setEF({...eF,mitigation:e.target.value})} placeholder="Mitigación" style=${{ ...iS, flex:1, minWidth:100, fontSize:12 }} />
-                    <select value=${eF.owner||''} onChange=${e=>setEF({...eF,owner:e.target.value})} style=${{ ...iS, width:120, flex:'none', fontSize:12 }}>
-                      <option value="">— Owner —</option>
-                      ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-                    </select>
+      <div data-col="register" style=${{ display:'flex', flexDirection:'column', gap:8 }}>
+        <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <h3 style=${{ fontSize:14, fontWeight:700, margin:0 }}>Registro (${openRisks.length})</h3>
+          <button onClick=${()=>setShowNewRisk(true)}
+            style=${{ padding:'7px 14px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:12, fontWeight:600, cursor:'pointer' }}>+ Nuevo</button>
+        </div>
+        <div style=${{ display:'flex', flexDirection:'column', gap:6, overflowY:'auto', flex:1 }}>
+          ${openRisks.length===0 && html`<div style=${{ textAlign:'center', padding:24, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:12, fontSize:12 }}>Sin riesgos. Crea uno o convierte una nota.</div>`}
+          ${openRisks.map((r, idx) => {
+            const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+            const hc = (r.type||'riesgo')==='problema'?'#FF3B30':heatColor(r.impact||'medio', r.prob||'media');
+            return html`
+              <div key=${r.id} onClick=${()=>setDetailRisk({...r})}
+                style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+hc, padding:'10px 12px', cursor:'pointer' }}>
+                <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                  <span style=${{ fontSize:12, fontWeight:800, color:hc }}>${pf}${idx+1}</span>
+                  <p style=${{ fontSize:12, fontWeight:600, margin:0, flex:1, lineHeight:1.3 }}>${r.text}</p>
+                  ${r.owner && html`<span style=${{ fontSize:10, color:'#007AFF', fontWeight:600, flexShrink:0 }}>${r.owner}</span>`}
+                </div>
+                <div style=${{ display:'flex', gap:6, alignItems:'center' }}>
+                  <div style=${{ display:'flex', alignItems:'center', gap:3 }}>
+                    <span style=${{ fontSize:9, color:'#86868B' }}>Imp:</span>
+                    ${IMPACT_BTNS.map(l => html`<button key=${l.id} onClick=${e=>{e.stopPropagation();upd(r.id,{impact:l.id})}}
+                      style=${{ padding:'1px 5px', borderRadius:4, border:(r.impact||'medio')===l.id?'1.5px solid '+l.color:'1px solid #E5E5EA', background:(r.impact||'medio')===l.id?l.color+'15':'#FFF', fontSize:8, fontWeight:700, color:l.color, cursor:'pointer' }}>${l.label}</button>`)}
                   </div>
-                  <div style=${{ display:'flex', gap:5 }}><button onClick=${saveEdit} style=${{ ...bP, padding:'6px 14px', fontSize:11 }}>Guardar</button><button onClick=${()=>setEId(null)} style=${{ ...bS, padding:'6px 12px', fontSize:11 }}>Cancelar</button></div>
-                </div>`;
+                  ${(r.type||'riesgo')!=='problema' && html`<div style=${{ display:'flex', alignItems:'center', gap:3 }}>
+                    <span style=${{ fontSize:9, color:'#86868B' }}>Prob:</span>
+                    ${PROB_BTNS.map(l => html`<button key=${l.id} onClick=${e=>{e.stopPropagation();upd(r.id,{prob:l.id})}}
+                      style=${{ padding:'1px 5px', borderRadius:4, border:(r.prob||'media')===l.id?'1.5px solid '+l.color:'1px solid #E5E5EA', background:(r.prob||'media')===l.id?l.color+'15':'#FFF', fontSize:8, fontWeight:700, color:l.color, cursor:'pointer' }}>${l.label}</button>`)}
+                  </div>`}
+                </div>
+              </div>`;
+          })}
+        </div>
+      </div>
 
-              return html`
-                <div key=${r.id} style=${{ padding:'10px 12px', borderRadius:12, background:'#FFF', border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+hc }}>
-                  <div style=${{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:6 }}>
-                    <span style=${{ fontSize:12, fontWeight:800, color:hc, minWidth:28 }}>R${idx+1}</span>
-                    <div style=${{ flex:1 }}>
-                      <p style=${{ fontSize:12, fontWeight:600, margin:'0 0 3px' }}>${r.text}</p>
-                      ${r.mitigation && html`<p style=${{ fontSize:11, color:'#86868B', margin:0 }}>🛡️ ${r.mitigation}</p>`}
-                    </div>
-                    <select value=${r.owner||''} onChange=${e=>sR(risks.map(x=>x.id===r.id?{...x,owner:e.target.value}:x))}
-                      style=${{ border:'1px solid #E5E5EA', borderRadius:7, padding:'3px 7px', fontSize:11, fontWeight:600, color:'#007AFF', background:'transparent', fontFamily:'inherit', outline:'none', cursor:'pointer', maxWidth:110 }}>
-                      <option value="">— Owner —</option>
-                      ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
-                    </select>
-                  </div>
-
-                  <div style=${{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
-                    <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                      <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:50 }}>Impacto:</span>
-                      ${RISK_LEVELS.map(l => {
-                        const myVote = r.impactVotes?.[user.id];
-                        const count = Object.values(r.impactVotes||{}).filter(v=>v===l.id).length;
-                        return html`<button key=${l.id} onClick=${()=>voteImpact(r.id,l.id)} style=${{ padding:'2px 7px', borderRadius:5, border:myVote===l.id?'2px solid '+l.color:'1px solid #E5E5EA', background:myVote===l.id?l.color+'15':'#FFF', fontSize:9, fontWeight:700, color:l.color }}>${l.label}${count>0?' '+count:''}</button>`;
-                      })}
-                    </div>
-                    <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                      <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:35 }}>Prob:</span>
-                      ${RISK_LEVELS.map(l => {
-                        const myVote = r.probVotes?.[user.id];
-                        const count = Object.values(r.probVotes||{}).filter(v=>v===l.id).length;
-                        return html`<button key=${l.id} onClick=${()=>voteProb(r.id,l.id)} style=${{ padding:'2px 7px', borderRadius:5, border:myVote===l.id?'2px solid '+l.color:'1px solid #E5E5EA', background:myVote===l.id?l.color+'15':'#FFF', fontSize:9, fontWeight:700, color:l.color }}>${l.label}${count>0?' '+count:''}</button>`;
-                      })}
-                    </div>
-                    <div style=${{ display:'flex', gap:3, marginLeft:'auto' }}>
-                      <select value=${r.status} onChange=${e=>updateStatus(r.id,e.target.value)} style=${{ padding:'3px 6px', borderRadius:5, border:'1px solid '+st.color+'30', background:st.color+'10', color:st.color, fontSize:9, fontWeight:600, outline:'none' }}>
-                        ${RISK_STATUS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
-                      </select>
-                      <button onClick=${()=>{setEId(r.id);setEF({text:r.text,mitigation:r.mitigation,owner:r.owner})}} style=${{ border:'none', background:'none', fontSize:12, color:'#86868B', cursor:'pointer' }}>✏️</button>
-                      <button onClick=${(e)=>{e.stopPropagation();window.__confirm({icon:'⚠️',title:'Eliminar riesgo',message:html`¿Eliminar este riesgo de la retro?`,onConfirm:()=>delRisk(r.id)})}}
-                style=${{ border:'none', background:'none', fontSize:12, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
-                    </div>
-                  </div>
-                </div>`;
-            })}
-          </div>
-          ${mitigatedRisks.length > 0 && html`
-            <div style=${{ marginTop:14 }}>
-              <h4 style=${{ fontSize:12, fontWeight:700, color:'#34C759', marginBottom:8 }}>✅ Mitigados (${mitigatedRisks.length})</h4>
-              <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
-                ${mitigatedRisks.map((r, i) => html`
-                  <div key=${r.id} style=${{ padding:'8px 10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920', fontSize:11, display:'flex', alignItems:'center', gap:8 }}>
-                    <span style=${{ color:'#34C759', fontWeight:700, minWidth:24 }}>R${risks.indexOf(r)+1}</span>
-                    <span style=${{ flex:1, color:'#86868B', textDecoration:'line-through' }}>${r.text}</span>
-                    ${r.mitigation && html`<span style=${{ fontSize:10, color:'#86868B' }}>🛡️ ${r.mitigation}</span>`}
-                    <button onClick=${()=>updateStatus(r.id,'open')} style=${{ border:'none', background:'#FF950015', color:'#FF9500', fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:5, cursor:'pointer' }} title="Reabrir">↩ Reabrir</button>
-                  </div>
-                `)}
+      <div data-col="notes" style=${{ display:'flex', flexDirection:'column', gap:6 }}>
+        <h4 style=${{ fontSize:13, fontWeight:700, margin:0 }}>Notas de la retro</h4>
+        <p style=${{ fontSize:10, color:'#86868B' }}>Clic para convertir en riesgo</p>
+        <div style=${{ display:'flex', flexDirection:'column', gap:4, overflowY:'auto', flex:1 }}>
+          ${allNotes.length===0 && html`<p style=${{ fontSize:11, color:'#C7C7CC', textAlign:'center', padding:16 }}>Sin notas</p>`}
+          ${allNotes.map(n => {
+            const ct = CATS.find(c=>c.id===n.category);
+            const linked = risks.some(r => r.fromNote === n.id);
+            return html`<button key=${n.id} onClick=${()=>addFromNote(n)}
+              style=${{ padding:'7px 9px', borderRadius:8, background:linked?'#1D1D1F':ct?.bg||'#F9F9FB', border:'1px solid '+(linked?'#333':ct?.color+'18'||'#E5E5EA'), textAlign:'left', cursor:'pointer' }}>
+              <p style=${{ fontSize:10, color:linked?'#EEE':'#1D1D1F', lineHeight:1.3, margin:'0 0 3px' }}>${n.text}</p>
+              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style=${{ fontSize:9 }}>${ct?.emoji||''}</span>
+                <span style=${{ fontSize:9, color:linked?'#888':'#86868B' }}>${n.userName}</span>
+                <span style=${{ fontSize:9, color:linked?'#888':'#86868B', marginLeft:'auto' }}>👍 ${n.voters?.length||0}</span>
+                ${linked && html`<span style=${{ fontSize:8, color:'#34C759', fontWeight:700 }}>✓</span>`}
               </div>
-            </div>
-          `}
-        </div>
-
-        <div style=${{ ...cS, padding:'18px' }}>
-          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>🔥 Notas Bad / Stop / Start</h4>
-          <p style=${{ fontSize:10, color:'#86868B', marginBottom:10 }}>Clic para convertir en riesgo</p>
-          <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-            ${badStopNotes.length === 0 ? html`<p style=${{ fontSize:11, color:'#C7C7CC' }}>No hay notas Bad/Stop</p>` :
-              badStopNotes.slice(0,12).map(n => {
-                const ct = CATS.find(c=>c.id===n.category);
-                const linked = risks.some(r => r.fromNote === n.id);
-                return html`<button key=${n.id} onClick=${()=>toggleFromNote(n)} style=${{ padding:'8px 10px', borderRadius:9, background:linked?'#1D1D1F':ct.bg, border:'1px solid '+(linked?'#1D1D1F':ct.color+'18'), textAlign:'left', transition:'all .2s' }}>
-                  <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:2 }}><span style=${{ fontSize:10 }}>${ct.emoji}</span><span style=${{ fontSize:10, fontWeight:700, color:linked?'#FFF':ct.color }}>👍 ${n.voters?.length||0}</span>${linked&&html`<span style=${{ fontSize:8, color:'#34C759', fontWeight:700 }}>✓ Riesgo</span>`}</div>
-                  <p style=${{ fontSize:10, color:linked?'#CCC':'#1D1D1F', lineHeight:1.3, margin:0 }}>${n.text}</p>
-                </button>`;
-              })
-            }
-          </div>
+            </button>`;
+          })}
         </div>
       </div>
-    </div>
-  `;
+
+      ${detailRisk && html`<${RiskDetailModal}
+        risk=${detailRisk} teamMembers=${teamMembers}
+        onSave=${(updated) => { sR(risks.map(r=>r.id===updated.id?{...r,...updated}:r)); setDetailRisk(null); }}
+        onDelete=${(id) => { sR(risks.filter(r=>r.id!==id)); setDetailRisk(null); }}
+        onClose=${()=>setDetailRisk(null)} onGoToTask=${()=>{}} />`}
+
+      ${showNewRisk && html`
+        <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+          <div onClick=${()=>setShowNewRisk(false)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+          <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:420,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24,animation:'fadeIn .15s ease'}}>
+            <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>Nuevo registro</h3>
+            <div style=${{display:'flex',gap:6,marginBottom:14}}>
+              ${[{id:'riesgo',icon:'\u26A0\uFE0F',c:'#FF9500'},{id:'problema',icon:'\uD83D\uDD34',c:'#FF3B30'},{id:'oportunidad',icon:'\uD83C\uDF1F',c:'#34C759'}].map(t=>html`
+                <button key=${t.id} onClick=${()=>setNewType(t.id)}
+                  style=${{flex:1,padding:'10px 8px',borderRadius:10,border:newType===t.id?'2px solid '+t.c:'1.5px solid #E5E5EA',background:newType===t.id?t.c+'12':'#FFF',cursor:'pointer',textAlign:'center'}}>
+                  <div style=${{fontSize:20,marginBottom:4}}>${t.icon}</div>
+                  <div style=${{fontSize:11,fontWeight:600,color:newType===t.id?t.c:'#6E6E73'}}>${t.id.charAt(0).toUpperCase()+t.id.slice(1)}</div>
+                </button>`)}
+            </div>
+            <input id="new-risk-text" placeholder="Descripcion..." style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none',marginBottom:12,boxSizing:'border-box'}} />
+            <div style=${{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button onClick=${()=>setShowNewRisk(false)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,color:'#6E6E73',cursor:'pointer'}}>Cancelar</button>
+              <button onClick=${()=>{ const el=document.getElementById('new-risk-text'); if(el?.value?.trim()){addRisk(el.value,newType);setShowNewRisk(false);} }}
+                style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Crear</button>
+            </div>
+          </div>
+        </div>`}
+
+    </div>`;
 }
 
-/* ═══ PHASE 6: DASHBOARD + PDF ═══ */
 function P6({ notes, actions, risks, users, user, obj, tasks, phaseTimes }) {
   const [activeTab, setActiveTab] = useState('resumen');
 
