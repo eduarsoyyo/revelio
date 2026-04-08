@@ -4772,15 +4772,7 @@ function PTrabajo({ actions, sA, risks, user }) {
                 style=${{ border:'none', background:'#FF9500', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5 }}>↻ Reanudar</button>`}
               ${a.status!=='done'&&a.status!=='cancelled'&&html`<button onClick=${(e)=>{e.stopPropagation();upSt(a.id,'done')}} title="Completar"
                 style=${{ border:'none', background:'#34C759', color:'#FFF', fontSize:9, fontWeight:700, cursor:'pointer', padding:'3px 7px', borderRadius:5 }}>✓</button>`}
-
-              <button onClick=${(e)=>{e.stopPropagation();window.__confirm({title:'Eliminar tarea',message:'¿Eliminar esta tarea?',onConfirm:()=>delA(a.id)})}}
-                style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer', padding:'2px' }}>✕</button>
             </div>
-            ${!compact && a.status!=='done' && a.status!=='cancelled' && html`
-              <select value=${a.status} onChange=${e=>upSt(a.id,e.target.value)}
-                style=${{ fontSize:9, padding:'2px 4px', borderRadius:4, border:'1px solid #E5E5EA', outline:'none', background:'#FAFAFA', color:'#86868B', cursor:'pointer', marginTop:2 }}>
-                ${[{id:'backlog',label:'Backlog'},...KAN_COLS].map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
-              </select>`}
           </div>
         </div>
       </div>`;
@@ -4980,9 +4972,7 @@ function PTrabajo({ actions, sA, risks, user }) {
                       </select>
                     </td>
                     <td style=${{ padding:'8px 10px', fontSize:10, color:overdue?'#FF3B30':'#86868B', fontWeight:overdue?700:400 }}>${a.date?fd(a.date):'—'}</td>
-                    <td style=${{ padding:'8px 10px' }}>
-                      <button onClick=${()=>delA(a.id)} style=${{ border:'none', background:'none', color:'#E5E5EA', fontSize:13, cursor:'pointer' }}>✕</button>
-                    </td>
+
                   </tr>`;
               })}
             </tbody>
@@ -5225,10 +5215,7 @@ function PAccionables({ actions, sA, risks, user }) {
                                 <span style=${{ fontSize:11 }}>${pr.icon}</span>
                                 ${overdue&&html`<span style=${{ fontSize:8, color:'#FF3B30', fontWeight:700, background:'#FF3B3010', padding:'1px 4px', borderRadius:3 }}>VENCIDO</span>`}
                                 <div style=${{ flex:1 }}/>
-                                <button onClick=${()=>{setEId(a.id);setEF({text:a.text,owner:a.owner||'',date:a.date||'',priority:a.priority})}}
-                                  style=${{ border:'none', background:'none', fontSize:11, color:'#C7C7CC', cursor:'pointer', padding:'1px' }}>✏️</button>
-                                <button onClick=${()=>delA(a.id)}
-                                  style=${{ border:'none', background:'none', fontSize:11, color:'#E5E5EA', cursor:'pointer', padding:'1px' }}>✕</button>
+
                               </div>
                               <p style=${{ fontSize:12, fontWeight:600, lineHeight:1.3, marginBottom:5 }}>${a.text}</p>
                               <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:4 }}>
@@ -5324,9 +5311,6 @@ function PAccionables({ actions, sA, risks, user }) {
                       style=${{ padding:'4px 8px', borderRadius:7, border:'1px solid '+colInfo.color+'30', background:colInfo.bg, color:colInfo.color, fontSize:11, fontWeight:700, outline:'none' }}>
                       ${KAN_COLS.map(c=>html`<option key=${c.id} value=${c.id}>${c.label}</option>`)}
                     </select>
-                    <button onClick=${()=>{setEId(a.id);setEF({text:a.text,owner:a.owner||'',date:a.date||'',priority:a.priority})}}
-                      style=${{ border:'none', background:'none', fontSize:14, color:'#86868B', cursor:'pointer' }}>✏️</button>
-                    <button onClick=${()=>delA(a.id)} style=${{ border:'none', background:'none', fontSize:14, color:'#C7C7CC', cursor:'pointer' }}>✕</button>
                   </div>`;
               })}
             </div>`}
