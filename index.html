@@ -253,11 +253,11 @@ const PRIS = [
   { id:'critical', label:'Crítica', icon:'▲▲', color:'#8B0000' },
 ];
 const ITEM_TYPES = [
-  { id:'tarea',        label:'Tarea',         icon:'☐',  color:'#007AFF', lucide:'CheckSquare' },
-  { id:'historia',     label:'Historia',      icon:'📖', color:'#5856D6', lucide:'BookOpen' },
-  { id:'bug',          label:'Bug / Incidencia', icon:'🐛', color:'#FF3B30', lucide:'Bug' },
-  { id:'mejora',       label:'Mejora',        icon:'✨', color:'#34C759', lucide:'Sparkles' },
-  { id:'accion_retro', label:'Acción de retro', icon:'🔄', color:'#FF9500', lucide:'RotateCcw' },
+  { id:'tarea',        label:'Tarea',            icon:'■', color:'#007AFF', lucide:'CheckSquare' },
+  { id:'historia',     label:'Historia',         icon:'■', color:'#34C759', lucide:'BookOpen' },
+  { id:'bug',          label:'Bug / Incidencia', icon:'●', color:'#FF3B30', lucide:'Bug' },
+  { id:'mejora',       label:'Mejora',           icon:'▲', color:'#AF52DE', lucide:'Sparkles' },
+  { id:'accion_retro', label:'Acción de retro',  icon:'◆', color:'#FF9500', lucide:'RotateCcw' },
 ];
 const ITEM_TYPE_MAP = Object.fromEntries(ITEM_TYPES.map(t=>[t.id,t]));
 const DEMAND_ORIGINS = [
@@ -1363,7 +1363,57 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
 
 
 
-          </div>`}
+          
+
+            <!-- ═══ MI TRABAJO HOY ═══ -->
+            ${pendingAct.length>0 && html`
+              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px 20px',marginTop:14}}>
+                <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                  <h2 style=${{fontSize:15,fontWeight:700,color:'#1D1D1F',margin:0}}>Mi trabajo</h2>
+                  <div style=${{display:'flex',gap:4}}>
+                    ${[
+                      {id:'hoy',label:'Hoy',count:overdueAct.length},
+                      {id:'semana',label:'Semana',count:thisWeekAct.length},
+                      {id:'todo',label:'Todas',count:pendingAct.length},
+                    ].map(t=>html`
+                      <button key=${t.id} onClick=${()=>setMiTrabajoTab(t.id)}
+                        style=${{padding:'4px 10px',borderRadius:16,border:'none',fontSize:11,fontWeight:miTrabajoTab===t.id?700:500,cursor:'pointer',
+                          background:miTrabajoTab===t.id?'#1D1D1F':'#F2F2F7',color:miTrabajoTab===t.id?'#FFF':'#6E6E73'}}>
+                        ${t.label}${t.count>0?' '+t.count:''}
+                      </button>`)}
+                  </div>
+                </div>
+                <div style=${{maxHeight:300,overflowY:'auto'}}>
+                  ${(()=>{
+                    const items = miTrabajoTab==='hoy' ? overdueAct
+                      : miTrabajoTab==='semana' ? thisWeekAct
+                      : pendingAct;
+                    if(items.length===0) return html`<div style=${{padding:'20px',textAlign:'center',color:'#86868B',fontSize:12}}>
+                      ${miTrabajoTab==='hoy'?'Nada urgente para hoy':'Sin tareas en este periodo'}
+                    </div>`;
+                    // Group by project
+                    const byProj={};
+                    items.forEach(a=>{const p=a._room||'Sin proyecto';if(!byProj[p])byProj[p]=[];byProj[p].push(a);});
+                    return Object.entries(byProj).map(([proj,acts])=>html`
+                      <div key=${proj} style=${{marginBottom:8}}>
+                        <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.3,padding:'4px 0'}}>${proj}</div>
+                        ${acts.map(a=>{
+                          const tp=ITEM_TYPE_MAP[a.type||'tarea']||ITEM_TYPES[0];
+                          const ov=a.date&&a.date<today;
+                          return html`<div key=${a.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#F9F9FB',marginBottom:4,borderLeft:'3px solid '+(ov?'#FF3B30':tp.color)}}>
+                            <span style=${{color:tp.color,fontSize:11,fontWeight:800}}>${tp.icon}</span>
+                            <div style=${{flex:1,minWidth:0}}>
+                              <div style=${{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
+                              <div style=${{fontSize:10,color:'#86868B'}}>${a.owner||''}${a.date?' · '+fd(a.date):''}</div>
+                            </div>
+                            ${ov&&html`<span style=${{fontSize:8,fontWeight:700,color:'#FF3B30',background:'#FF3B3010',padding:'2px 5px',borderRadius:4,flexShrink:0}}>VENCIDA</span>`}
+                          </div>`;
+                        })}
+                      </div>`);
+                  })()}
+                </div>
+              </div>`}
+</div>`}
 
           ${section==='proyectos'&&html`<div>
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Mis proyectos</h1>
@@ -1532,7 +1582,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                           <div style=${{fontSize:9,color:'#86868B'}}>Riesgos</div>
                         </div>
                         <div style=${{flex:1,padding:'8px',borderRadius:10,background:'#F9F9FB',textAlign:'center'}}>
-                          <div style=${{fontSize:18,fontWeight:800,color:vacPct>80?'#FF3B30':vacPct>50?'#FF9500':'#34C759'}}>${vacPct}%</div>
+                          <div style=${{fontSize:18,fontWeight:800,color:vacPct>80?'#34C759':vacPct>50?'#FF9500':'#FF3B30'}}>${vacPct}%</div>
                           <div style=${{fontSize:9,color:'#86868B'}}>Vacaciones</div>
                         </div>
                       </div>
@@ -3198,7 +3248,7 @@ function RoomPicker() {
                   })()}
                 </div>`}
             </div>
-            <a href="/" style=${{ width:36, height:36, borderRadius:10, border:'1px solid #E5E5EA', background:'#FFF', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:15, textDecoration:'none' }} title="Ir al inicio">🏠</a>
+            <a href="/" style=${{ width:36, height:36, borderRadius:10, border:'1px solid #E5E5EA', background:'#FFF', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:15, textDecoration:'none' }} title="Ir al inicio">⌂</a>
             <button onClick=${handleSignOut} style=${{ padding:'6px 14px', borderRadius:9, border:'1.5px solid #E5E5EA', background:'#FFF', color:'#86868B', fontSize:11, fontWeight:600, cursor:'pointer' }}>Cerrar sesión</button>
           </div>
         </div>
@@ -4720,7 +4770,14 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
             <!-- Description -->
             <div>
               ${fieldLabel('Descripción')}
-              <${ChecklistEditor} value=${f.description||''} onChange=${v=>setF({...f,description:v})} />
+              <textarea value=${f.description||''} onInput=${e=>setF({...f,description:e.target.value})}
+                placeholder="Describe la tarea en detalle…"
+                style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none',resize:'vertical',minHeight:80,boxSizing:'border-box'}} />
+            </div>
+            <!-- Checklist (separate field) -->
+            <div>
+              ${fieldLabel('Checklist')}
+              <${ChecklistEditor} value=${f.checklist||''} onChange=${v=>setF({...f,checklist:v})} />
             </div>
             <!-- Tags -->
             <div>
