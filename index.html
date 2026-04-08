@@ -6522,7 +6522,7 @@ const addItem = () => {
 
       <!-- RESUMEN tab: KPIs + heat map -->
       ${subTab==='resumen' && html`
-        <div>
+        <div style=${{display:'flex',flexDirection:'column',gap:0}}>
           <!-- KPI row -->
           <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:18 }}>
             ${[
