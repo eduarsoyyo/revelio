@@ -838,7 +838,7 @@ function HomeVacaciones({ profile, user }) {
   const infoFor = (e) => e ? (ABSENCE_TYPES.find(t=>t.id===e.type)||ABSENCE_TYPES[0]) : null;
 
   return html`<div style=${{display:'flex',flexDirection:'column',gap:14}}>
-    <!-- Counters -->
+
     <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
       ${[[annualDays,'Días/año','#1D1D1F'],[prevPend,'Año anterior','#5856D6'],[totalVac,'Total disp.','#007AFF'],[remainVac,'Restantes',remainVac<=5?'#FF3B30':remainVac<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
         <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px 12px',textAlign:'center'}}>
@@ -846,7 +846,7 @@ function HomeVacaciones({ profile, user }) {
           <div style=${{fontSize:10,color:'#86868B',marginTop:4}}>${l}</div>
         </div>`)}
     </div>
-    <!-- Progress bar -->
+
     <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px 16px'}}>
       <div style=${{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:6}}>
         <span style=${{color:'#86868B'}}>${vacUsed} días consumidos de ${totalVac}</span>
@@ -856,7 +856,7 @@ function HomeVacaciones({ profile, user }) {
         <div style=${{width:vacPct+'%',height:'100%',borderRadius:6,transition:'width .5s',background:vacPct>80?'linear-gradient(90deg,#FF9500,#FF3B30)':vacPct>60?'linear-gradient(90deg,#FF9500,#FF6B00)':'linear-gradient(90deg,#34C759,#00C7BE)'}}></div>
       </div>
     </div>
-    <!-- Calendar -->
+
     <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px'}}>
       <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
         <h4 style=${{fontSize:13,fontWeight:700}}>Calendario ${viewYear}</h4>
@@ -894,7 +894,7 @@ function HomeVacaciones({ profile, user }) {
           </div>`;
         })}
       </div>
-      <!-- Legend: only used types -->
+
       ${legendItems.length>0&&html`
         <div style=${{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
           ${legendItems.map(t=>html`
@@ -904,10 +904,10 @@ function HomeVacaciones({ profile, user }) {
             </span>`)}
         </div>`}
     </div>
-    <!-- Register form -->
+
     <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px'}}>
       <h4 style=${{fontSize:13,fontWeight:700,marginBottom:12}}>Registrar ausencia</h4>
-      <!-- Row 1: Tipo + Nombre/referencia -->
+
       <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
         <div>
           <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>Tipo</label>
@@ -923,7 +923,7 @@ function HomeVacaciones({ profile, user }) {
             style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'9px 10px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB'}} />
         </div>
       </div>
-      <!-- Row 2: Desde + Hasta + (optional Motivo) -->
+
       <div style=${{display:'flex',gap:10,marginBottom:12,alignItems:'flex-end',flexWrap:'wrap'}}>
         <div style=${{flex:'1 1 130px'}}>
           <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>Desde</label>
@@ -951,7 +951,7 @@ function HomeVacaciones({ profile, user }) {
         ${saving?'Guardando…':'+ Registrar ausencia'}
       </button>
     </div>
-    <!-- List of absences this year -->
+
     ${vacs.filter(v=>new Date(v.from||'').getFullYear()===thisYear).length>0&&html`
       <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px'}}>
         <h4 style=${{fontSize:13,fontWeight:700,marginBottom:10}}>Ausencias ${thisYear}</h4>
@@ -1021,7 +1021,7 @@ function GobiernoPanel({ rooms, allData, myActions, myRisks }) {
   const completionRate = totalActions.length>0?Math.round((doneActions.length/totalActions.length)*100):0;
 
   return html`<div>
-    <!-- KPIs -->
+
     <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:18}}>
       ${[
         {l:'Tareas abiertas',v:openActions.length,c:'#007AFF',i:'CheckSquare'},
@@ -1037,7 +1037,7 @@ function GobiernoPanel({ rooms, allData, myActions, myRisks }) {
           <div style=${{fontSize:10,color:'#86868B',marginTop:4}}>${k.l}</div>
         </div>`)}
     </div>
-    <!-- Completion gauge -->
+
     <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'18px',marginBottom:14}}>
       <div style=${{display:'flex',justifyContent:'space-between',marginBottom:8}}>
         <span style=${{fontSize:13,fontWeight:700}}>Cumplimiento global</span>
@@ -1051,7 +1051,7 @@ function GobiernoPanel({ rooms, allData, myActions, myRisks }) {
         <span>${rooms.length} proyectos</span>
       </div>
     </div>
-    <!-- Per-project breakdown -->
+
     <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'18px'}}>
       <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Estado por proyecto</h3>
       ${rooms.map(r=>{
@@ -1218,7 +1218,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
 
   return html`
     <div style=${{minHeight:'100vh',background:'#F5F5F7',display:'flex',flexDirection:'column'}}>
-      <!-- Top bar -->
+
       <div style=${{background:'rgba(255,255,255,.9)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',borderBottom:'1px solid rgba(0,0,0,.06)',padding:'0 24px',display:'flex',alignItems:'center',justifyContent:'space-between',height:56,position:'sticky',top:0,zIndex:50}}>
         <span style=${{fontFamily:"'Comfortaa',sans-serif",fontSize:20,fontWeight:400,letterSpacing:2,background:'linear-gradient(90deg,#007AFF,#5856D6)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>revelio</span>
         <div style=${{display:'flex',alignItems:'center',gap:8}}>
@@ -1226,7 +1226,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             <a href="/?admin" style=${{display:'flex',alignItems:'center',gap:4,padding:'6px 12px',borderRadius:9,border:'1.5px solid #5856D630',background:'#5856D608',color:'#5856D6',fontSize:12,fontWeight:700,textDecoration:'none'}}>
               ← Centro de control
             </a>`}
-          <!-- Notification bell -->
+
           <div style=${{position:'relative'}}>
             <button onClick=${()=>setShowNotifs(v=>!v)}
               style=${{width:36,height:36,borderRadius:10,border:'1px solid #E5E5EA',background:'#FFF',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:15,position:'relative'}}>
@@ -1281,7 +1281,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
       </div>
 
       <div style=${{display:'flex',flex:1}}>
-        <!-- Sidebar -->
+
         <aside style=${{width:210,background:'#FFF',borderRight:'1px solid rgba(0,0,0,.06)',padding:'16px 10px',display:'flex',flexDirection:'column',gap:2,flexShrink:0,position:'sticky',top:56,height:'calc(100vh - 56px)'}}>
           ${NAV.map(n=>html`
             <button key=${n.id} onClick=${()=>setSection(n.id)}
@@ -1294,18 +1294,15 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             </button>`)}
         </aside>
 
-        <!-- Content -->
         <main style=${{flex:1,padding:'28px 24px',overflowY:'auto'}}>
 
           ${section==='dashboard'&&html`<div style=${{maxWidth:720}}>
 
-            <!-- Greeting -->
             <h1 style=${{fontSize:24,fontWeight:700,marginBottom:2,color:'#1D1D1F'}}>
               ${new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]}
             </h1>
             <p style=${{fontSize:13,color:'#86868B',marginBottom:20}}>${fd(new Date())} · ${myRooms.length} proyecto${myRooms.length!==1?'s':''}</p>
 
-            <!-- ═══ TODO AL DÍA ═══ -->
             ${!hasUrgent && thisWeekAct.length===0 && pendingAct.length===0 && html`
               <div style=${{background:'#F0FFF4',borderRadius:18,border:'1.5px solid #34C75920',padding:'40px 24px',textAlign:'center',marginBottom:16}}>
                 <div style=${{fontSize:36,marginBottom:10}}>✅</div>
@@ -1314,7 +1311,6 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                 <p style=${{fontSize:12,color:'#86868B',marginTop:8}}>Buen momento para revisar tu backlog o planificar la semana.</p>
               </div>`}
 
-            <!-- ═══ URGENTE ═══ -->
             ${hasUrgent && html`
               <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #FF3B3015',padding:'18px 20px',marginBottom:14}}>
                 <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
@@ -1344,7 +1340,6 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                 </div>
               </div>`}
 
-            <!-- ═══ ESTA SEMANA ═══ -->
             ${thisWeekAct.length>0 && html`
               <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px 20px',marginBottom:14}}>
                 <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
@@ -1365,7 +1360,6 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                 </div>
               </div>`}
 
-            <!-- ═══ TODO LO DEMÁS (colapsado) ═══ -->
             ${laterAct.length>0 && html`
               <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:showLater?'18px 20px':'14px 20px',marginBottom:14}}>
                 <button onClick=${()=>setShowLater(v=>!v)}
@@ -1390,7 +1384,6 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                   </div>`}
               </div>`}
 
-            <!-- ═══ MINI KPIs (compact, informative, not anxious) ═══ -->
             <div style=${{display:'flex',gap:10,marginBottom:14}}>
               ${[
                 {v:myRooms.length,    l:'Proyectos',   c:'#007AFF', i:'FolderOpen'},
@@ -1406,7 +1399,6 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                 </div>`)}
             </div>
 
-            <!-- Mi equipo hoy -->
             ${html`
               <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px 18px',marginBottom:14}}>
                 <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
@@ -1441,11 +1433,6 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                 })()}
               </div>`}
 
-
-
-          
-
-            <!-- ═══ MI TRABAJO HOY ═══ -->
             ${pendingAct.length>0 && html`
               <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px 20px',marginTop:14}}>
                 <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
@@ -1537,7 +1524,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
             <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Información personal, contacto y preferencias</p>
             ${!profileLoaded?html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`:html`
               <div style=${{display:'flex',flexDirection:'column',gap:14}}>
-                <!-- Profile card -->
+
                 <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'24px',display:'flex',flexDirection:'column',gap:12}}>
                   <div style=${{display:'flex',alignItems:'center',gap:14,paddingBottom:14,borderBottom:'1px solid #F2F2F7'}}>
                     <div style=${{width:60,height:60,borderRadius:16,background:editProfile?.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32}}>${editProfile?.avatar||'👤'}</div>
@@ -1560,7 +1547,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                           style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 12px',fontSize:13,fontFamily:'inherit',outline:'none',background:'#F9F9FB',boxSizing:'border-box'}}
  />
                       </div>`)}
-                    <!-- Rol select -->
+
                     <div>
                       <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3,fontWeight:700,textTransform:'uppercase',letterSpacing:.4}}>Rol</label>
                       <select value=${editProfile?.role_label||''} onChange=${e=>setEditProfile({...editProfile,role_label:e.target.value})}
@@ -1575,14 +1562,14 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
                     ${savingProfile?'Guardando…':'Guardar cambios'}
                   </button>
                 </div>
-                <!-- Vacaciones y ausencias (integrado en Mi perfil) -->
+
                 <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px'}}>
                   <h3 style=${{fontSize:15,fontWeight:700,marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
                     <${Icon} name="CalendarDays" size=${18} color="#5856D6" /> Vacaciones y ausencias
                   </h3>
                   <${HomeVacaciones} profile=${profile||{id:user.id,name:user.name,annual_vac_days:22,prev_year_pending:0,vacations:[]}} user=${user} />
                 </div>
-                <!-- Notification preferences -->
+
                 <div style=${{background:'#FFF',borderRadius:20,border:'1.5px solid #E5E5EA',padding:'20px'}}>
                   <h3 style=${{fontSize:13,fontWeight:700,marginBottom:3,color:'#86868B',textTransform:'uppercase',letterSpacing:.5}}>Preferencias de notificación</h3>
                   <p style=${{fontSize:11,color:'#C7C7CC',marginBottom:14}}>¿Cómo y cuándo quieres recibir avisos?</p>
@@ -1621,7 +1608,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
           ${section==='personas'&&isSM&&html`<div>
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Personas</h1>
             <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>Directorio, roles y carga de trabajo</p>
-            <!-- Person cards with KPIs -->
+
             ${(()=>{
               const members = window.__allMembers||[];
               if(members.length===0) return html`<p style=${{color:'#86868B',fontSize:13}}>Cargando equipo...</p>`;
@@ -1834,19 +1821,15 @@ function NeedLink({ onLogin, showLogin, onJoin, onCloseLogin }) {
   return html`
     <div style=${{ minHeight:'100vh', background:'linear-gradient(135deg,#0057FF 0%,#0099FF 50%,#00C6FF 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, textAlign:'center', position:'relative', overflow:'hidden' }}>
 
-      <!-- Orbs -->
       <div style=${{ position:'absolute', top:'-20%', right:'-15%', width:'50vw', height:'50vw', maxWidth:480, maxHeight:480, borderRadius:'50%', background:'radial-gradient(circle,rgba(255,255,255,.15),transparent 65%)', pointerEvents:'none' }} />
       <div style=${{ position:'absolute', bottom:'-15%', left:'-10%', width:'40vw', height:'40vw', maxWidth:400, maxHeight:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(0,30,120,.3),transparent 65%)', pointerEvents:'none' }} />
 
-      <!-- Logo -->
       <h1 style=${{ fontFamily:"'Comfortaa',sans-serif", fontSize:'clamp(52px,10vw,88px)', fontWeight:400, letterSpacing:6, color:'#FFF', margin:0, lineHeight:1, textShadow:'0 4px 32px rgba(0,0,0,.15)', zIndex:1 }}>revelio</h1>
 
-      <!-- Descripción -->
       <p style=${{ fontSize:'clamp(14px,1.8vw,17px)', color:'rgba(255,255,255,.8)', marginTop:20, marginBottom:48, maxWidth:520, lineHeight:1.7, zIndex:1 }}>
         Ningún proyecto debería moverse en las sombras.
       </p>
 
-      <!-- CTA card -->
       <div style=${{ zIndex:1 }}>
         <button onClick=${onLogin}
           style=${{ padding:'16px 48px', borderRadius:16, border:'none',
@@ -1858,7 +1841,6 @@ function NeedLink({ onLogin, showLogin, onJoin, onCloseLogin }) {
         </button>
       </div>
 
-      <!-- Login popup -->
       ${showLogin && html`
         <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
           onClick=${e=>{ if(e.target===e.currentTarget) onCloseLogin(); }}>
@@ -2268,12 +2250,11 @@ function CalForm({ cal, setCal, saving, onSave, onCancel }) {
           style=${{ ...iS, fontSize:14 }} />
       </div>
 
-      <!-- Year-view calendar picker -->
       <div>
         <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
           <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
             <label style=${{ fontSize:11, color:'#86868B', fontWeight:600 }}>📅 Festivos (${holidays.length})</label>
-            <!-- Year navigator -->
+
             <div style=${{ display:'flex', gap:4, alignItems:'center' }}>
               ${years.map(y=>html`
                 <button key=${y} onClick=${()=>setCalYear(y)}
@@ -2348,7 +2329,6 @@ function CalForm({ cal, setCal, saving, onSave, onCancel }) {
         </div>
       </div>
 
-      <!-- Holiday list (below calendar) -->
       ${holidays.length > 0 && html`
         <div style=${{ maxHeight:180, overflowY:'auto' }}>
           <div style=${{ display:'flex', flexDirection:'column', gap:3 }}>
@@ -2411,7 +2391,6 @@ function AdminConvenio() {
         </div>
       </div>
 
-      <!-- Global setter -->
       <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', marginBottom:16 }}>
         <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>⚙️ Aplicar días globalmente</h4>
         <p style=${{ fontSize:11, color:'#86868B', marginBottom:12 }}>Establece los días anuales para todos los empleados a la vez</p>
@@ -2428,7 +2407,6 @@ function AdminConvenio() {
         </div>
       </div>
 
-      <!-- Per-user table -->
       ${loading ? html`<div style=${{ textAlign:'center',padding:40,color:'#86868B' }}>⏳ Cargando…</div>` : html`
         <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', overflow:'hidden' }}>
           <table style=${{ width:'100%', borderCollapse:'collapse' }}>
@@ -2589,7 +2567,7 @@ function AdminEscaladoGlobal({ rooms }) {
 
   return html`
     <div>
-      <!-- Escalation time thresholds config -->
+
       <${EscalThresholdsWidget} />
 
       <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
@@ -3282,7 +3260,7 @@ function RoomPicker() {
           </div>
           <div style=${{ display:'flex', alignItems:'center', gap:10 }}>
             ${authUser && html`<span style=${{ fontSize:12, color:'#86868B', fontWeight:500 }}>${authUser._member?.name || authUser.email}</span>`}
-            <!-- Bell -->
+
             <div style=${{ position:'relative' }}>
               <button onClick=${()=>setShowAdminNotifs(v=>!v)}
                 style=${{ width:36, height:36, borderRadius:10, border:'1px solid #E5E5EA', background:'#FFF', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:15, position:'relative' }}>
@@ -3334,7 +3312,7 @@ function RoomPicker() {
         </div>
 
         <div style=${{ display:'flex', flex:1, overflow:'hidden' }}>
-          <!-- Admin sidebar nav -->
+
           <aside style=${{ width:210, flexShrink:0, background:'#FFF', borderRight:'1px solid rgba(0,0,0,.06)', padding:'16px 10px', display:'flex', flexDirection:'column', gap:2, position:'sticky', top:56, height:'calc(100vh - 56px)' }}>
             ${[
               {id:'dashboard',      label:'Dashboard',   lucide:'LayoutDashboard'},
@@ -3355,10 +3333,9 @@ function RoomPicker() {
               </button>`)}
           </aside>
 
-          <!-- Admin content -->
           <div style=${{ flex:1, minWidth:0, padding:'20px 24px', overflowY:'auto' }}>
         ${tab === 'escalado_global' ? html`<${AdminEscaladoGlobal} rooms=${rooms} />` : tab === 'convenio' ? html`<${AdminConvenio} />` : tab === 'roles' ? html`<${AdminRoles} />` : tab === 'calendarios' ? html`<${AdminCalendarios} />` : tab === 'usuarios' ? html`<${AdminUsuarios} rooms=${rooms} sbRetros=${sbRetros} />` : tab === 'dashboard' ? html`
-          <!-- Project filter -->
+
           <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:16, flexWrap:'wrap' }}>
             <span style=${{ fontSize:11, color:'#86868B', fontWeight:600 }}>Filtrar:</span>
             <button onClick=${()=>setFilterProject([])} style=${{ padding:'5px 12px', borderRadius:8, border:filterProject.length===0?'none':'1.5px solid #E5E5EA', background:filterProject.length===0?'#1D1D1F':'#FFF', color:filterProject.length===0?'#FFF':'#6E6E73', fontSize:11, fontWeight:600 }}>Todos</button>
@@ -3387,7 +3364,6 @@ function RoomPicker() {
             </div>
           ` : html`
 
-            <!-- KPI grid: Retro + Equipo + Riesgos + Vacaciones -->
             ${(() => {
               const allMembers = window.__allMembers || [];
               const salaMembers = filterProject.length===0 ? allMembers : allMembers.filter(m=>(m.rooms||[]).some(r=>filterProject.includes(r)));
@@ -3397,7 +3373,7 @@ function RoomPicker() {
               const totalProblemas = filteredStats.flatMap(s=>s.entries.flatMap(rt=>(rt.data?.risks||[]).filter(r=>(r.type||'riesgo')==='problema'&&r.status!=='mitigated'))).length;
 
               return html`
-                <!-- Row 1: Retro metrics -->
+
                 <p style=${{ fontSize:10, fontWeight:700, color:'#86868B', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Resumen del servicio</p>
                 <div style=${{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:14 }}>
                   ${[
@@ -3417,10 +3393,8 @@ function RoomPicker() {
                     </div>`)}
                 </div>
 
-                <!-- Row 2: Equipo + Riesgos + Vacaciones -->
                 <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14 }}>
 
-                  <!-- Equipo -->
                   <div style=${{ ...cS, padding:'14px 16px' }}>
                     <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><${Icon} name="Users" size=${14} color="#5856D6" /> Equipo</h4>
                     <div style=${{ display:'flex', gap:8, marginBottom:8 }}>
@@ -3440,7 +3414,6 @@ function RoomPicker() {
                     </div>
                   </div>
 
-                  <!-- Riesgos -->
                   <div style=${{ ...cS, padding:'14px 16px' }}>
                     <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><${Icon} name="AlertTriangle" size=${14} color="#FF9500" /> Riesgos</h4>
                     <div style=${{ display:'flex', gap:6 }}>
@@ -3457,7 +3430,6 @@ function RoomPicker() {
                     </div>
                   </div>
 
-                  <!-- Vacaciones -->
                   <div style=${{ ...cS, padding:'14px 16px' }}>
                     <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><${Icon} name="CalendarDays" size=${14} color="#007AFF" /> Vacaciones</h4>
                     ${(() => {
@@ -3476,7 +3448,7 @@ function RoomPicker() {
                       const nextMonth = new Date(); nextMonth.setMonth(nextMonth.getMonth()+1);
                       const vacSoon = salaMembers.filter(m=>(m.vacations||[]).some(v=>{ const d=new Date(v.from); return d>new Date()&&d<=nextMonth; }));
                       return html`
-                        <!-- % consumed -->
+
                         <div style=${{ marginBottom:10 }}>
                           <div style=${{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#86868B', marginBottom:4 }}>
                             <span>Días consumidos del equipo</span>
@@ -3490,7 +3462,7 @@ function RoomPicker() {
                             <span>${totalCapacity}d totales</span>
                           </div>
                         </div>
-                        <!-- Per-member mini bars (paginated) -->
+
                         <${VacPaginated} members=${salaMembers} cntD=${cntD} thisYr=${thisYr} />
                         ${vacToday.length>0&&html`<div style=${{ fontSize:10, color:'#FF9500', fontWeight:700 }}>Hoy: ${vacToday.map(m=>m.name).join(', ')}</div>`}
                         ${vacSoon.length>0&&html`<div style=${{ fontSize:10, color:'#86868B', marginTop:4 }}>Próx. mes: ${vacSoon.slice(0,2).map(m=>m.name).join(', ')}${vacSoon.length>2?' +'+vacSoon.length-2:''}</div>`}
@@ -3501,12 +3473,8 @@ function RoomPicker() {
               `;
             })()}
 
-
-
-            <!-- Donut + Notas por proyecto -->
             <div style=${{ display:'grid', gridTemplateColumns:'200px 1fr', gap:12, marginBottom:12 }}>
 
-              <!-- Donut % accionables -->
               <div style=${{ ...cS, padding:'20px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center' }}>
                 <h3 style=${{ fontSize:12, fontWeight:700, marginBottom:12 }}>Tareas</h3>
                 ${(() => {
@@ -3528,7 +3496,6 @@ function RoomPicker() {
                 })()}
               </div>
 
-              <!-- Notas por proyecto -->
               <div style=${{ ...cS, padding:'20px' }}>
                 <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:16 }}>Notas por proyecto</h3>
                 ${(() => {
@@ -3550,7 +3517,6 @@ function RoomPicker() {
               </div>
             </div>
 
-            <!-- Portfolio table -->
             <div style=${{ ...cS }}>
               <div style=${{ padding:'16px 18px', borderBottom:'1px solid #E5E5EA', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <h3 style=${{ fontSize:14, fontWeight:700 }}>Portfolio de proyectos</h3>
@@ -3640,7 +3606,7 @@ function RoomPicker() {
           `}
 
         ` : html`
-          <!-- ── PROYECTOS ── -->
+
           <div style=${{ ...cS, padding:'20px', marginBottom:12 }}>
             <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>Nuevo proyecto</h3>
             <div style=${{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
@@ -3677,7 +3643,6 @@ function RoomPicker() {
 
       </div>
 
-      <!-- ── MODAL: Confirmar eliminar proyecto ── -->
       ${confirmDelete && html`
         <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${()=>setConfirmDelete(null)}>
           <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 30px', maxWidth:400, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', textAlign:'center' }}>
@@ -3703,7 +3668,6 @@ function RoomPicker() {
         </div>
       `}
 
-      <!-- ── MODAL: Editar proyecto ── -->
       ${editRoom && html`
         <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,.18)', backdropFilter:'blur(8px)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }} onClick=${()=>setEditRoom(null)}>
           <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:20, padding:'28px 30px', maxWidth:520, width:'100%', maxHeight:'85vh', overflowY:'auto', boxShadow:'0 12px 48px rgba(0,0,0,.12)' }}>
@@ -3717,7 +3681,7 @@ function RoomPicker() {
               style=${{ ...iS, marginBottom:14 }}>
               ${Object.entries(TASK_TEMPLATES).map(([k,v]) => html`<option key=${k} value=${k}>${v.icon} ${v.label}</option>`)}
             </select>
-            <!-- User assignment -->
+
             <div style=${{ marginBottom:14, padding:'14px', borderRadius:12, background:'#F9F9FB', border:'1.5px solid #E5E5EA' }}>
               <p style=${{ fontSize:11, color:'#86868B', fontWeight:700, marginBottom:8, textTransform:'uppercase', letterSpacing:.4 }}>Personas asignadas</p>
               <div style=${{ display:'flex', flexDirection:'column', gap:4, maxHeight:200, overflowY:'auto' }}>
@@ -4012,7 +3976,7 @@ function PEquipo() {
 
   return html`
     <div style=${{ maxWidth:960, margin:'0 auto' }}>
-      <!-- Header + sub-tabs -->
+
       <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div>
           <h2 style=${{ fontSize:20, fontWeight:700 }}>👥 Equipo</h2>
@@ -4040,9 +4004,8 @@ function PEquipo() {
 
       ${loading ? html`<div style=${{ textAlign:'center', padding:40, color:'#86868B' }}>⏳ Cargando equipo…</div>` : html`
 
-        <!-- ── LISTA ── -->
         ${subTab==='lista' && html`
-          <!-- Tag filter bar -->
+
           ${tags.length>0&&html`
             <div style=${{display:'flex',gap:4,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
               <${Icon} name='Tag' size=${12} color='#86868B' />
@@ -4071,7 +4034,7 @@ function PEquipo() {
                 return html`
                   <div key=${m.id} style=${{ borderRadius:14, background:onVac?'#FFF9E6':'#FFF',
                     border:'1.5px solid '+(onVac?'#FF9500':'#E5E5EA'), overflow:'hidden' }}>
-                    <!-- Header row -->
+
                     <div style=${{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px' }}>
                       <div style=${{ width:44, height:44, borderRadius:12, background:m.color||'#E5E5EA',
                         display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0 }}>
@@ -4097,7 +4060,7 @@ function PEquipo() {
                         </div>`}
                       </div>
                     </div>
-                    <!-- Project config row — show latest period, allow add -->
+
                     <div style=${{ padding:'8px 16px 12px', borderTop:'1px solid #F2F2F7', background:'#FAFAFA' }}>
                     <div style=${{ display:'grid', gridTemplateColumns:'1fr 120px 120px 80px auto', gap:8, alignItems:'end' }}>
                       <div>
@@ -4159,14 +4122,12 @@ function PEquipo() {
           </div>
         `}
 
-        <!-- ── VACACIONES ── -->
         ${subTab==='vacaciones' && html`<${PVacaciones} embeddedTeam=${team} />`}
         ${subTab==='ftes' && html`<${PFTEs} team=${team} org=${org} orgData=${orgData} />`}
 
-        <!-- ── ORGANIGRAMA ── -->
         ${subTab==='organigrama' && html`
           <div>
-            <!-- Manager assignment table -->
+
             <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', marginBottom:16 }}>
               <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>⚙️ Configurar jerarquía</h4>
               <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -4185,7 +4146,6 @@ function PEquipo() {
               </div>
             </div>
 
-            <!-- Visual org chart -->
             ${roots.length===0 ? html`
               <div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
                 <p style=${{ fontSize:28, marginBottom:8 }}>🏢</p>
@@ -4208,9 +4168,9 @@ function OrgTree({ nodes, all, org, rc, depth }) {
         const color = rc(m.role_label||'');
         return html`
           <div key=${m.id} style=${{ display:'flex', flexDirection:'column', alignItems:'center', gap:0 }}>
-            <!-- Connector line from parent -->
+
             ${depth > 0 && html`<div style=${{ width:2, height:24, background:'#E5E5EA' }}></div>`}
-            <!-- Card -->
+
             <div style=${{ background:'#FFF', borderRadius:14, border:'2px solid '+(depth===0?'#1D1D1F':'#E5E5EA'),
               padding:'12px 14px', minWidth:130, textAlign:'center', boxShadow:depth===0?'0 4px 16px rgba(0,0,0,.08)':'0 2px 8px rgba(0,0,0,.04)',
               position:'relative' }}>
@@ -4226,7 +4186,7 @@ function OrgTree({ nodes, all, org, rc, depth }) {
                 <div style=${{ position:'absolute', left:'50%', transform:'translateX(-50%)',
                   width:2, height:24, background:'#E5E5EA', bottom:-24 }}></div>`}
             </div>
-            <!-- Children -->
+
             ${children.length > 0 && html`
               <div style=${{ marginTop:24, position:'relative' }}>
                 ${children.length > 1 && html`
@@ -4279,7 +4239,6 @@ function SuggestedEscalations({ risks, allRisks, getAlerts, upd, setSubTab, setE
               </div>
             </div>
 
-            <!-- Alert pills with explanation -->
             <div style=${{ display:'flex', flexDirection:'column', gap:4, marginBottom:12 }}>
               ${alerts.map(a => html`
                 <div key=${a.type} style=${{ display:'flex', alignItems:'flex-start', gap:8, padding:'6px 10px', borderRadius:9, background:ALERT_COLORS[a.type]+'10', border:'1px solid '+ALERT_COLORS[a.type]+'25' }}>
@@ -4291,7 +4250,6 @@ function SuggestedEscalations({ risks, allRisks, getAlerts, upd, setSubTab, setE
                 </div>`)}
             </div>
 
-            <!-- Actions -->
             <div style=${{ display:'flex', gap:8 }}>
               <button onClick=${()=>{ setSubTab('escalado'); setEscalForm({riskId:r.id, memberId:'', deadline:'', note:'', status:'pendiente'}); }}
                 style=${{ flex:1, padding:'8px', borderRadius:9, border:'none', background:color, color:'#FFF', fontSize:12, fontWeight:700, cursor:'pointer' }}>
@@ -4355,7 +4313,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
   return html`
     <div>
-      <!-- KPI row: count per level -->
+
       <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
         ${LEVELS.map(l => {
           const cnt = byLevel(l.id).length;
@@ -4370,7 +4328,6 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
       <div style=${{ display:'grid', gridTemplateColumns:'1fr 300px', gap:14, alignItems:'start' }}>
 
-        <!-- Escalated risks list grouped by level -->
         <div>
           ${
             LEVELS.map(l => {
@@ -4404,7 +4361,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
                           </select>
                           <button onClick=${()=>window.__confirm({icon:'📈',title:'Quitar escalado',message:'¿Quitar el escalado de este riesgo?',confirmLabel:'Sí, quitar',onConfirm:()=>removeEscalation(r.id)})} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:12, cursor:'pointer' }}>✕</button>
                         </div>
-                        <!-- Level chain visual -->
+
                         <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:6 }}>
                           ${LEVELS.map((lvl,i)=>html`
                             <div key=${lvl.id} style=${{ display:'flex', alignItems:'center', gap:4 }}>
@@ -4430,7 +4387,6 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
             })}
         </div>
 
-        <!-- Form -->
         <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', position:'sticky', top:0 }}>
           <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Escalar riesgo</h4>
           <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Selecciona el riesgo y el nivel de escalado</p>
@@ -4445,7 +4401,6 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
               })}
             </select>
 
-            <!-- Level selector -->
             <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
               ${LEVELS.map(l=>html`
                 <label key=${l.id}
@@ -4548,7 +4503,7 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
       <p style=${{ fontSize:11, color:'#86868B', marginTop:2 }}>Mes actual + 12 meses. Configura fechas y dedicación en la pestaña Lista.</p>
     </div>
     ${loading ? html`<div style=${{ textAlign:'center',padding:40,color:'#86868B' }}>⏳</div>` : html`
-      <!-- Bar chart -->
+
       <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', marginBottom:16 }}>
         <h4 style=${{ fontSize:11, fontWeight:700, color:'#86868B', marginBottom:10, textTransform:'uppercase', letterSpacing:.5 }}>FTEs totales · ${MONTH_NAMES[viewMonth]}</h4>
         <div style=${{ display:'flex', alignItems:'flex-end', gap:2, height:72 }}>
@@ -4566,8 +4521,8 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
           })}
         </div>
       </div>
-      <!-- Monthly view conditional -->
-      <!-- Annual timeline -->
+
+
         <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', overflow:'auto', marginBottom:16 }}>
           <table style=${{ width:'100%', borderCollapse:'collapse', minWidth:900 }}>
             <thead><tr style=${{ background:'#F9F9FB', borderBottom:'2px solid #E5E5EA' }}>
@@ -4610,7 +4565,7 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
                   })}
                 </tr>`;
               })}
-              <!-- Totals row -->
+
               <tr style=${{ background:'#F0F7FF', borderTop:'2px solid #007AFF20' }}>
                 <td style=${{ padding:'10px 14px', fontSize:11, fontWeight:700, color:'#007AFF', position:'sticky', left:0, background:'#F0F7FF' }}>Total FTEs</td>
                 ${annualMonths.map(({year,month}) => {
@@ -4630,7 +4585,6 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
           </table>
         </div>
 
-      <!-- Table (monthly detail) — summary -->
       <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', overflow:'auto' }}>
         <table style=${{ width:'100%', borderCollapse:'collapse', minWidth:500 }}>
           <thead><tr style=${{ background:'#F9F9FB', borderBottom:'2px solid #E5E5EA' }}>
@@ -4840,7 +4794,7 @@ function RichTextEditor({ value, onChange, placeholder }) {
   }
   
   return html`<div style=${{border:'1.5px solid #007AFF',borderRadius:10,overflow:'hidden'}}>
-    <!-- Toolbar -->
+
     <div style=${{padding:'4px 8px',borderBottom:'1px solid #E5E5EA',background:'#F9F9FB',display:'flex',gap:2,alignItems:'center',flexWrap:'wrap'}}>
       <${TB} cmd="bold" icon="Bold" label="Negrita" />
       <${TB} cmd="italic" icon="Italic" label="Cursiva" />
@@ -4853,11 +4807,11 @@ function RichTextEditor({ value, onChange, placeholder }) {
         <${Icon} name="Link" size=${14} color="#6E6E73" />
       </button>
     </div>
-    <!-- Editor -->
+
     <div ref=${editorRef} contentEditable=${true}
       onInput=${()=>{}}
       style=${{padding:'10px 14px',minHeight:80,fontSize:13,fontFamily:'inherit',outline:'none',lineHeight:1.6}} />
-    <!-- Save/Cancel -->
+
     <div style=${{padding:'6px 10px',borderTop:'1px solid #E5E5EA',background:'#F9F9FB',display:'flex',gap:6}}>
       <button type="button" onClick=${saveEdit}
         style=${{padding:'5px 14px',borderRadius:7,border:'none',background:'#007AFF',color:'#FFF',fontSize:11,fontWeight:600,cursor:'pointer'}}>Guardar</button>
@@ -5029,11 +4983,11 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
   return html`
     <div style=${{position:'fixed',inset:0,zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}
       onClick=${e=>{if(e.target===e.currentTarget)onClose()}}>
-      <!-- Backdrop -->
+
       <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}></div>
-      <!-- Modal -->
+
       <div style=${{position:'relative',background:'#FFF',borderRadius:20,width:'90%',maxWidth:780,maxHeight:'85vh',overflow:'hidden',boxShadow:'0 12px 48px rgba(0,0,0,.12), 0 0 0 1px rgba(0,0,0,.04)',animation:'fadeIn .2s ease',display:'flex',flexDirection:'column'}}>
-        <!-- Header -->
+
         <div style=${{padding:'18px 24px',borderBottom:'1px solid #F2F2F7',display:'flex',alignItems:'center',gap:10,flexShrink:0,background:'#FAFAFA'}}>
           <${TypeBadge} type=${task.type} size=${24} />
           <div style=${{flex:1}}>
@@ -5046,27 +5000,26 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
           <button onClick=${onClose} style=${{border:'none',background:'#F2F2F7',borderRadius:10,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:16,color:'#86868B'}}>✕</button>
         </div>
 
-        <!-- Body: 2-column layout -->
         <div style=${{display:'flex',flex:1,overflow:'hidden'}}>
-          <!-- Left: main content -->
+
           <div style=${{flex:1,padding:'20px',overflowY:'auto',display:'flex',flexDirection:'column',gap:14}}>
-            <!-- Title -->
+
             <div>
               ${fieldLabel('Título')}
               <input value=${f.text||''} onInput=${e=>setF({...f,text:e.target.value})}
                 style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:15,fontWeight:600,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
             </div>
-            <!-- Description -->
+
             <div>
               ${fieldLabel('Descripción')}
               <${RichEditor} value=${f.description||''} onChange=${v=>setF({...f,description:v})} placeholder="Añadir descripción…" />
             </div>
-            <!-- Checklist (separate field) -->
+
             <div>
               ${fieldLabel('Checklist')}
               <${ChecklistEditor} value=${f.checklist||''} onChange=${v=>setF({...f,checklist:v})} />
             </div>
-            <!-- Tags -->
+
             <div>
               ${fieldLabel('Etiquetas')}
               <div style=${{display:'flex',gap:4,flexWrap:'wrap'}}>
@@ -5082,7 +5035,7 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
                   </span>`)}
               </div>
             </div>
-            <!-- Linked Risk -->
+
             <div>
               ${fieldLabel('Riesgo vinculado')}
               ${f.riskId ? html`
@@ -5107,7 +5060,6 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
               </select>
             </div>
 
-            <!-- Context: why this task exists -->
             ${(f.source||f.riskId) && html`
               <div style=${{background:'#F9F9FB',borderRadius:10,padding:'10px 14px',border:'1px solid #E5E5EA'}}>
                 <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.4,marginBottom:4}}>Contexto</div>
@@ -5115,14 +5067,13 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
                 ${f.source==='risk'&&html`<p style=${{fontSize:12,color:'#6E6E73',margin:0}}>Tarea de mitigación vinculada a un riesgo del proyecto.</p>`}
                 ${f.source==='manual'&&!f.riskId&&html`<p style=${{fontSize:12,color:'#6E6E73',margin:0}}>Creada manualmente desde el módulo de seguimiento.</p>`}
               </div>`}
-            <!-- Meta info -->
+
             <div style=${{fontSize:10,color:'#C7C7CC',display:'flex',gap:16,paddingTop:8,borderTop:'1px solid #F2F2F7'}}>
               ${f.createdAt&&html`<span>Creado: ${fd(f.createdAt)}</span>`}
               ${f.updatedAt&&html`<span>Actualizado: ${fd(f.updatedAt)}</span>`}
             </div>
           </div>
 
-          <!-- Right sidebar: fields -->
           <div style=${{width:240,borderLeft:'1px solid #E5E5EA',padding:'16px',overflowY:'auto',background:'#FAFAFA',display:'flex',flexDirection:'column',gap:12,flexShrink:0}}>
             <div>
               ${fieldLabel('Estado')}
@@ -5155,7 +5106,7 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
               <input type="date" value=${f.date||''} onInput=${e=>setF({...f,date:e.target.value})}
                 style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
             </div>
-            <!-- Extended JIRA fields -->
+
             <div style=${{borderTop:'1px solid #E5E5EA',paddingTop:12}}>
               ${fieldLabel('Story Points')}
               <input type="number" min="0" step="1" value=${f.storyPoints||''} onInput=${e=>setF({...f,storyPoints:e.target.value?parseInt(e.target.value):null})}
@@ -5181,7 +5132,6 @@ function TaskDetailModal({ task, onSave, onClose, onDelete, onMitigateRisk, onGo
           </div>
         </div>
 
-        <!-- Footer -->
         <div style=${{padding:'14px 24px',borderTop:'1px solid #F2F2F7',display:'flex',gap:8,justifyContent:'space-between',flexShrink:0,background:'#FAFAFA'}}>
           <button onClick=${()=>window.__confirm({title:'Eliminar tarea',message:html`¿Eliminar <b>${task.text?.slice(0,50)}</b>?<br/>Esta acción no se puede deshacer.`,onConfirm:()=>onDelete(task.id)})}
             style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
@@ -5353,12 +5303,12 @@ function PTrabajo({ actions, sA, risks, user }) {
           opacity:dragAct===a.id?.4:a.status==='cancelled'?.5:1,
           marginBottom:compact?4:6, transition:'all .12s' }}>
         <div style=${{ display:'flex', alignItems:'flex-start', gap:8 }}>
-          <!-- Type badge + priority -->
+
           <div style=${{ display:'flex', flexDirection:'column', gap:3, alignItems:'center', flexShrink:0, minWidth:20 }}>
             <span title=${tp.label}><${Icon} name=${tp.lucide} size=${compact?12:14} color=${tp.color} /></span>
             <span style=${{ fontSize:9, fontWeight:800, color:pr.color }}>${pr.icon}</span>
           </div>
-          <!-- Content -->
+
           <div style=${{ flex:1, minWidth:0 }}>
             <p onClick=${(e)=>{e.stopPropagation();setDetailTask({...a})}} style=${{ fontSize:compact?11:13, fontWeight:600, lineHeight:1.3, margin:0, cursor:'pointer',
               textDecoration:a.status==='done'?'line-through':'none',
@@ -5380,7 +5330,7 @@ function PTrabajo({ actions, sA, risks, user }) {
               ${a.sprint && html`<span style=${{ fontSize:8, fontWeight:600, color:'#007AFF', background:'#007AFF10', padding:'1px 5px', borderRadius:4 }}>${a.sprint}</span>`}
               ${a.epicLink && !compact && html`<span style=${{ fontSize:8, fontWeight:600, color:'#AF52DE', background:'#AF52DE10', padding:'1px 5px', borderRadius:4 }}>${a.epicLink}</span>`}
               ${a.demandOrigin && !compact && html`<span style=${{ fontSize:8, fontWeight:600, color:DEMAND_ORIGINS.find(d=>d.id===a.demandOrigin)?.color||'#86868B', background:(DEMAND_ORIGINS.find(d=>d.id===a.demandOrigin)?.color||'#86868B')+'10', padding:'1px 5px', borderRadius:4 }}>${DEMAND_ORIGINS.find(d=>d.id===a.demandOrigin)?.label||a.demandOrigin}</span>`}
-              <!-- Tag badges -->
+
               ${actionTagList(a.id).map(t=>html`
                 <span key=${t.id} style=${{ fontSize:8, fontWeight:700, padding:'1px 5px', borderRadius:8, background:t.color, color:'#FFF', cursor:'pointer' }}
                   onClick=${e=>{e.stopPropagation();quickToggleActionTag(t.id,a.id);}}>
@@ -5397,7 +5347,7 @@ function PTrabajo({ actions, sA, risks, user }) {
 
   return html`
     <div style=${{ maxWidth:'100%' }}>
-      <!-- Header row -->
+
       <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:12, flexWrap:'wrap' }}>
         <h2 style=${{ fontSize:18, fontWeight:700, margin:0 }}>Seguimiento</h2>
         <span style=${{ fontSize:11, background:'#007AFF12', color:'#007AFF', padding:'3px 10px', borderRadius:8, fontWeight:600 }}>${openItems.length} abiertas</span>
@@ -5420,7 +5370,6 @@ function PTrabajo({ actions, sA, risks, user }) {
         </button>
       </div>
 
-      <!-- Sub-view tabs -->
       <div style=${{ display:'flex', gap:3, marginBottom:12 }}>
         ${VIEWS.map(v => html`
           <button key=${v.id} onClick=${()=>setSubView(v.id)}
@@ -5434,7 +5383,6 @@ function PTrabajo({ actions, sA, risks, user }) {
           </button>`)}
       </div>
 
-      <!-- Search + filters bar -->
       <div style=${{ display:'flex', gap:6, marginBottom:12, alignItems:'center', flexWrap:'wrap' }}>
         <div style=${{ position:'relative', flex:'1 1 200px' }}>
           <${Icon} name="Search" size=${14} color="#C7C7CC" />
@@ -5459,15 +5407,13 @@ function PTrabajo({ actions, sA, risks, user }) {
           </select>`}
       </div>
 
-
-      <!-- ══ BACKLOG VIEW ══ -->
       ${subView==='backlog' && html`
         <div>
           ${(() => {
             const pending = sortActions(filterActions(openItems.filter(a=>a.status==='backlog')));
             const active = sortActions(filterActions(openItems.filter(a=>a.status!=='backlog')));
             return html`
-              <!-- Pending section: items to pull into board -->
+
               <div style=${{ marginBottom:active.length>0?16:0 }}>
                 <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
                   <h3 style=${{ fontSize:13, fontWeight:700, color:'#86868B', margin:0 }}>Backlog</h3>
@@ -5477,7 +5423,7 @@ function PTrabajo({ actions, sA, risks, user }) {
                   ? html`<div style=${{ textAlign:'center', padding:24, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:12, fontSize:12 }}>El backlog está vacío — crea tareas o convierte acciones de la retro.</div>`
                   : pending.map(a => renderTask(a, false))}
               </div>
-              <!-- Active section: items already on board -->
+
               ${active.length>0 && html`
                 <div>
                   <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
@@ -5490,7 +5436,6 @@ function PTrabajo({ actions, sA, risks, user }) {
           })()}
         </div>`}
 
-      <!-- ══ BOARD VIEW ══ -->
       ${subView==='board' && html`
         <div style=${{ display:'grid', gridTemplateColumns:'repeat('+KAN_COLS.length+',1fr)', gap:6, minHeight:200 }}>
           ${KAN_COLS.map(col => {
@@ -5514,7 +5459,6 @@ function PTrabajo({ actions, sA, risks, user }) {
           })}
         </div>`}
 
-      <!-- ══ LIST VIEW ══ -->
       ${subView==='list' && html`
         <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', overflow:'auto' }}>
           <table style=${{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
@@ -5560,7 +5504,6 @@ function PTrabajo({ actions, sA, risks, user }) {
           </table>
         </div>`}
 
-      <!-- ══ MIS TAREAS VIEW ══ -->
       ${subView==='mine' && html`
         <div style=${{ display:'flex', flexDirection:'column', gap:0 }}>
           ${filterActions(myItems).length===0
@@ -5571,7 +5514,6 @@ function PTrabajo({ actions, sA, risks, user }) {
             : sortActions(filterActions(myItems)).map(a => renderTask(a, false))}
         </div>`}
 
-      <!-- TaskDetailModal -->
       ${detailTask && html`<${TaskDetailModal}
         task=${detailTask}
         teamMembers=${teamMembers}
@@ -5584,7 +5526,6 @@ function PTrabajo({ actions, sA, risks, user }) {
         onMitigateRisk=${(riskId) => { const rsk=(window.__currentRisks||[]).find(r=>r.id===riskId); setMitigateModal({riskId, riskText:rsk?.text||'Riesgo vinculado'}); }}
         onGoToRisk=${(riskId) => { window.__goToRisk && window.__goToRisk(riskId); }} />`}
 
-      <!-- Tag Manager Modal -->
       ${showTagManager && html`
         <div style=${{position:'fixed',inset:0,zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}}
           onClick=${e=>{if(e.target===e.currentTarget)setShowTagManager(false)}}>
@@ -5598,7 +5539,6 @@ function PTrabajo({ actions, sA, risks, user }) {
           </div>
         </div>`}
 
-      <!-- Mitigation confirmation modal -->
       ${mitigateModal && html`<${ConfirmModal}
         icon="⚠️"
         title="Riesgo vinculado"
@@ -5609,8 +5549,6 @@ function PTrabajo({ actions, sA, risks, user }) {
         onConfirm=${()=>{ window.__goMitigateRisk && window.__goMitigateRisk(mitigateModal.riskId); setMitigateModal(null); }}
         onCancel=${()=>setMitigateModal(null)} />`}
 
-
-      <!-- ══ HISTORIAL VIEW ══ -->
       ${subView==='history' && html`
         <div style=${{ display:'flex', flexDirection:'column', gap:0 }}>
           ${doneItems.length===0
@@ -5696,7 +5634,7 @@ function PAccionables({ actions, sA, risks, user }) {
 
   return html`
     <div style=${{ maxWidth:'100%' }}>
-      <!-- Header -->
+
       <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:14, flexWrap:'wrap' }}>
         <h2 style=${{ fontSize:18, fontWeight:700 }}>Trabajo</h2>
         <span style=${{ fontSize:11, background:'#F2F2F7', color:'#86868B', padding:'2px 8px', borderRadius:8 }}>
@@ -5704,7 +5642,7 @@ function PAccionables({ actions, sA, risks, user }) {
         </span>
         ${overdueCount>0&&html`<span style=${{ fontSize:11, background:'#FF3B30', color:'#FFF', fontWeight:700, padding:'2px 8px', borderRadius:8 }}>⚠️ ${overdueCount} vencidos</span>`}
         <div style=${{ flex:1 }}/>
-        <!-- Filters -->
+
         ${[{id:'all',label:'Todos'},{id:'mine',label:'👤 Míos'},{id:'done',label:'✅ Hechos'}].map(f=>html`
           <button key=${f.id} onClick=${()=>setActFilter(f.id)}
             style=${{ padding:'4px 10px', borderRadius:7, border:actFilter===f.id?'none':'1px solid #E5E5EA', background:actFilter===f.id?'#1D1D1F':'#FFF', color:actFilter===f.id?'#FFF':'#6E6E73', fontSize:10, fontWeight:600, cursor:'pointer' }}>${f.label}</button>`)}
@@ -5725,7 +5663,6 @@ function PAccionables({ actions, sA, risks, user }) {
                 fontSize:10,fontWeight:700,cursor:'pointer'}}>${t.name}</button>`)}
         </div>`}
 
-      <!-- Add form -->
       <div style=${{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap', padding:'12px 14px', borderRadius:12, background:'#FFF', border:'1.5px solid #E5E5EA' }}>
         <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} onKeyDown=${e=>e.key==='Enter'&&addA()}
           placeholder="Nueva acción…" style=${{ ...iS, flex:2, minWidth:160 }} />
@@ -5751,7 +5688,6 @@ function PAccionables({ actions, sA, risks, user }) {
               <p style=${{ fontSize:13 }}>Sin tareas. Añade la primera arriba o crea una desde la retro.</p>
             </div>`}
 
-          <!-- ── KANBAN ── -->
           ${viewMode==='kanban' && actions.length>0 && html`
             <div style=${{ position:'relative' }}>
               ${touchPos&&html`<div style=${{ position:'fixed', left:touchPos.x-60, top:touchPos.y-30, pointerEvents:'none', zIndex:9999, background:'#007AFF', color:'#FFF', borderRadius:10, padding:'6px 14px', fontSize:11, fontWeight:600, boxShadow:'0 6px 20px rgba(0,122,255,.35)', transform:'rotate(-2deg) scale(1.05)' }}>✋ Moviendo…</div>`}
@@ -5807,7 +5743,7 @@ function PAccionables({ actions, sA, risks, user }) {
                                   </div>` : html`<span style=${{ fontSize:10, color:'#C7C7CC' }}>Sin asignar</span>`}
                                 ${a.date&&html`<span style=${{ fontSize:9, color:overdue?'#FF3B30':'#86868B', fontWeight:overdue?700:400 }}>📅 ${fd(a.date)}</span>`}
                               </div>
-                              <!-- Tag badges -->
+
                               ${actionTagList(a.id).length>0&&html`
                                 <div style=${{display:'flex',gap:3,flexWrap:'wrap',marginTop:4}}>
                                   ${actionTagList(a.id).map(t=>html`
@@ -5845,7 +5781,6 @@ function PAccionables({ actions, sA, risks, user }) {
               </div>
             </div>`}
 
-          <!-- ── LISTA ── -->
           ${viewMode==='list' && html`
             <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
               ${tagFilteredActions.filter(a=>{
@@ -6090,7 +6025,7 @@ function AISuggestionPanel({ suggestion, onAcceptText, onAcceptMitigation, onAcc
         </div>
         <button onClick=${onClose} style=${{border:'none',background:'#5856D610',borderRadius:8,width:24,height:24,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:12,color:'#5856D6'}}>✕</button>
       </div>
-      <!-- Improved text -->
+
       ${suggestion.text && html`
         <div style=${{marginBottom:10}}>
           <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.3,marginBottom:4}}>Redacción mejorada</div>
@@ -6099,7 +6034,7 @@ function AISuggestionPanel({ suggestion, onAcceptText, onAcceptMitigation, onAcc
             <button onClick=${()=>onAcceptText(suggestion.text)} style=${{flexShrink:0,padding:'6px 12px',borderRadius:8,border:'none',background:'#5856D6',color:'#FFF',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Aplicar</button>
           </div>
         </div>`}
-      <!-- Mitigation -->
+
       ${suggestion.mitigation && html`
         <div style=${{marginBottom:10}}>
           <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.3,marginBottom:4}}>Plan de mitigación</div>
@@ -6108,7 +6043,7 @@ function AISuggestionPanel({ suggestion, onAcceptText, onAcceptMitigation, onAcc
             <button onClick=${()=>onAcceptMitigation(suggestion.mitigation)} style=${{flexShrink:0,padding:'6px 12px',borderRadius:8,border:'none',background:'#5856D6',color:'#FFF',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Aplicar</button>
           </div>
         </div>`}
-      <!-- Actions -->
+
       ${suggestion.actions?.length>0 && html`
         <div>
           <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.3,marginBottom:4}}>Accionables sugeridos</div>
@@ -6153,7 +6088,7 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
       onClick=${e=>{if(e.target===e.currentTarget)onClose()}}>
       <div style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}></div>
       <div style=${{position:'relative',background:'#FFF',borderRadius:20,width:'90%',maxWidth:720,maxHeight:'85vh',overflow:'hidden',boxShadow:'0 12px 48px rgba(0,0,0,.12), 0 0 0 1px rgba(0,0,0,.04)',animation:'fadeIn .2s ease',display:'flex',flexDirection:'column'}}>
-        <!-- Header -->
+
         <div style=${{padding:'18px 24px',borderBottom:'1px solid #F2F2F7',display:'flex',alignItems:'center',gap:10,flexShrink:0,background:'#FAFAFA'}}>
           <span style=${{fontSize:14,fontWeight:800,color:hc,background:hc+'15',padding:'4px 10px',borderRadius:8}}>${prefix}${idx||'?'}</span>
           <div style=${{flex:1}}>
@@ -6165,9 +6100,8 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
           <button onClick=${onClose} style=${{border:'none',background:'#F2F2F7',borderRadius:10,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:16,color:'#86868B'}}>✕</button>
         </div>
 
-        <!-- Body: 2 columns -->
         <div style=${{display:'flex',flex:1,overflow:'hidden'}}>
-          <!-- Left: content -->
+
           <div style=${{flex:1,padding:'20px',overflowY:'auto',display:'flex',flexDirection:'column',gap:14}}>
             <div>
               ${fieldLabel('Descripción del riesgo')}
@@ -6180,7 +6114,7 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
                 placeholder="¿Cómo se va a mitigar este riesgo?"
                 style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none',resize:'vertical',minHeight:60,boxSizing:'border-box'}} />
             </div>
-            <!-- AI Copilot button -->
+
             <button onClick=${async()=>{
               setAiLoading(true); setAiSuggestion(null);
               const result = await aiImproveRisk(f.text, f.mitigation, f.type||'riesgo', f.impact, f.prob);
@@ -6188,7 +6122,7 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
             }} style=${{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:10,border:'1.5px solid #5856D620',background:'linear-gradient(135deg,#F0F7FF,#F8F5FF)',color:'#5856D6',fontSize:12,fontWeight:600,cursor:'pointer',alignSelf:'flex-start'}}>
               <${Icon} name="Sparkles" size=${14} color="#5856D6" /> Mejorar con AI
             </button>
-            <!-- AI Suggestion Panel -->
+
             <${AISuggestionPanel}
               suggestion=${aiSuggestion} loading=${aiLoading}
               onAcceptText=${(t)=>setF({...f,text:t})}
@@ -6205,7 +6139,6 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
                 style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none',resize:'vertical',minHeight:40,boxSizing:'border-box'}} />
             </div>`}
 
-            <!-- Linked Tasks -->
             <div>
               ${fieldLabel('Tareas vinculadas')}
               ${linkedTasks.length>0&&html`<div style=${{display:'flex',flexDirection:'column',gap:5,marginBottom:8}}>
@@ -6223,7 +6156,7 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
                     </div>`;
                 })}
               </div>`}
-              <!-- Add task dropdown -->
+
               <select onChange=${e=>{if(!e.target.value)return; if(window.__linkTaskToRisk)window.__linkTaskToRisk(e.target.value,risk.id); e.target.value='';}}
                 style=${{width:'100%',border:'1.5px dashed #007AFF40',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',color:'#007AFF',background:'#F0F7FF',cursor:'pointer'}}>
                 <option value="">+ Vincular tarea existente…</option>
@@ -6231,7 +6164,6 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
               </select>
             </div>
 
-            <!-- Tags -->
             <div>
               ${fieldLabel('Etiquetas')}
               <div style=${{display:'flex',gap:4,flexWrap:'wrap'}}>
@@ -6247,20 +6179,19 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
                 `;})()}
               </div>
             </div>
-            <!-- Context -->
+
             ${linkedTasks.length>0 && html`
               <div style=${{background:'#F0F7FF',borderRadius:10,padding:'10px 14px',border:'1px solid #007AFF15'}}>
                 <div style=${{fontSize:10,fontWeight:700,color:'#007AFF',textTransform:'uppercase',letterSpacing:.4,marginBottom:4}}>Impacto</div>
                 <p style=${{fontSize:12,color:'#6E6E73',margin:0}}>${linkedTasks.filter(a=>a.status==='done').length} de ${linkedTasks.length} tareas de mitigación completadas. ${linkedTasks.filter(a=>a.status!=='done'&&a.status!=='cancelled').length>0?'Hay acciones pendientes.':'Todas las acciones completadas.'}</p>
               </div>`}
-            <!-- Meta -->
+
             <div style=${{fontSize:10,color:'#C7C7CC',display:'flex',gap:16,paddingTop:8,borderTop:'1px solid #F2F2F7'}}>
               ${f.createdAt&&html`<span>Identificado: ${fd(f.createdAt)}</span>`}
               ${f.deadline&&html`<span>Resolución: ${fd(f.deadline)}</span>`}
             </div>
           </div>
 
-          <!-- Right sidebar -->
           <div style=${{width:220,borderLeft:'1px solid #E5E5EA',padding:'16px',overflowY:'auto',background:'#FAFAFA',display:'flex',flexDirection:'column',gap:12,flexShrink:0}}>
             <div>
               ${fieldLabel('Estado')}
@@ -6312,7 +6243,6 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
           </div>
         </div>
 
-        <!-- Footer -->
         <div style=${{padding:'14px 24px',borderTop:'1px solid #F2F2F7',display:'flex',gap:8,justifyContent:'space-between',flexShrink:0,background:'#FAFAFA'}}>
           <button onClick=${()=>window.__confirm({icon:'⚠️',title:'Eliminar riesgo',message:html`¿Eliminar <b>${risk.text?.slice(0,50)}</b>?<br/>Esta acción no se puede deshacer.`,onConfirm:()=>onDelete(risk.id)})}
             style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
@@ -6335,6 +6265,7 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
       <div onClick=${()=>!fromHist&&onOpenDetail&&onOpenDetail(r)} style=${{ borderRadius:14, background:'#FFF', border:'1.5px solid #E5E5EA', cursor:fromHist?'default':'pointer',
         borderLeft:'4px solid '+hc, padding:'12px 14px', position:'relative', opacity:fromHist?.7:1 }}>
         ${fromHist && html`<div style=${{ position:'absolute', top:8, right:8, fontSize:9, color:'#86868B', background:'#F2F2F7', padding:'1px 6px', borderRadius:4 }}>📚 ${r._fromRetro}</div>`}
+          <div data-rc="1" style=${{ display:'flex', flexDirection:'column', gap:0 }}>
             <div style=${{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
               <span onClick=${()=>!fromHist&&onOpenDetail&&onOpenDetail(r)} style=${{ fontSize:13, fontWeight:800, color:hc, minWidth:30, cursor:fromHist?'default':'pointer' }}>${prefix}${idx}</span>
               <div style=${{ flex:1 }}>
@@ -6353,26 +6284,23 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
               </div>
               ${r.owner && html`<span style=${{ fontSize:11, fontWeight:600, color:'#007AFF', flexShrink:0 }}>${r.owner}</span>`}
             </div>
-            <!-- Linked tasks -->
-            ${(()=>{const lt=(window.__currentActions||[]).filter(a=>a.riskId===r.id);return lt.length>0?html`
+${(()=>{const lt=(window.__currentActions||[]).filter(a=>a.riskId===r.id);return lt.length>0?html`
               <div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6, alignItems:'center' }}>
                 <span style=${{ fontSize:9, color:'#007AFF', fontWeight:700 }}>📋</span>
                 ${lt.map(a=>html`<span key=${a.id} style=${{ fontSize:9, padding:'1px 6px', borderRadius:6, background:a.status==='done'?'#34C75915':'#007AFF10', color:a.status==='done'?'#34C759':'#007AFF', fontWeight:600, textDecoration:a.status==='done'?'line-through':'none' }}>${a.text.slice(0,35)}${a.text.length>35?'…':''}</span>`)}
               </div>`:null;})()}
-            <!-- Tag badges (read-only, manage in detail modal) -->
-            ${(()=>{const tgs=entityTagList('risk',r.id); return tgs.length>0?html`
+${(()=>{const tgs=entityTagList('risk',r.id); return tgs.length>0?html`
               <div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6 }}>
                 ${tgs.map(t=>html`<span key=${t.id} onClick=${e=>e.stopPropagation()}
                   style=${{ fontSize:10, fontWeight:600, padding:'3px 10px', borderRadius:12, background:t.color+'15', color:t.color, border:'1.5px solid '+t.color+'40' }}>
                   ${t.name}
                 </span>`)}
               </div>`:null;})()}
-            <!-- Impact + Prob vote buttons -->
-            <div style=${{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+<div style=${{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
               <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
                 <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:50 }}>Impacto:</span>
                 ${IMPACT_BTNS.map(l => html`
-                  <button key=${l.id} onClick=${()=>!fromHist&&upd(r.id,{impact:l.id})}
+                  <button key=${l.id} onClick=${(e)=>{e.stopPropagation();if(!fromHist)upd(r.id,{impact:l.id})}}
                     style=${{ padding:'2px 8px', borderRadius:5,
                       border:(r.impact||'medio')===l.id?'2px solid '+l.color:'1px solid #E5E5EA',
                       background:(r.impact||'medio')===l.id?l.color+'18':'#FFF',
@@ -6384,7 +6312,7 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
               <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
                 <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:35 }}>Prob:</span>
                 ${[{id:'alta',label:'Alta',color:'#FF3B30'},{id:'media',label:'Media',color:'#FF9500'},{id:'baja',label:'Baja',color:'#34C759'}].map(l => html`
-                  <button key=${l.id} onClick=${()=>!fromHist&&upd(r.id,{prob:l.id})}
+                  <button key=${l.id} onClick=${(e)=>{e.stopPropagation();if(!fromHist)upd(r.id,{prob:l.id})}}
                     style=${{ padding:'2px 8px', borderRadius:5,
                       border:(r.prob||'media')===l.id?'2px solid '+l.color:'1px solid #E5E5EA',
                       background:(r.prob||'media')===l.id?l.color+'18':'#FFF',
@@ -6400,6 +6328,7 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
                 </span>
               `}
             </div>
+          </div>
       </div>`;
   }
 
@@ -6738,8 +6667,8 @@ const addItem = () => {
       </div>
       `}
 
-      <!-- Link task to risk modal -->
-      <!-- Risk Creation Form Modal -->
+      
+      
       ${showRiskForm && html`
         <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}
           onClick=${e=>{if(e.target===e.currentTarget)setShowRiskForm(false)}}>
@@ -6771,7 +6700,7 @@ const addItem = () => {
               <input value=${form.mitigation||''} onInput=${e=>setForm({...form,mitigation:e.target.value})}
                 placeholder=${form.type==='oportunidad'?'¿Cómo aprovecharla?':'Plan de mitigación'}
                 style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
-              <!-- AI button in creation form -->
+              
               ${form.text?.trim().length>5 && html`
                 <button type="button" onClick=${async(e)=>{
                   e.preventDefault();
@@ -6809,7 +6738,7 @@ const addItem = () => {
           </div>
         </div>`}
 
-      <!-- RiskDetailModal -->
+      
       ${detailRisk && html`<${RiskDetailModal}
         risk=${detailRisk}
         teamMembers=${teamMembers}
@@ -6822,7 +6751,7 @@ const addItem = () => {
           if(window.__goToTask) window.__goToTask(task);
         }} />`}
 
-      <!-- Risk-Task Link Dialog -->
+      
       ${linkModal && html`
         <div style=${{position:'fixed',inset:0,zIndex:20000,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}
           onClick=${e=>{if(e.target===e.currentTarget)setLinkModal(null)}}>
@@ -6834,7 +6763,7 @@ const addItem = () => {
               <p style=${{fontSize:13,color:'#6E6E73',lineHeight:1.4}}>${linkModal.riskText}</p>
             </div>
             <div style=${{padding:'8px 24px 20px',display:'flex',flexDirection:'column',gap:8}}>
-              <!-- Option 1: Create new -->
+              
               <button onClick=${()=>{
                 const rId=linkModal.riskId; const rText=linkModal.riskText;
                 setLinkModal(null);
@@ -6846,7 +6775,7 @@ const addItem = () => {
                   <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Se creará "Mitigar: ..." en el Backlog</div>
                 </div>
               </button>
-              <!-- Option 2: Link existing -->
+              
               <button onClick=${()=>{
                 setLinkModal({...linkModal, showPicker:true});
               }} style=${{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',borderRadius:12,border:'1.5px solid #5856D620',background:'#F8F5FF',cursor:'pointer',textAlign:'left'}}>
@@ -6856,7 +6785,7 @@ const addItem = () => {
                   <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Asociar una tarea del Backlog a este riesgo</div>
                 </div>
               </button>
-              <!-- Existing task picker (shown when selected) -->
+              
               ${linkModal.showPicker && html`
                 <div style=${{background:'#F9F9FB',borderRadius:12,border:'1.5px solid #E5E5EA',padding:'10px',maxHeight:200,overflowY:'auto'}}>
                   ${(()=>{
@@ -6876,7 +6805,7 @@ const addItem = () => {
                         </button>`);
                   })()}
                 </div>`}
-              <!-- Option 3: Skip -->
+              
               <button onClick=${()=>setLinkModal(null)}
                 style=${{padding:'10px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',color:'#86868B',fontSize:13,fontWeight:500,cursor:'pointer',textAlign:'center'}}>
                 Solo el riesgo, sin tarea
@@ -6993,7 +6922,6 @@ function PVacaciones({ embeddedTeam }) {
   return html`
     <div style=${{ maxWidth:960, margin:'0 auto' }}>
 
-      <!-- View toggle + month nav -->
       <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:16, flexWrap:'wrap' }}>
         <div style=${{ display:'flex', gap:0, borderRadius:10, overflow:'hidden', border:'1.5px solid #E5E5EA', flexShrink:0 }}>
           ${[['anual','📊 Anual'],['mensual','📅 Mensual']].map(([vid,vl])=>html`
@@ -7011,10 +6939,9 @@ function PVacaciones({ embeddedTeam }) {
         ${saving && html`<span style=${{ fontSize:11, color:'#007AFF' }}>💾</span>`}
       </div>
 
-      <!-- ══ VISTA ANUAL ══ -->
       ${vacView==='anual' && html`
         <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
-          <!-- Column headers -->
+
           <div style=${{ display:'grid', gridTemplateColumns:'1fr 90px 90px 90px 90px 90px', gap:6, padding:'0 12px', marginBottom:2 }}>
             <span style=${{ fontSize:10, color:'#86868B', fontWeight:700 }}>Miembro</span>
             ${['Días/año','Año ant.','Total disp.','Consumidos','Restantes'].map(l=>html`
@@ -7032,7 +6959,7 @@ function PVacaciones({ embeddedTeam }) {
             return html`
               <div key=${m.id} style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid '+(onVacToday?'#FF9500':'#E5E5EA'), overflow:'hidden' }}>
                 <div style=${{ display:'grid', gridTemplateColumns:'1fr 90px 90px 90px 90px 90px', gap:6, padding:'10px 12px', alignItems:'center' }}>
-                  <!-- Member -->
+
                   <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
                     <div style=${{ width:32,height:32,borderRadius:9,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>${m.avatar||'👤'}</div>
                     <div>
@@ -7041,20 +6968,20 @@ function PVacaciones({ embeddedTeam }) {
                     </div>
                     ${onVacToday&&html`<span style=${{ fontSize:9, color:'#FF9500', fontWeight:700, background:'#FF950015', padding:'1px 6px', borderRadius:6, marginLeft:4 }}>Hoy</span>`}
                   </div>
-                  <!-- Counters -->
+
                   <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:'#1D1D1F' }}>${annualDays}</span></div>
                   <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:prevPend>0?'#5856D6':'#C7C7CC' }}>${prevPend}</span></div>
                   <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:'#007AFF' }}>${total}</span></div>
                   <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:'#FF9500' }}>${vacUsed}</span></div>
                   <div style=${{ textAlign:'center' }}><span style=${{ fontSize:15, fontWeight:800, color:remain<=5?'#FF3B30':remain<=10?'#FF9500':'#34C759' }}>${remain}</span></div>
                 </div>
-                <!-- Thin progress bar -->
+
                 <div style=${{ height:3, background:'#F2F2F7' }}>
                   <div style=${{ width:pct+'%', height:'100%', background:pct>90?'#FF3B30':pct>70?'#FF9500':'#34C759', transition:'width .4s' }}></div>
                 </div>
               </div>`;
           })}
-          <!-- Totals -->
+
           <div style=${{ display:'grid', gridTemplateColumns:'1fr 90px 90px 90px 90px 90px', gap:6, padding:'10px 14px', background:'#F0F7FF', borderRadius:12, border:'1.5px solid #007AFF20' }}>
             <span style=${{ fontSize:12, fontWeight:700, color:'#007AFF' }}>TOTAL EQUIPO</span>
             <div style=${{ textAlign:'center' }}><span style=${{ fontSize:14, fontWeight:800, color:'#1D1D1F' }}>${members.reduce((s,m)=>s+((embeddedTeam||team).find(x=>x.id===m.id)?.annual_vac_days??ANNUAL_VAC_DAYS),0)}</span></div>
@@ -7066,10 +6993,9 @@ function PVacaciones({ embeddedTeam }) {
         </div>
       `}
 
-      <!-- ══ VISTA MENSUAL ══ -->
       ${vacView==='mensual' && html`
         <div>
-          <!-- Legend -->
+
           <div style=${{ display:'flex', gap:12, fontSize:10, alignItems:'center', marginBottom:12, flexWrap:'wrap' }}>
             ${[['#C8F0D0','#2D8A4E','L','Laboral'],['#E0E0E0','#888','','Fin semana'],['#EEEEFF','#5856D6','F','Festivo'],['#FF9500','#FFF','V','Ausencia']].map(([bg,c,lbl,name])=>html`
               <span style=${{ display:'flex', alignItems:'center', gap:4 }}>
@@ -7078,7 +7004,6 @@ function PVacaciones({ embeddedTeam }) {
               </span>`)}
           </div>
 
-          <!-- Calendar table -->
           <div style=${{ overflowX:'auto', borderRadius:14, border:'1.5px solid #E5E5EA', background:'#FFF', marginBottom:16 }}>
             <table style=${{ borderCollapse:'collapse', width:'100%', minWidth:600 }}>
               <thead>
@@ -7124,7 +7049,6 @@ function PVacaciones({ embeddedTeam }) {
             </table>
           </div>
 
-          <!-- Add absence form -->
           <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'14px 16px' }}>
             <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:10 }}>➕ Registrar ausencia</h3>
             <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -7241,7 +7165,6 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
           maxHeight:'88vh', display:'flex', flexDirection:'column',
           boxShadow:'0 24px 80px rgba(0,0,0,.2)', overflow:'hidden' }}>
 
-        <!-- Header -->
         <div style=${{ padding:'20px 24px 0', flexShrink:0 }}>
           <div style=${{ display:'flex', alignItems:'center', gap:14, marginBottom:16 }}>
             <div style=${{ width:56, height:56, borderRadius:16, background:user.color||'#007AFF',
@@ -7254,7 +7177,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
             </div>
             <button onClick=${onClose} style=${{ width:32, height:32, borderRadius:16, border:'none', background:'#F2F2F7', fontSize:16, cursor:'pointer' }}>✕</button>
           </div>
-          <!-- Tabs -->
+
           <div style=${{ display:'flex', gap:0, borderBottom:'2px solid #F2F2F7', overflowX:'auto' }}>
             ${[['perfil','👤 Perfil'],['contacto','📞 Contacto'],['actividad','📊 Actividad']].map(([tid,tl])=>html`
               <button key=${tid} onClick=${()=>setTab(tid)}
@@ -7265,10 +7188,8 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
           </div>
         </div>
 
-        <!-- Tab content -->
         <div style=${{ flex:1, overflowY:'auto', padding:'18px 24px 24px' }}>
 
-          <!-- ── PERFIL ── -->
           ${tab==='perfil' && html`
             ${!profile ? html`<div style=${{ textAlign:'center', padding:32, color:'#86868B' }}>⏳ Cargando…</div>` : html`
               <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
@@ -7311,7 +7232,6 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
               </div>`}
           `}
 
-          <!-- ── VACACIONES ── -->
           ${tab==='vacaciones' && html`
             ${!profile ? html`<div style=${{ textAlign:'center', padding:32, color:'#86868B' }}>⏳ Cargando…</div>` : html`
               <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -7333,7 +7253,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                   const remain   = Math.max(0, total - vacUsed);
                   const pct      = total>0?Math.min(100,Math.round((vacUsed/total)*100)):0;
                   return html`
-                    <!-- Counters -->
+
                     <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
                       ${[[annualDays2,'Días anuales','#1D1D1F'],[prevPend,'Año ant. pend.','#5856D6'],[total,'Total disp.','#007AFF'],[vacUsed,'Consumidos','#FF9500'],[remain,'Restantes',remain<=5?'#FF3B30':remain<=10?'#FF9500':'#34C759']].map(([v,l,c])=>html`
                         <div style=${{ textAlign:'center', padding:'10px 6px', borderRadius:12, background:c+'0D', border:'1px solid '+c+'25' }}>
@@ -7341,7 +7261,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                           <div style=${{ fontSize:9, color:'#86868B', marginTop:3, lineHeight:1.2 }}>${l}</div>
                         </div>`)}
                     </div>
-                    <!-- Bar -->
+
                     <div>
                       <div style=${{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#86868B', marginBottom:4 }}>
                         <span>Consumido: ${vacUsed}d de ${total}d</span>
@@ -7351,7 +7271,7 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                         <div style=${{ width:pct+'%', height:'100%', background:pct>90?'#FF3B30':pct>70?'#FF9500':'#34C759', borderRadius:6 }}></div>
                       </div>
                     </div>
-                    <!-- Absence list -->
+
                     ${myVacs.filter(v=>new Date(v.from||'').getFullYear()===yr).length>0&&html`
                       <div>
                         <h4 style=${{ fontSize:11, fontWeight:700, color:'#86868B', textTransform:'uppercase', marginBottom:8, letterSpacing:.5 }}>Registro ${yr}</h4>
@@ -7373,10 +7293,9 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
               </div>`}
           `}
 
-          <!-- ── ACTIVIDAD ── -->
           ${tab==='actividad' && html`
             <div style=${{ display:'flex', flexDirection:'column', gap:16 }}>
-              <!-- KPIs -->
+
               <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
                 ${[
                   ['🎯', pendingActions.length, 'Pendientes', '#FF9500'],
@@ -7390,7 +7309,6 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                   </div>`)}
               </div>
 
-              <!-- My actions -->
               ${myActions.length > 0 && html`
                 <div>
                   <h4 style=${{ fontSize:12, fontWeight:700, color:'#86868B', textTransform:'uppercase', marginBottom:8, letterSpacing:.5 }}>Mis accionables</h4>
@@ -7413,7 +7331,6 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
                   </div>
                 </div>`}
 
-              <!-- Escalated to me -->
               ${escalatedToMe.length > 0 && html`
                 <div>
                   <h4 style=${{ fontSize:12, fontWeight:700, color:'#5856D6', textTransform:'uppercase', marginBottom:8, letterSpacing:.5 }}>📈 Riesgos escalados a mí</h4>
@@ -7428,7 +7345,6 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
             </div>
           `}
 
-          <!-- ── CONTACTO ── -->
           ${tab==='contacto' && html`
             ${!profile ? html`<div style=${{ textAlign:'center', padding:32, color:'#86868B' }}>⏳ Cargando…</div>` : html`
               <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
@@ -7735,7 +7651,7 @@ function RetroBoard({ user, onLogout }) {
         <div style=${{ display:'flex', alignItems:'center', gap:6 }}>
           ${uList.slice(0,8).map(([id,u],i)=>html`<div key=${id} title=${u.name} style=${{ width:52, height:52, borderRadius:26, background:u.color, border:'3px solid #FFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, marginLeft:i>0?-12:0, zIndex:10-i, boxShadow:'0 2px 10px rgba(0,0,0,.18)' }}>${u.avatar}</div>`)}
           ${uList.length>0 && html`<span style=${{ fontSize:11, color:'#86868B', marginLeft:4 }}>${uList.length} online</span>`}
-          <!-- Notification bell -->
+
           <div data-notif-panel style=${{ position:'relative' }}>
             <button onClick=${()=>setShowNotifs(v=>!v)}
               style=${{ width:36, height:36, borderRadius:10, border:'1px solid #E5E5EA', background:'#FFF', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:16, position:'relative' }}>
@@ -7771,10 +7687,9 @@ function RetroBoard({ user, onLogout }) {
           </button>
         </div>
       </header>
-      <!-- ── SIDEBAR + CONTENT LAYOUT ── -->
+
       <div style=${{ display:'flex', flex:1, overflow:'hidden' }}>
 
-        <!-- Left sidebar -->
         <aside style=${{ width:186, background:'#FFF', borderRight:'1px solid rgba(0,0,0,.06)', padding:'12px 10px', display:'flex', flexDirection:'column', gap:2, flexShrink:0, overflowY:'auto' }}>
           ${MAIN_TABS.map(t => html`
             <button key=${t.id} onClick=${()=>setMainTab(t.id)}
@@ -7789,7 +7704,6 @@ function RetroBoard({ user, onLogout }) {
 
         </aside>
 
-        <!-- Main content -->
         <div style=${{ flex:1, overflowY:'auto', padding:'18px 20px' }}>
           ${mainTab==='resumen' ? html`
             <div>
@@ -7815,7 +7729,7 @@ function RetroBoard({ user, onLogout }) {
                   </div>`)}
               </div>
               <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <!-- Quick access cards -->
+
                 ${[
                   {tab:'trabajo', icon:'ClipboardList', label:'Seguimiento', desc:state.actions.filter(a=>a.status!=='done'&&a.status!=='discarded').length+' tareas abiertas', c:'#007AFF'},
                   {tab:'retro', icon:'RotateCcw', label:'Retro', desc:'Fase actual: '+PHASES[phase].label, c:'#34C759'},
@@ -7846,7 +7760,7 @@ function RetroBoard({ user, onLogout }) {
               </div>
             </div>
           ` : mainTab==='retro' ? html`<div style=${{display:'flex',flexDirection:'column',height:'100%'}}>
-            <!-- Phase bar + timer row -->
+
             <div style=${{background:'#FFF',borderBottom:'1px solid #F2F2F7',padding:'8px 14px',display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
               <div style=${{display:'flex',gap:3,flex:1,flexWrap:'wrap'}}>
                 ${PHASES.map((p,i)=>html`
@@ -7868,7 +7782,7 @@ function RetroBoard({ user, onLogout }) {
                     <${Icon} name="ArrowRight" size=${11} color="#FFF" /> ${PHASES[phase+1]?.label}
                   </button>`}
               </div>
-              <!-- Timer + actions -->
+
               <div style=${{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
                 <div style=${{display:'flex',gap:2}}>
                   ${[5,10,15,20].map(m=>html`
@@ -7897,7 +7811,7 @@ function RetroBoard({ user, onLogout }) {
                 </button>
               </div>
             </div>
-            <!-- Retro content -->
+
             <div style=${{flex:1,overflowY:'auto',padding:'14px 16px'}}>
               ${content()}
             </div>
@@ -7976,7 +7890,7 @@ function RetroBoard({ user, onLogout }) {
         <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
           onClick=${()=>setShowProjectSwitch(false)}>
           <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:400, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,.2)', overflow:'hidden' }}>
-            <!-- Header -->
+
             <div style=${{ padding:'20px 24px 0' }}>
               <div style=${{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
                 <div style=${{ width:48, height:48, borderRadius:14, background:user.color||'#007AFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26 }}>${user.avatar}</div>
@@ -8128,7 +8042,7 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
           </div>
         </div>
         <div style=${{ flex:1, overflowY:'auto', padding:'18px 24px 24px' }}>
-          <!-- Summary KPIs -->
+
           ${(() => {
             const d = viewRetro.data || {};
             const parts2 = [...new Set((d.notes||[]).map(n=>n.userName))];
@@ -8149,7 +8063,7 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
                     <div style=${{ fontSize:9, color:'#86868B' }}>${lb}</div>
                   </div>`)}
               </div>
-              <!-- Participants -->
+
               ${parts2.length>0 && html`
                 <div style=${{ marginBottom:14, padding:'10px 14px', borderRadius:10, background:'#F9F9FB', border:'1px solid #E5E5EA' }}>
                   <p style=${{ fontSize:11, fontWeight:700, marginBottom:8, color:'#86868B' }}>👥 Participantes</p>
@@ -8239,7 +8153,7 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
               return html`
                 <div key=${r.id} class="hl" style=${{ padding:'14px 16px', borderRadius:14, border:'1.5px solid #E5E5EA', marginBottom:10, background:'#FAFAFA', cursor:'pointer' }}
                   onClick=${()=>setViewRetro(r)}>
-                  <!-- Header row -->
+
                   <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
                       <span style=${{ fontSize:13, fontWeight:700 }}>${fd(r.created_at)}</span>
@@ -8247,14 +8161,14 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
                     </div>
                     <span style=${{ color:'#C7C7CC', fontSize:14 }}>›</span>
                   </div>
-                  <!-- Stats row -->
+
                   <div style=${{ display:'flex', gap:14, marginBottom:8 }}>
                     <span style=${{ fontSize:11, color:'#86868B' }}>📝 <b style=${{ color:'#1D1D1F' }}>${nC}</b> notas</span>
                     <span style=${{ fontSize:11, color:'#86868B' }}>🎯 <b style=${{ color:pctColor }}>${dC}/${aC}</b> accionables</span>
                     ${riskC>0 && html`<span style=${{ fontSize:11, color:'#FF9500' }}>⚠️ <b>${riskC}</b> riesgos</span>`}
                     <span style=${{ fontSize:11, color:'#86868B' }}>👥 <b style=${{ color:'#5856D6' }}>${parts.length}</b> personas</span>
                   </div>
-                  <!-- Participants avatars -->
+
                   ${parts.length>0 && html`
                     <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:8, flexWrap:'wrap' }}>
                       ${parts.map((name,i) => {
@@ -8268,7 +8182,7 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
                       })}
                     </div>
                   `}
-                  <!-- Progress bar -->
+
                   <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
                     <div style=${{ flex:1, height:4, background:'#E5E5EA', borderRadius:2, overflow:'hidden' }}>
                       <div style=${{ width:pct+'%', height:'100%', background:pctColor, borderRadius:2 }} />
@@ -8351,7 +8265,6 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
     <div style=${{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick=${onClose}>
       <div onClick=${e=>e.stopPropagation()} style=${{ background:'#FFF', borderRadius:22, maxWidth:560, width:'100%', maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.2)' }}>
 
-        <!-- Header -->
         <div style=${{ padding:'22px 26px 16px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
           <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:2 }}>
             <h2 style=${{ fontSize:18, fontWeight:700 }}>🆕 Nueva retrospectiva</h2>
@@ -8360,7 +8273,6 @@ ${risks.length?'<h2>⚠️ Riesgos ('+risks.length+')</h2>'+risks.map(r=>'<div c
           <p style=${{ fontSize:13, color:'#86868B' }}>La retro actual se guarda en Supabase y el tablero se limpia.</p>
         </div>
 
-        <!-- Body: current retro summary + action -->
         <div style=${{ padding:'22px 26px 26px' }}>
           <div style=${{ display:'flex', gap:10, marginBottom:16 }}>
             ${[['📝', state.notes?.length||0, 'Notas'], ['🎯', state.actions?.length||0, 'Tareas'], ['⚠️', (state.risks||[]).filter(r=>r.status!=='mitigated').length, 'Riesgos']].map(([ic,v,l]) => html`
@@ -8659,12 +8571,10 @@ function P4({ notes, actions, risks, sA, user }) {
     <div style=${{ maxWidth:'100%' }}>
       <div style=${{ display:'grid', gridTemplateColumns:'1fr 300px', gap:14, alignItems:'start' }}>
 
-        <!-- Left: action list + form -->
         <div style=${{ ...cS, padding:20 }}>
           <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:4 }}>Acciones de la retro</h3>
           <p style=${{ fontSize:11, color:'#86868B', marginBottom:14 }}>Se añadirán al backlog del proyecto para su seguimiento</p>
 
-          <!-- Add form -->
           <div style=${{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap', padding:'10px 12px', borderRadius:12, background:'#F9F9FB', border:'1.5px solid #E5E5EA' }}>
             <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Nueva acción…"
               onKeyDown=${e=>e.key==='Enter'&&addA(null)}
@@ -8679,7 +8589,6 @@ function P4({ notes, actions, risks, sA, user }) {
             <button onClick=${()=>addA(null)} style=${bP}>+ Añadir</button>
           </div>
 
-          <!-- Actions list (no statuses) -->
           ${actions.length===0
             ? html`<div style=${{ textAlign:'center', padding:'28px 0', color:'#C7C7CC' }}><p style=${{ fontSize:13 }}>Crea acciones o selecciona notas/riesgos del panel derecho</p></div>`
             : html`<div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
@@ -8725,9 +8634,8 @@ function P4({ notes, actions, risks, sA, user }) {
               </div>`}
         </div>
 
-        <!-- Right: notes + risks to convert -->
         <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
-          <!-- Top notes -->
+
           <div style=${{ ...cS, padding:16 }}>
             <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:8 }}>Notas más votadas</h4>
             <p style=${{ fontSize:10, color:'#86868B', marginBottom:8 }}>Clic para crear acción</p>
@@ -8749,7 +8657,6 @@ function P4({ notes, actions, risks, sA, user }) {
             </div>
           </div>
 
-          <!-- Risks -->
           ${openRisks.length>0 && html`
             <div style=${{ ...cS, padding:16 }}>
               <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:6 }}>Riesgos abiertos</h4>
@@ -8843,7 +8750,7 @@ function P5Risks({ risks, sR, notes, user }) {
 
   return html`
     <div style=${{ maxWidth:'100%', margin:'0 auto' }}>
-      <!-- Heat map full width -->
+
       <div style=${{ ...cS, padding:'22px', marginBottom:14 }}>
         <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:14 }}>Mapa de calor</h3>
         <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, alignItems:'start' }}>
@@ -8891,7 +8798,7 @@ function P5Risks({ risks, sR, notes, user }) {
             <div style=${{ textAlign:'center', fontSize:11, color:'#86868B', marginTop:4, fontWeight:600 }}>IMPACTO →</div>
             <div style=${{ position:'absolute', left:-8, top:'40%', transform:'rotate(-90deg)', fontSize:11, color:'#86868B', fontWeight:600 }}>PROB. →</div>
           </div>
-          <!-- Legend / summary -->
+
           <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
             ${heatData.length === 0 ? html`<p style=${{ fontSize:13, color:'#C7C7CC', padding:'20px 0' }}>No hay riesgos abiertos</p>` :
               heatData.map((r, i) => {
@@ -8908,7 +8815,6 @@ function P5Risks({ risks, sR, notes, user }) {
         </div>
       </div>
 
-      <!-- Risk list + form -->
       <div style=${{ display:'grid', gridTemplateColumns:'1fr 320px', gap:14, marginBottom:14 }}>
         <div style=${{ ...cS, padding:'18px' }}>
           <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
@@ -8919,7 +8825,7 @@ function P5Risks({ risks, sR, notes, user }) {
               `)}
             </div>
           </div>
-          <!-- New risk form -->
+
           <div style=${{ display:'flex', gap:5, marginBottom:14, flexWrap:'wrap' }}>
             <input value=${form.text} onInput=${e=>setForm({...form,text:e.target.value})} placeholder="Descripción del riesgo..." style=${{ ...iS, flex:2, minWidth:140, fontSize:13 }} />
             <input value=${form.mitigation} onInput=${e=>setForm({...form,mitigation:e.target.value})} placeholder="Mitigación" style=${{ ...iS, flex:1, minWidth:100, fontSize:13 }} />
@@ -8929,7 +8835,7 @@ function P5Risks({ risks, sR, notes, user }) {
             </select>
             <button onClick=${()=>addRisk(null)} style=${bP}>+ Riesgo</button>
           </div>
-          <!-- Risk items -->
+
           <div style=${{ display:'flex', flexDirection:'column', gap:6, maxHeight:400, overflowY:'auto' }}>
             ${openRisks.map((r, idx) => {
               const imp = getRiskLevel(r.impactVotes);
@@ -8965,7 +8871,6 @@ function P5Risks({ risks, sR, notes, user }) {
                     </select>
                   </div>
 
-                  <!-- Voting -->  <!-- Voting -->
                   <div style=${{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
                       <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:50 }}>Impacto:</span>
@@ -9011,7 +8916,7 @@ function P5Risks({ risks, sR, notes, user }) {
             </div>
           `}
         </div>
-        <!-- Sidebar: Bad/Stop notes to convert -->
+
         <div style=${{ ...cS, padding:'18px' }}>
           <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>🔥 Notas Bad / Stop / Start</h4>
           <p style=${{ fontSize:10, color:'#86868B', marginBottom:10 }}>Clic para convertir en riesgo</p>
@@ -9125,7 +9030,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
   return html`
     <div style=${{ maxWidth:980, margin:'0 auto', display:'flex', flexDirection:'column', gap:12 }}>
 
-      <!-- ── KPI CARDS ── -->
       <div style=${{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
         ${[
           {l:'Notas',          v:tN,                   i:'📝', c:'#007AFF'},
@@ -9141,7 +9045,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
           </div>`)}
       </div>
 
-      <!-- ── TAB BAR ── -->
       <div style=${{ display:'flex', gap:4, background:'#FFF', borderRadius:14, padding:4, border:'1.5px solid #E5E5EA' }}>
         ${TABS.map(t => html`
           <button key=${t.id} onClick=${()=>setActiveTab(t.id)} style=${{
@@ -9154,11 +9057,9 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
         <button onClick=${exportPDF} style=${{ padding:'7px 14px', borderRadius:10, border:'none', background:'#007AFF', color:'#FFF', fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>📄 PDF</button>
       </div>
 
-      <!-- ══ RESUMEN ══ -->
       ${activeTab === 'resumen' && html`
         <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
 
-          <!-- Notas por categoría -->
           <div style=${{ ...cS, padding:20 }}>
             <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>Notas por categoría</h3>
             ${CATS.map(c => {
@@ -9177,7 +9078,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
             })}
           </div>
 
-          <!-- Progreso -->
           <div style=${{ ...cS, padding:20, display:'flex', flexDirection:'column', gap:16 }}>
             <div>
               <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:14 }}>Progreso</h3>
@@ -9193,7 +9093,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
               </div>
             </div>
 
-            <!-- Tiempo real por fase -->
             ${Object.keys(phaseTimes||{}).length > 0 && html`
               <div style=${{ padding:'14px 16px', borderRadius:12, background:'#F0F7FF', border:'1.5px solid #007AFF20', marginBottom:0 }}>
                 <h4 style=${{ fontSize:12, fontWeight:700, color:'#007AFF', marginBottom:10, display:'flex', alignItems:'center', gap:6 }}>
@@ -9221,7 +9120,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
                 </div>
               </div>`}
 
-            <!-- Objetivo -->
             ${obj.text && html`
               <div style=${{ padding:'12px 14px', borderRadius:12, background:objColor+'10', border:'1.5px solid '+objColor+'30' }}>
                 <p style=${{ fontSize:11, color:objColor, fontWeight:700, marginBottom:4 }}>🎯 Objetivo</p>
@@ -9230,7 +9128,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
               </div>
             `}
 
-            <!-- Riesgos mini resumen -->
             <div style=${{ padding:'12px 14px', borderRadius:12, background:openRisks.length>0?'#FFF5F5':'#F0FFF4', border:'1.5px solid '+(openRisks.length>0?'#FF3B3020':'#34C75920') }}>
               <p style=${{ fontSize:11, fontWeight:700, color:openRisks.length>0?'#FF3B30':'#34C759', marginBottom:4 }}>⚠️ Riesgos</p>
               <div style=${{ display:'flex', gap:12, fontSize:12 }}>
@@ -9245,7 +9142,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
           </div>
         </div>
 
-        <!-- Top notas -->
         ${topNotes.length > 0 && html`
           <div style=${{ ...cS, padding:20 }}>
             <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:12 }}>🔥 Notas más votadas</h3>
@@ -9269,7 +9165,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
         `}
       `}
 
-      <!-- ══ NOTAS ══ -->
       ${activeTab === 'notas' && html`
         <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
           ${CATS.map(c => {
@@ -9299,7 +9194,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
         </div>
       `}
 
-      <!-- ══ ACCIONABLES ══ -->
       ${activeTab === 'tareas' && html`
         <div style=${{ ...cS, padding:20 }}>
           <div style=${{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
@@ -9310,7 +9204,7 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
               <span style=${{ color:'#FF9500', fontWeight:700 }}>${actions.filter(a=>a.status==='pending').length} pendientes</span>
             </div>
           </div>
-          <!-- Progress bar -->
+
           <div style=${{ height:8, background:'#F2F2F7', borderRadius:4, overflow:'hidden', marginBottom:16 }}>
             <div style=${{ height:'100%', width:(actions.length?(aD/actions.length)*100:0)+'%', background:'linear-gradient(90deg,#34C759,#30d158)', borderRadius:4, transition:'width .6s' }} />
           </div>
@@ -9338,11 +9232,9 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
         </div>
       `}
 
-      <!-- ══ RIESGOS ══ -->
       ${activeTab === 'riesgos' && html`
         <div style=${{ display:'flex', flexDirection:'column', gap:12 }}>
 
-          <!-- Resumen riesgos -->
           <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
             ${[
               {l:'Abiertos',   v:openRisks.filter(r=>riskScore(r)>=6).length,  c:'#FF3B30', sub:'Score alto (≥6)'},
@@ -9356,7 +9248,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
               </div>`)}
           </div>
 
-          <!-- Lista riesgos abiertos -->
           ${openRisks.length > 0 && html`
             <div style=${{ ...cS, padding:20 }}>
               <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:12, color:'#FF3B30' }}>Riesgos abiertos (${openRisks.length})</h3>
@@ -9386,7 +9277,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
             </div>
           `}
 
-          <!-- Riesgos mitigados -->
           ${closedRisks.length > 0 && html`
             <div style=${{ ...cS, padding:20 }}>
               <h3 style=${{ fontSize:14, fontWeight:700, marginBottom:10, color:'#34C759' }}>✅ Mitigados (${closedRisks.length})</h3>
@@ -9411,7 +9301,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
         </div>
       `}
 
-      <!-- ══ RANKING ══ -->
       ${activeTab === 'ranking' && html`
         <div style=${{ ...cS, padding:22 }}>
           <h3 style=${{ fontSize:16, fontWeight:700, marginBottom:4 }}>🏆 Ranking</h3>
