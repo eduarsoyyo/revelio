@@ -21,6 +21,7 @@
     0%, 100% { opacity: 1; }
     50% { opacity: .5; }
   }
+  @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
   @keyframes shimmer {
     0% { opacity: .3; }
     50% { opacity: .7; }
@@ -4659,6 +4660,49 @@ function GlobalConfirm() {
 }
 window.__confirm = (opts) => __confirmState.set && __confirmState.set(opts);
 
+/* ═══ AI COPILOT — risk improvement via Anthropic API ═══ */
+async function aiImproveRisk(riskText, mitigation, type, impact, prob) {
+  const typeLabel = type==='problema'?'Problema activo':type==='oportunidad'?'Oportunidad':'Riesgo';
+  const prompt = `Eres un consultor de gestión de riesgos de proyectos IT/Servicio. 
+Analiza este ${typeLabel.toLowerCase()} y devuelve SOLO un JSON válido (sin markdown, sin backticks) con esta estructura:
+{
+  "text": "Redacción mejorada y más precisa del riesgo (1-2 frases claras)",
+  "mitigation": "Plan de mitigación estructurado y accionable (2-3 frases)",
+  "actions": ["Acción concreta 1", "Acción concreta 2", "Acción concreta 3"]
+}
+
+${typeLabel}: "${riskText}"
+${mitigation ? 'Mitigación actual: "' + mitigation + '"' : 'Sin plan de mitigación aún.'}
+Impacto: ${impact || 'medio'} | Probabilidad: ${prob || 'media'}
+
+Reglas:
+- Redacción profesional, concisa, orientada a acción
+- La mitigación debe ser específica y medible
+- Las acciones deben ser tareas concretas asignables a una persona
+- Responde SOLO el JSON, nada más`;
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await response.json();
+    const text = (data.content||[]).find(b=>b.type==='text')?.text||'';
+    // Parse JSON — strip any accidental markdown fences
+    const clean = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch(e) {
+    console.error('AI Copilot error:', e);
+    return null;
+  }
+}
+
+
 
 
 /* ═══ TYPE BADGE — Jira-style colored icon ═══ */
@@ -5949,9 +5993,65 @@ function heatColor(imp, prob) {
   return score >= 6 ? '#FF3B30' : score >= 3 ? '#FF9500' : '#34C759';
 }
 
+/* ═══ AI SUGGESTION PANEL ═══ */
+function AISuggestionPanel({ suggestion, onAcceptText, onAcceptMitigation, onAcceptAction, onClose, loading }) {
+  if (loading) return html`
+    <div style=${{background:'linear-gradient(135deg,#F0F7FF,#F8F5FF)',borderRadius:14,border:'1.5px solid #5856D620',padding:'20px',marginTop:10}}>
+      <div style=${{display:'flex',alignItems:'center',gap:10}}>
+        <div style=${{width:20,height:20,border:'2.5px solid #5856D6',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}></div>
+        <span style=${{fontSize:13,color:'#5856D6',fontWeight:600}}>Analizando con AI...</span>
+      </div>
+    </div>`;
+  if (!suggestion) return null;
+  return html`
+    <div style=${{background:'linear-gradient(135deg,#F0F7FF,#F8F5FF)',borderRadius:14,border:'1.5px solid #5856D620',padding:'16px',marginTop:10}}>
+      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div style=${{display:'flex',alignItems:'center',gap:6}}>
+          <${Icon} name="Sparkles" size=${14} color="#5856D6" />
+          <span style=${{fontSize:12,fontWeight:700,color:'#5856D6'}}>Sugerencia AI</span>
+        </div>
+        <button onClick=${onClose} style=${{border:'none',background:'#5856D610',borderRadius:8,width:24,height:24,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:12,color:'#5856D6'}}>✕</button>
+      </div>
+      <!-- Improved text -->
+      ${suggestion.text && html`
+        <div style=${{marginBottom:10}}>
+          <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.3,marginBottom:4}}>Redacción mejorada</div>
+          <div style=${{display:'flex',gap:8,alignItems:'flex-start'}}>
+            <p style=${{flex:1,fontSize:13,color:'#1D1D1F',lineHeight:1.5,margin:0,background:'#FFF',padding:'8px 12px',borderRadius:10,border:'1px solid #E5E5EA'}}>${suggestion.text}</p>
+            <button onClick=${()=>onAcceptText(suggestion.text)} style=${{flexShrink:0,padding:'6px 12px',borderRadius:8,border:'none',background:'#5856D6',color:'#FFF',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Aplicar</button>
+          </div>
+        </div>`}
+      <!-- Mitigation -->
+      ${suggestion.mitigation && html`
+        <div style=${{marginBottom:10}}>
+          <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.3,marginBottom:4}}>Plan de mitigación</div>
+          <div style=${{display:'flex',gap:8,alignItems:'flex-start'}}>
+            <p style=${{flex:1,fontSize:12,color:'#1D1D1F',lineHeight:1.5,margin:0,background:'#FFF',padding:'8px 12px',borderRadius:10,border:'1px solid #E5E5EA'}}>${suggestion.mitigation}</p>
+            <button onClick=${()=>onAcceptMitigation(suggestion.mitigation)} style=${{flexShrink:0,padding:'6px 12px',borderRadius:8,border:'none',background:'#5856D6',color:'#FFF',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Aplicar</button>
+          </div>
+        </div>`}
+      <!-- Actions -->
+      ${suggestion.actions?.length>0 && html`
+        <div>
+          <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.3,marginBottom:4}}>Accionables sugeridos</div>
+          <div style=${{display:'flex',flexDirection:'column',gap:4}}>
+            ${suggestion.actions.map((a,i)=>html`
+              <div key=${i} style=${{display:'flex',alignItems:'center',gap:8,background:'#FFF',padding:'8px 12px',borderRadius:10,border:'1px solid #E5E5EA'}}>
+                <${Icon} name="Plus" size=${12} color="#34C759" />
+                <span style=${{flex:1,fontSize:12,color:'#1D1D1F'}}>${a}</span>
+                <button onClick=${()=>onAcceptAction(a)} style=${{flexShrink:0,padding:'4px 10px',borderRadius:7,border:'1.5px solid #34C75930',background:'#F0FFF4',color:'#34C759',fontSize:10,fontWeight:600,cursor:'pointer'}}>+ Crear tarea</button>
+              </div>`)}
+          </div>
+        </div>`}
+    </div>`;
+}
+
+
 /* ═══ RISK DETAIL MODAL ═══ */
 function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToTask }) {
   const [f, setF] = useState({...risk});
+  const [aiSuggestion, setAiSuggestion] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const typeKey = f.type||'riesgo';
   const prefix = typeKey==='problema'?'P':typeKey==='oportunidad'?'O':'R';
   const hc = typeKey==='problema' ? '#FF3B30' : heatColor(f.impact||'medio', f.prob||'media');
@@ -6002,6 +6102,24 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
                 placeholder="¿Cómo se va a mitigar este riesgo?"
                 style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none',resize:'vertical',minHeight:60,boxSizing:'border-box'}} />
             </div>
+            <!-- AI Copilot button -->
+            <button onClick=${async()=>{
+              setAiLoading(true); setAiSuggestion(null);
+              const result = await aiImproveRisk(f.text, f.mitigation, f.type||'riesgo', f.impact, f.prob);
+              setAiSuggestion(result); setAiLoading(false);
+            }} style=${{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:10,border:'1.5px solid #5856D620',background:'linear-gradient(135deg,#F0F7FF,#F8F5FF)',color:'#5856D6',fontSize:12,fontWeight:600,cursor:'pointer',alignSelf:'flex-start'}}>
+              <${Icon} name="Sparkles" size=${14} color="#5856D6" /> Mejorar con AI
+            </button>
+            <!-- AI Suggestion Panel -->
+            <${AISuggestionPanel}
+              suggestion=${aiSuggestion} loading=${aiLoading}
+              onAcceptText=${(t)=>setF({...f,text:t})}
+              onAcceptMitigation=${(m)=>setF({...f,mitigation:m})}
+              onAcceptAction=${(actionText)=>{
+                if(window.__createLinkedTask) window.__createLinkedTask(risk.id, actionText);
+              }}
+              onClose=${()=>{setAiSuggestion(null);setAiLoading(false);}} />
+
             ${typeKey==='oportunidad'&&html`<div>
               ${fieldLabel('Oportunidad asociada')}
               <textarea value=${f.opportunity||''} onInput=${e=>setF({...f,opportunity:e.target.value})}
@@ -6581,6 +6699,20 @@ const addItem = () => {
               <input value=${form.mitigation||''} onInput=${e=>setForm({...form,mitigation:e.target.value})}
                 placeholder=${form.type==='oportunidad'?'¿Cómo aprovecharla?':'Plan de mitigación'}
                 style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+              <!-- AI button in creation form -->
+              ${form.text?.trim().length>5 && html`
+                <button type="button" onClick=${async(e)=>{
+                  e.preventDefault();
+                  const btn=e.currentTarget; btn.disabled=true; btn.textContent='Analizando...';
+                  const result = await aiImproveRisk(form.text, form.mitigation, form.type||'riesgo', form.impact, form.prob);
+                  btn.disabled=false; btn.textContent='✨ Mejorar con AI';
+                  if(result){
+                    if(result.text) setForm(prev=>({...prev,text:result.text}));
+                    if(result.mitigation) setForm(prev=>({...prev,mitigation:result.mitigation}));
+                  }
+                }} style=${{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',borderRadius:9,border:'1.5px solid #5856D620',background:'#F8F5FF',color:'#5856D6',fontSize:11,fontWeight:600,cursor:'pointer'}}>
+                  ✨ Mejorar con AI
+                </button>`}
               <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                 <div>
                   <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Fecha identificación</label>
