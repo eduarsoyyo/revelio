@@ -37,25 +37,6 @@
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.4"
   }
 }
-
-  // Cleanup: remove stray "div" text nodes (htm parser quirk)
-  const _cleanDivText = () => {
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    const toRemove = [];
-    while(walker.nextNode()) {
-      const n = walker.currentNode;
-      if (n.textContent.trim() === 'div' && n.parentElement && n.parentElement.children.length > 0) {
-        toRemove.push(n);
-      }
-    }
-    toRemove.forEach(n => n.remove());
-  };
-  // Run on initial load + observe mutations
-  setTimeout(_cleanDivText, 500);
-  setTimeout(_cleanDivText, 2000);
-  new MutationObserver(() => setTimeout(_cleanDivText, 100))
-    .observe(document.body, {childList:true, subtree:true});
-
 </script>
 <script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -9473,6 +9454,23 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
 
 
 render(html`<div><${App} /><${GlobalConfirm} /></div>`, document.getElementById('app'));
+
+// Cleanup: remove stray "div" text nodes (htm parser quirk)
+const _cleanDivText = () => {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const toRemove = [];
+  while(walker.nextNode()) {
+    const n = walker.currentNode;
+    if (n.textContent.trim() === 'div' && n.parentElement && n.parentElement.children.length > 0) {
+      toRemove.push(n);
+    }
+  }
+  toRemove.forEach(n => n.remove());
+};
+setTimeout(_cleanDivText, 500);
+setTimeout(_cleanDivText, 2000);
+new MutationObserver(() => setTimeout(_cleanDivText, 100))
+  .observe(document.body, {childList:true, subtree:true});
 </script>
 </body>
 </html>
