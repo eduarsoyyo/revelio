@@ -244,9 +244,35 @@ function debounce(fn, ms) {
 
 async function sbSaveRetroSnapshot(sala, tipo, stateData, userId, status) {
   try {
-    const {error} = await supabase.from('retros').insert({ sala, tipo, status:status||'active', data:stateData, created_by:userId });
-    if (error) console.warn('sbSaveRetroSnapshot:', error.message);
+    // Try to update existing active snapshot first (avoids row explosion from auto-save)
+    const st = status || 'active';
+    if (st === 'active') {
+      const { data: existing } = await supabase.from('retros')
+        .select('id')
+        .eq('sala', sala)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (existing && existing[0]) {
+        const { error } = await supabase.from('retros')
+          .update({ data: stateData, updated_at: new Date().toISOString() })
+          .eq('id', existing[0].id);
+        if (error) console.warn('sbSaveRetroSnapshot update:', error.message);
+        return;
+      }
+    }
+    // No existing active snapshot — insert new
+    const {error} = await supabase.from('retros').insert({ sala, tipo, status:st, data:stateData, created_by:userId });
+    if (error) console.warn('sbSaveRetroSnapshot insert:', error.message);
   } catch(e) { console.warn('sbSaveRetroSnapshot:', e); }
+}
+
+// Explicit snapshot for history (always inserts new row)
+async function sbCreateRetroArchive(sala, tipo, stateData, userId) {
+  try {
+    const {error} = await supabase.from('retros').insert({ sala, tipo, status:'closed', data:stateData, created_by:userId });
+    if (error) console.warn('sbCreateRetroArchive:', error.message);
+  } catch(e) { console.warn('sbCreateRetroArchive:', e); }
 }
 
 /* ═══ CONSTANTS ═══ */
@@ -459,7 +485,59 @@ function useRealtime(user) {
   const chRef = useRef(null);
   const stRef = useRef(state);
   const cursRef = useRef({});
+  const supabaseSaveTimer = useRef(null);
   stRef.current = state;
+
+  // ── SUPABASE FALLBACK: if localStorage was empty, load latest snapshot ──
+  useEffect(() => {
+    const hasActions = (state.actions||[]).length > 0;
+    const hasRisks = (state.risks||[]).length > 0;
+    const hasNotes = (state.notes||[]).length > 0;
+    if (hasActions || hasRisks || hasNotes) return; // already have data
+    // Try loading from Supabase
+    (async () => {
+      try {
+        const { data } = await supabase.from('retros')
+          .select('data')
+          .eq('sala', SALA)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (data && data[0] && data[0].data) {
+          const snap = data[0].data;
+          console.log('[revelio] Recovered state from Supabase snapshot', Object.keys(snap));
+          setState(prev => {
+            const merged = { ...prev };
+            if (snap.actions?.length > 0) merged.actions = snap.actions;
+            if (snap.risks?.length > 0) merged.risks = snap.risks;
+            if (snap.notes?.length > 0) merged.notes = snap.notes;
+            if (snap.tasks?.length > 0) merged.tasks = snap.tasks;
+            if (snap.obj) merged.obj = snap.obj;
+            saveRetroState(merged);
+            if (merged.risks?.length > 0) saveRisks(merged.risks);
+            return merged;
+          });
+          // Notify UI
+          window.dispatchEvent(new CustomEvent('revelio-recovered', {
+            detail: { actions: snap.actions?.length||0, risks: snap.risks?.length||0, notes: snap.notes?.length||0 }
+          }));
+        }
+      } catch(e) { console.warn('[revelio] Supabase fallback failed:', e); }
+    })();
+  }, []);
+
+  // ── DEBOUNCED AUTO-SAVE TO SUPABASE on every state change ──
+  useEffect(() => {
+    if (!user) return;
+    if (supabaseSaveTimer.current) clearTimeout(supabaseSaveTimer.current);
+    supabaseSaveTimer.current = setTimeout(() => {
+      const s = stRef.current;
+      // Only save if there's meaningful data
+      if ((s.actions||[]).length > 0 || (s.risks||[]).length > 0 || (s.notes||[]).length > 0) {
+        sbSaveRetroSnapshot(SALA, TIPO, s, user.id, 'active').catch(() => {});
+      }
+    }, 5000); // 5 second debounce
+    return () => { if (supabaseSaveTimer.current) clearTimeout(supabaseSaveTimer.current); };
+  }, [state, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -7530,6 +7608,16 @@ function RetroBoard({ user, onLogout }) {
   ];
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
+  // Listen for Supabase recovery events
+  useEffect(() => {
+    const h = (e) => {
+      const d = e.detail||{};
+      showToast('🔄 Datos recuperados de Supabase: ' + (d.actions||0) + ' tareas, ' + (d.risks||0) + ' riesgos');
+    };
+    window.addEventListener('revelio-recovered', h);
+    return () => window.removeEventListener('revelio-recovered', h);
+  }, []);
+
   useEffect(() => {
     if (!running) return;
     tRef.current = setInterval(() => setTimer(p => { const n=p<=0?0:p-1; timerValRef.current=n; if(n===0){setRunning(false);setShowTimerEnd(true);} return n; }), 1000);
@@ -8221,8 +8309,23 @@ function NewRetroModal({ user, state, onClose, onConfirm }) {
 
   const handleConfirm = async () => {
     setSaving(true);
-    // Save current retro to Supabase before resetting
-    await sbSaveRetroSnapshot(SALA, TIPO, state, user.id, 'closed').catch(() => {});
+    // Close the existing active snapshot (update status to 'closed')
+    try {
+      const { data: existing } = await supabase.from('retros')
+        .select('id')
+        .eq('sala', SALA)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (existing && existing[0]) {
+        await supabase.from('retros')
+          .update({ status: 'closed', data: state, updated_at: new Date().toISOString() })
+          .eq('id', existing[0].id);
+      } else {
+        // No active row — insert as closed archive
+        await sbCreateRetroArchive(SALA, TIPO, state, user.id);
+      }
+    } catch(e) { console.warn('Archive retro:', e); }
     setSaving(false);
     onConfirm();
   };
