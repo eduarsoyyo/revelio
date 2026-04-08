@@ -1098,8 +1098,15 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
           )
         ).map(r=>({...r,_room:roomName}));
       });
-  const overdueAct = myActions.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.date&&a.date<today);
-  const pendingAct = myActions.filter(a=>a.status!=='done'&&a.status!=='discarded');
+  const overdueAct = myActions.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled'&&a.date&&a.date<today);
+  const pendingAct = myActions.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled');
+  // Week calculation for "Hoy" view
+  const endOfWeek = (() => { const d=new Date(); d.setDate(d.getDate()+(7-d.getDay())); return d.toISOString().slice(0,10); })();
+  const thisWeekAct = pendingAct.filter(a=>a.date&&a.date>=today&&a.date<=endOfWeek);
+  const laterAct = pendingAct.filter(a=>!a.date||a.date>endOfWeek);
+  const risksNeedingAction = myRisks.filter(r=>r.escalation||r.owner===user.name);
+  const hasUrgent = overdueAct.length > 0 || risksNeedingAction.length > 0;
+  const [showLater, setShowLater] = useState(false);
 
   const goToProject = (sala,tipo) => { (onSelectProject||((s,t)=>{window.location.href='/?sala='+encodeURIComponent(s)+'&tipo='+(t||'agile')}))(sala,tipo); };
   const logout = () => { clearUser(); window.location.href='/'; };
@@ -1191,64 +1198,131 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
         <!-- Content -->
         <main style=${{flex:1,padding:'28px 24px',overflowY:'auto'}}>
 
-          ${section==='dashboard'&&html`<div>
-            <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>
-              ${new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]} 👋
+          ${section==='dashboard'&&html`<div style=${{maxWidth:720}}>
+
+            <!-- Greeting -->
+            <h1 style=${{fontSize:24,fontWeight:700,marginBottom:2,color:'#1D1D1F'}}>
+              ${new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]}
             </h1>
-            <p style=${{fontSize:13,color:'#86868B',marginBottom:22}}>${isSM?'Vista ejecutiva del servicio':'Tu resumen del día'}</p>
-            <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
+            <p style=${{fontSize:13,color:'#86868B',marginBottom:20}}>${fd(new Date())} · ${myRooms.length} proyecto${myRooms.length!==1?'s':''}</p>
+
+            <!-- ═══ TODO AL DÍA ═══ -->
+            ${!hasUrgent && thisWeekAct.length===0 && pendingAct.length===0 && html`
+              <div style=${{background:'#F0FFF4',borderRadius:18,border:'1.5px solid #34C75920',padding:'40px 24px',textAlign:'center',marginBottom:16}}>
+                <div style=${{fontSize:36,marginBottom:10}}>✅</div>
+                <h2 style=${{fontSize:18,fontWeight:700,color:'#34C759',margin:'0 0 6px'}}>Todo al día</h2>
+                <p style=${{fontSize:13,color:'#6E6E73',margin:0}}>No tienes tareas pendientes ni riesgos que requieran atención.</p>
+                <p style=${{fontSize:12,color:'#86868B',marginTop:8}}>Buen momento para revisar tu backlog o planificar la semana.</p>
+              </div>`}
+
+            <!-- ═══ URGENTE ═══ -->
+            ${hasUrgent && html`
+              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #FF3B3015',padding:'18px 20px',marginBottom:14}}>
+                <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                  <div style=${{width:8,height:8,borderRadius:4,background:'#FF3B30'}}></div>
+                  <h2 style=${{fontSize:15,fontWeight:700,color:'#FF3B30',margin:0}}>Requiere tu atención</h2>
+                  <span style=${{fontSize:11,color:'#86868B',marginLeft:'auto'}}>${overdueAct.length+risksNeedingAction.length} elemento${(overdueAct.length+risksNeedingAction.length)!==1?'s':''}</span>
+                </div>
+                <div style=${{display:'flex',flexDirection:'column',gap:6}}>
+                  ${overdueAct.map(a=>html`
+                    <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,background:'#FFF5F5',borderLeft:'3px solid #FF3B30'}}>
+                      <${Icon} name="AlertCircle" size=${14} color="#FF3B30" />
+                      <div style=${{flex:1,minWidth:0}}>
+                        <div style=${{fontSize:12,fontWeight:600}}>${a.text}</div>
+                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${a._room||''} · Venció ${fd(a.date)}</div>
+                      </div>
+                    </div>`)}
+                  ${risksNeedingAction.map(r=>html`
+                    <div key=${r.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,background:'#FFF9E6',borderLeft:'3px solid #FF9500'}}>
+                      <${Icon} name="AlertTriangle" size=${14} color="#FF9500" />
+                      <div style=${{flex:1,minWidth:0}}>
+                        <div style=${{fontSize:12,fontWeight:600}}>${r.text}</div>
+                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>
+                          ${r._room||''}${r.escalation?' · Escalado: '+r.escalation.levelLabel:''}
+                        </div>
+                      </div>
+                    </div>`)}
+                </div>
+              </div>`}
+
+            <!-- ═══ ESTA SEMANA ═══ -->
+            ${thisWeekAct.length>0 && html`
+              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px 20px',marginBottom:14}}>
+                <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                  <div style=${{width:8,height:8,borderRadius:4,background:'#007AFF'}}></div>
+                  <h2 style=${{fontSize:15,fontWeight:700,color:'#1D1D1F',margin:0}}>Esta semana</h2>
+                  <span style=${{fontSize:11,color:'#86868B',marginLeft:'auto'}}>${thisWeekAct.length} tarea${thisWeekAct.length!==1?'s':''}</span>
+                </div>
+                <div style=${{display:'flex',flexDirection:'column',gap:5}}>
+                  ${[...thisWeekAct].sort((a,b)=>a.date>b.date?1:-1).map(a=>html`
+                    <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:11,background:'#F9F9FB'}}>
+                      <${Icon} name="Clock" size=${14} color="#007AFF" />
+                      <div style=${{flex:1,minWidth:0}}>
+                        <div style=${{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
+                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${a._room||''}</div>
+                      </div>
+                      <span style=${{fontSize:10,color:'#007AFF',fontWeight:600,flexShrink:0}}>${fd(a.date)}</span>
+                    </div>`)}
+                </div>
+              </div>`}
+
+            <!-- ═══ TODO LO DEMÁS (colapsado) ═══ -->
+            ${laterAct.length>0 && html`
+              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:showLater?'18px 20px':'14px 20px',marginBottom:14}}>
+                <button onClick=${()=>setShowLater(v=>!v)}
+                  style=${{display:'flex',alignItems:'center',gap:8,width:'100%',border:'none',background:'none',cursor:'pointer',padding:0}}>
+                  <div style=${{width:8,height:8,borderRadius:4,background:'#86868B'}}></div>
+                  <span style=${{fontSize:14,fontWeight:600,color:'#6E6E73',flex:1,textAlign:'left'}}>Más adelante</span>
+                  <span style=${{fontSize:11,color:'#C7C7CC'}}>${laterAct.length} tarea${laterAct.length!==1?'s':''}</span>
+                  <${Icon} name=${showLater?'ChevronUp':'ChevronDown'} size=${14} color="#C7C7CC" />
+                </button>
+                ${showLater && html`
+                  <div style=${{display:'flex',flexDirection:'column',gap:5,marginTop:12}}>
+                    ${[...laterAct].sort((a,b)=>(a.date||'9999')>(b.date||'9999')?1:-1).slice(0,10).map(a=>html`
+                      <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderRadius:10,background:'#F9F9FB'}}>
+                        <${Icon} name="Circle" size=${10} color="#C7C7CC" />
+                        <div style=${{flex:1,minWidth:0}}>
+                          <div style=${{fontSize:12,fontWeight:500,color:'#6E6E73',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
+                          <div style=${{fontSize:10,color:'#C7C7CC',marginTop:1}}>${a._room||''}</div>
+                        </div>
+                        ${a.date&&html`<span style=${{fontSize:10,color:'#C7C7CC',flexShrink:0}}>${fd(a.date)}</span>`}
+                      </div>`)}
+                    ${laterAct.length>10&&html`<p style=${{fontSize:11,color:'#C7C7CC',textAlign:'center',marginTop:4}}>+ ${laterAct.length-10} más</p>`}
+                  </div>`}
+              </div>`}
+
+            <!-- ═══ MINI KPIs (compact, informative, not anxious) ═══ -->
+            <div style=${{display:'flex',gap:10,marginBottom:14}}>
               ${[
-                {v:roomsLoaded&&profileLoaded?myRooms.length:'—',    l:'Proyectos',    i:'FolderOpen',   c:'#007AFF'},
-                {v:profileLoaded?pendingAct.length:'—',               l:'Tareas pend.',  i:'ClipboardList',  c:'#34C759'},
-                {v:profileLoaded?overdueAct.length:'—',               l:'Vencidos',     i:'AlertCircle',  c:overdueAct.length?'#FF3B30':'#86868B'},
-                {v:profileLoaded?myRisks.length:'—',                  l:'Mis riesgos', i:'AlertTriangle', c:myRisks.length?'#FF9500':'#86868B'},
+                {v:myRooms.length,    l:'Proyectos',   c:'#007AFF', i:'FolderOpen'},
+                {v:pendingAct.length, l:'Pendientes',  c:'#6E6E73', i:'ClipboardList'},
+                {v:myRisks.length,    l:'Riesgos',     c:myRisks.length>0?'#FF9500':'#6E6E73', i:'AlertTriangle'},
               ].map((k,i)=>html`
-                <div key=${i} style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px',display:'flex',flexDirection:'column',gap:10}}>
-                  <div style=${{width:36,height:36,borderRadius:11,background:k.c+'18',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    <${Icon} name=${k.i} size=${18} color=${k.c} />
-                  </div>
+                <div key=${i} style=${{flex:1,display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA'}}>
+                  <${Icon} name=${k.i} size=${16} color=${k.c} />
                   <div>
-                    <div style=${{fontSize:26,fontWeight:800,color:k.c,lineHeight:1}}>${k.v}</div>
-                    <div style=${{fontSize:11,color:'#86868B',marginTop:3}}>${k.l}</div>
+                    <span style=${{fontSize:18,fontWeight:800,color:k.c}}>${k.v}</span>
+                    <span style=${{fontSize:11,color:'#86868B',marginLeft:5}}>${k.l}</span>
                   </div>
                 </div>`)}
             </div>
-            ${pendingAct.length>0&&html`
-              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px',marginBottom:14}}>
-                <div style=${{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                  <h3 style=${{fontSize:14,fontWeight:700}}>Tareas pendientes</h3>
-                  <button onClick=${()=>setSection(isSM?'gobierno':'mi_trabajo')} style=${{border:'none',background:'none',color:'#007AFF',fontSize:12,cursor:'pointer'}}>Ver todos →</button>
-                </div>
-                <div style=${{ maxHeight:240, overflowY:'auto' }}>
-                ${[...pendingAct].sort((a,b)=>a.date>b.date?1:-1).map(a=>{
-                  const ov=a.date&&a.date<today;
-                  return html`<div style=${{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:11,background:'#F9F9FB',marginBottom:6,borderLeft:'3px solid '+(ov?'#FF3B30':'#E5E5EA')}}>
-                    <${Icon} name=${ov?'AlertCircle':'Clock'} size=${14} color=${ov?'#FF3B30':'#86868B'} />
-                    <div style=${{flex:1,minWidth:0}}>
-                      <div style=${{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
-                      ${a._room&&html`<div style=${{fontSize:10,color:'#007AFF',fontWeight:500,marginTop:1}}>📂 ${a._room}</div>`}
-                    </div>
-                    ${a.date&&html`<span style=${{fontSize:10,color:ov?'#FF3B30':'#86868B',flexShrink:0}}>${fd(a.date)}</span>`}
-                  </div>`;
-                })}
-                </div>
-              </div>`}
-            ${myRisks.length>0&&html`
-              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #FF950020',padding:'18px'}}>
-                <h3 style=${{fontSize:14,fontWeight:700,marginBottom:10,color:'#FF9500'}}>Mis riesgos</h3>
-                <div style=${{ maxHeight:320, overflowY:'auto' }}>
-                ${myRisks.map(r=>html`<div key=${r.id} style=${{display:'flex',gap:10,padding:'9px 12px',borderRadius:11,background:'#F9F9FB',marginBottom:6,borderLeft:'3px solid '+(r.escalation?'#5856D6':'#FF9500')}}>
-                  <${Icon} name=${r.escalation?'TrendingUp':'AlertTriangle'} size=${14} color=${r.escalation?'#5856D6':'#FF9500'} />
-                  <div style=${{flex:1}}>
-                    <div style=${{fontSize:12,fontWeight:600}}>${r.text}</div>
-                    <div style=${{display:'flex',gap:8,marginTop:2,fontSize:10,color:'#86868B'}}>
-                      ${r._room&&html`<span style=${{color:'#007AFF',fontWeight:600}}>📂 ${r._room}</span>`}
-                      ${r.escalation&&html`<span style=${{color:'#5856D6'}}>📈 ${r.escalation.levelLabel||'Escalado'}</span>`}
-                    </div>
-                  </div>
-                </div>`)}
-                </div>
-              </div>`}
+
+            <!-- Quick access to sections -->
+            <div style=${{display:'flex',gap:8}}>
+              <button onClick=${()=>setSection(isSM?'gobierno':'mi_trabajo')}
+                style=${{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                <${Icon} name="ClipboardList" size=${14} color="#86868B" /> Mi trabajo
+              </button>
+              <button onClick=${()=>setSection('proyectos')}
+                style=${{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                <${Icon} name="FolderOpen" size=${14} color="#86868B" /> Proyectos
+              </button>
+              <button onClick=${()=>setSection('riesgos')}
+                style=${{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                <${Icon} name="AlertTriangle" size=${14} color="#86868B" /> Riesgos
+              </button>
+            </div>
+
           </div>`}
 
           ${section==='proyectos'&&html`<div>
