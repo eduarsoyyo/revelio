@@ -4288,6 +4288,8 @@ function PEquipo() {
   const [profSkills, setProfSkills] = useState([]);
   const [memSkills,  setMemSkills]  = useState([]);
   const [memProfiles, setMemProfiles] = useState([]);
+  const [catalog, setCatalog] = useState([]);
+  const [actions, setActions] = useState([]);
 
   // Modals
   const [editProfile, setEditProfile] = useState(null);
@@ -4304,13 +4306,16 @@ function PEquipo() {
       sbLoadAllProfileSkills(SALA),
       sbLoadMemberSkills(SALA),
       sbLoadMemberProfiles(SALA),
-    ]).then(([members, chart, profs, sks, ps, ms, mp]) => {
+      sbLoadTrainingCatalog(),
+      sbLoadSkillActions(SALA),
+    ]).then(([members, chart, profs, sks, ps, ms, mp, cat, acts]) => {
       const salaM = members.filter(m=>(m.rooms||[]).includes(SALA));
       setTeam(salaM.length>0?salaM:members);
       const orgMap = {};
       chart.forEach(n => { orgMap[n.member_id] = n.manager_id||null; });
       setOrg(orgMap); setOrgData(chart);
       setProfiles(profs); setSkills(sks); setProfSkills(ps); setMemSkills(ms); setMemProfiles(mp);
+      setCatalog(cat); setActions(acts);
       setLoading(false);
     });
   }, []);
@@ -4395,10 +4400,49 @@ function PEquipo() {
     if(saved) setMemProfiles(prev=>[...prev,saved]);
   };
 
+  // ── Skill Actions & Training CRUD ──
+  const saveAction = async (a) => {
+    const saved = await sbSaveSkillAction({...a, sala:SALA});
+    if(saved) setActions(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+  };
+  const deleteAction = async (id) => { await sbDeleteSkillAction(id); setActions(prev=>prev.filter(x=>x.id!==id)); };
+  const saveCatalogItem = async (t) => {
+    const saved = await sbSaveTraining(t);
+    if(saved) setCatalog(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+  };
+  const deleteCatalogItem = async (id) => { await sbDeleteTraining(id); setCatalog(prev=>prev.filter(x=>x.id!==id)); };
+
+  // All gaps across team (sorted by severity)
+  const allGaps = team.flatMap(m => {
+    const prof = memberProfile(m.id);
+    if(!prof) return [];
+    return profileSkillsFor(prof.id).map(r => {
+      const cur = memberSkillLevel(m.id, r.skill_id);
+      const gap = r.required_level - cur;
+      if(gap <= 0) return null;
+      const sk = skills.find(s=>s.id===r.skill_id);
+      return { member:m, skill:sk, required:r.required_level, current:cur, gap, profileName:prof.name };
+    }).filter(Boolean);
+  }).sort((a,b) => b.gap - a.gap);
+
+  // Suggest trainings for a skill
+  const suggestTraining = (skillName, cat) => {
+    const q = (skillName||'').toLowerCase();
+    const qc = (cat||'').toLowerCase();
+    return catalog.filter(t =>
+      t.name.toLowerCase().includes(q) || (t.subcategory||'').toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(qc) || (t.subcategory||'').toLowerCase().includes(qc)
+    ).slice(0, 5);
+  };
+
+  const [addTraining, setAddTraining] = useState(null);
+  const [addAction, setAddAction] = useState(null);
+
   const TABS = [
     {id:'perfiles',  icon:'Target',       label:'Perfiles'},
     {id:'personas',  icon:'Users',        label:'Personas'},
     {id:'matriz',    icon:'BarChart3',    label:'Matriz'},
+    {id:'formacion', icon:'GraduationCap', label:'Formación'},
     {id:'ftes',      icon:'Calendar',     label:'FTEs'},
     {id:'organigrama',icon:'GitBranch',   label:'Organigrama'},
   ];
@@ -4582,6 +4626,161 @@ function PEquipo() {
           </table>
         </div>`}
     `}
+
+    ${subTab==='formacion' && html`
+      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+        <div>
+          <h3 style=${{fontSize:16,fontWeight:700,margin:0}}>Plan de formación</h3>
+          <p style=${{fontSize:12,color:'#86868B',marginTop:2}}>${allGaps.length} gap${allGaps.length!==1?'s':''} detectados · ${actions.length} acciones · ${catalog.length} cursos</p>
+        </div>
+        <div style=${{display:'flex',gap:6}}>
+          <button onClick=${()=>setAddTraining({name:'',category:'',subcategory:'',provider:'ALTEN',duration_hours:null,level_target:null})}
+            style=${{padding:'7px 14px',borderRadius:9,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73'}}>+ Curso al catálogo</button>
+          <button onClick=${()=>setAddAction({member_id:'',skill_id:'',type:'formacion',description:'',status:'pendiente',target_date:''})}
+            style=${{padding:'7px 14px',borderRadius:9,border:'none',background:'#5856D6',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Acción formativa</button>
+        </div>
+      </div>
+
+      ${allGaps.length>0 && html`
+        <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:16,marginBottom:14}}>
+          <h4 style=${{fontSize:13,fontWeight:700,marginBottom:10}}>🔴 Gaps detectados (${allGaps.length})</h4>
+          <div style=${{display:'flex',flexDirection:'column',gap:5}}>
+            ${allGaps.slice(0,15).map((g,i) => {
+              const suggested = suggestTraining(g.skill?.name, g.skill?.category);
+              const existingAction = actions.find(a=>a.member_id===g.member.id&&a.skill_id===g.skill?.id);
+              return html`<div key=${i} style=${{padding:'10px 12px',borderRadius:10,background:existingAction?'#F0FFF4':'#FAFAFA',border:'1px solid '+(existingAction?'#34C75930':'#F2F2F7')}}>
+                <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                  <span style=${{fontSize:14}}>${g.member.avatar||'👤'}</span>
+                  <span style=${{fontSize:12,fontWeight:700}}>${g.member.name}</span>
+                  <span style=${{fontSize:10,color:'#86868B'}}>·</span>
+                  <span style=${{fontSize:11,fontWeight:600,color:LEVEL_COLORS[g.required]}}>${g.skill?.name}</span>
+                  <span style=${{fontSize:9,color:'#FFF',background:g.gap>=2?'#FF3B30':'#FF9500',padding:'1px 6px',borderRadius:8,fontWeight:700}}>Gap ${g.gap}</span>
+                  <span style=${{fontSize:9,color:'#86868B'}}>${g.current}→${g.required}</span>
+                  ${existingAction && html`<span style=${{fontSize:9,color:'#34C759',fontWeight:700,marginLeft:'auto'}}>✓ ${existingAction.status}</span>`}
+                </div>
+                ${!existingAction && suggested.length>0 && html`
+                  <div style=${{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
+                    ${suggested.map(t=>html`<button key=${t.id} onClick=${async()=>{
+                      await saveAction({member_id:g.member.id,skill_id:g.skill.id,type:'formacion',description:t.name,status:'pendiente'});
+                    }} style=${{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px dashed #5856D630',background:'#5856D608',color:'#5856D6',cursor:'pointer',fontWeight:600}}>📚 ${t.name}</button>`)}
+                  </div>`}
+                ${!existingAction && suggested.length===0 && html`
+                  <button onClick=${async()=>{
+                    const desc = g.gap>=2?'Formación en '+g.skill?.name:'Práctica/mentoring en '+g.skill?.name;
+                    await saveAction({member_id:g.member.id,skill_id:g.skill.id,type:g.gap>=2?'formacion':'mentoring',description:desc,status:'pendiente'});
+                  }} style=${{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px dashed #FF950030',background:'#FF950008',color:'#FF9500',cursor:'pointer',fontWeight:600,marginTop:4}}>+ Crear acción</button>`}
+              </div>`;
+            })}
+            ${allGaps.length>15 && html`<p style=${{fontSize:10,color:'#86868B',textAlign:'center'}}>y ${allGaps.length-15} gaps más...</p>`}
+          </div>
+        </div>`}
+
+      ${actions.length>0 && html`
+        <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:16,marginBottom:14}}>
+          <h4 style=${{fontSize:13,fontWeight:700,marginBottom:10}}>📋 Acciones formativas (${actions.length})</h4>
+          <div style=${{display:'flex',flexDirection:'column',gap:5}}>
+            ${actions.map(a => {
+              const m = team.find(t=>t.id===a.member_id);
+              const sk = skills.find(s=>s.id===a.skill_id);
+              const stC = a.status==='completada'?'#34C759':a.status==='en_curso'?'#007AFF':'#FF9500';
+              return html`<div key=${a.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,background:'#FAFAFA',border:'1px solid #F2F2F7'}}>
+                <span style=${{fontSize:14}}>${m?.avatar||'👤'}</span>
+                <div style=${{flex:1,minWidth:0}}>
+                  <div style=${{fontSize:11,fontWeight:600}}>${a.description}</div>
+                  <div style=${{fontSize:9,color:'#86868B'}}>${m?.name||'?'} · ${sk?.name||'?'} · ${a.type}</div>
+                </div>
+                <select value=${a.status} onChange=${async e=>await saveAction({...a,status:e.target.value})}
+                  style=${{fontSize:10,border:'1px solid #E5E5EA',borderRadius:6,padding:'3px 6px',color:stC,fontWeight:700,background:'#FFF',outline:'none'}}>
+                  ${[['pendiente','Pendiente'],['en_curso','En curso'],['completada','Completada']].map(([v,l])=>html`<option key=${v} value=${v}>${l}</option>`)}
+                </select>
+                ${a.target_date && html`<span style=${{fontSize:9,color:'#86868B'}}>📅 ${fd(a.target_date)}</span>`}
+                <button onClick=${()=>deleteAction(a.id)} style=${{border:'none',background:'none',fontSize:10,cursor:'pointer',color:'#C7C7CC'}}>✕</button>
+              </div>`;
+            })}
+          </div>
+        </div>`}
+
+      ${catalog.length>0 && html`
+        <div style=${{background:'#F9F9FB',borderRadius:14,padding:16}}>
+          <h4 style=${{fontSize:13,fontWeight:700,marginBottom:8}}>📚 Catálogo de formación (${catalog.length})</h4>
+          ${[...new Set(catalog.map(t=>t.category))].sort().map(cat => html`
+            <div key=${cat} style=${{marginBottom:8}}>
+              <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:4}}>${cat}</div>
+              <div style=${{display:'flex',flexWrap:'wrap',gap:4}}>
+                ${catalog.filter(t=>t.category===cat).slice(0,10).map(t=>html`
+                  <span key=${t.id} style=${{fontSize:9,padding:'3px 7px',borderRadius:6,background:'#FFF',border:'1px solid #E5E5EA',display:'flex',alignItems:'center',gap:3}}>
+                    ${t.name}
+                    <button onClick=${()=>deleteCatalogItem(t.id)} style=${{border:'none',background:'none',fontSize:7,cursor:'pointer',color:'#C7C7CC'}}>✕</button>
+                  </span>`)}
+                ${catalog.filter(t=>t.category===cat).length>10 && html`<span style=${{fontSize:9,color:'#86868B'}}>+${catalog.filter(t=>t.category===cat).length-10} más</span>`}
+              </div>
+            </div>`)}
+        </div>`}
+    `}
+
+    ${addTraining && html`
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick=${()=>setAddTraining(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+        <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:420,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>Añadir curso al catálogo</h3>
+          <div style=${{display:'flex',flexDirection:'column',gap:10}}>
+            <input value=${addTraining.name} onInput=${e=>setAddTraining({...addTraining,name:e.target.value})} placeholder="Nombre del curso"
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none'}} />
+            <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <input value=${addTraining.category} onInput=${e=>setAddTraining({...addTraining,category:e.target.value})} placeholder="Categoría"
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+              <input value=${addTraining.subcategory||''} onInput=${e=>setAddTraining({...addTraining,subcategory:e.target.value})} placeholder="Subcategoría"
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+            </div>
+            <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <input value=${addTraining.provider||'ALTEN'} onInput=${e=>setAddTraining({...addTraining,provider:e.target.value})} placeholder="Proveedor"
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+              <input type="number" value=${addTraining.duration_hours||''} onInput=${e=>setAddTraining({...addTraining,duration_hours:parseFloat(e.target.value)||null})} placeholder="Horas"
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+            </div>
+          </div>
+          <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:14}}>
+            <button onClick=${()=>setAddTraining(null)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+            <button onClick=${async()=>{if(addTraining.name?.trim()){await saveCatalogItem(addTraining);setAddTraining(null)}}}
+              style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
+          </div>
+        </div>
+      </div>`}
+
+    ${addAction && html`
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick=${()=>setAddAction(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+        <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:420,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>Nueva acción formativa</h3>
+          <div style=${{display:'flex',flexDirection:'column',gap:10}}>
+            <select value=${addAction.member_id} onChange=${e=>setAddAction({...addAction,member_id:e.target.value})}
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+              <option value="">Persona...</option>
+              ${team.map(m=>html`<option key=${m.id} value=${m.id}>${m.avatar||'👤'} ${m.name}</option>`)}
+            </select>
+            <select value=${addAction.skill_id} onChange=${e=>setAddAction({...addAction,skill_id:e.target.value})}
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+              <option value="">Habilidad...</option>
+              ${skills.map(s=>html`<option key=${s.id} value=${s.id}>${s.category}: ${s.name}</option>`)}
+            </select>
+            <input value=${addAction.description} onInput=${e=>setAddAction({...addAction,description:e.target.value})} placeholder="Descripción de la acción"
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none'}} />
+            <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <select value=${addAction.type} onChange=${e=>setAddAction({...addAction,type:e.target.value})}
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+                ${[['formacion','Formación'],['mentoring','Mentoring'],['certificacion','Certificación'],['practica','Práctica']].map(([v,l])=>html`<option key=${v} value=${v}>${l}</option>`)}
+              </select>
+              <input type="date" value=${addAction.target_date||''} onInput=${e=>setAddAction({...addAction,target_date:e.target.value})}
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+            </div>
+          </div>
+          <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:14}}>
+            <button onClick=${()=>setAddAction(null)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+            <button onClick=${async()=>{if(addAction.description?.trim()&&addAction.member_id){await saveAction(addAction);setAddAction(null)}}}
+              style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#5856D6',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Crear</button>
+          </div>
+        </div>
+      </div>`}
 
     ${subTab==='ftes' && html`<${PFTEs} team=${team} org=${org} orgData=${orgData} />`}
 
