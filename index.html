@@ -4321,20 +4321,30 @@ function SuggestedEscalations({ risks, allRisks, getAlerts, upd, setSubTab, setE
 
 
 /* ═══ ESCALADO PANEL ═══ */
-function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
+function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, actions }) {
   const LEVELS = [
-    { id:'equipo', label:'Equipo', color:'#34C759', desc:'Se gestiona internamente en el equipo' },
-    { id:'jp',     label:'Jefe de Proyecto', color:'#FF9500', desc:'Escalar al Jefe de Proyecto' },
-    { id:'sm',     label:'Service Manager', color:'#FF3B30', desc:'Requiere intervencion del Service Manager' },
-    { id:'dt',     label:'Direccion Tecnica', color:'#5856D6', desc:'Elevar a Direccion Tecnica (PM2)' },
+    { id:'equipo', label:'Equipo', color:'#34C759', desc:'Se gestiona internamente' },
+    { id:'jp',     label:'Jefe de Proyecto', color:'#FF9500', desc:'Escalar al JP' },
+    { id:'sm',     label:'Service Manager', color:'#FF3B30', desc:'Requiere SM' },
+    { id:'dt',     label:'Direccion Tecnica', color:'#5856D6', desc:'Elevar a DT' },
+  ];
+  const TYPE_FILTERS = [
+    { id:'all', label:'Todos', color:'#1D1D1F' },
+    { id:'riesgo', label:'Riesgos', color:'#FF9500', icon:'\u26A0\uFE0F' },
+    { id:'oportunidad', label:'Oportunidades', color:'#34C759', icon:'\uD83C\uDF1F' },
+    { id:'problema', label:'Problemas', color:'#FF3B30', icon:'\uD83D\uDD34' },
   ];
   const [collapsed, setCollapsed] = useState({});
+  const [typeFilter, setTypeFilter] = useState('all');
   const toggle = (id) => setCollapsed(prev => ({...prev, [id]: !prev[id]}));
 
   const openRisks = risks.filter(r => r.status !== 'mitigated');
   const byLevel = (lid) => {
-    if (lid === 'equipo') return openRisks.filter(r => !r.escalation || r.escalation.level === 'equipo');
-    return openRisks.filter(r => r.escalation?.level === lid);
+    let items;
+    if (lid === 'equipo') items = openRisks.filter(r => !r.escalation || r.escalation.level === 'equipo');
+    else items = openRisks.filter(r => r.escalation?.level === lid);
+    if (typeFilter !== 'all') items = items.filter(r => (r.type||'riesgo') === typeFilter);
+    return items;
   };
 
   const escalateNext = (r) => {
@@ -4353,14 +4363,15 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
     upd(r.id, { escalation: { ...r.escalation, level:prev.id, levelLabel:prev.label } });
   };
   const resolveRisk = (r) => {
-    const linkedTasks = (window.__currentActions||[]).filter(a=>a.riskId===r.id);
+    const linkedTasks = (actions||[]).filter(a=>a.riskId===r.id);
+    const typeLabel = (r.type||'riesgo')==='problema'?'problema':(r.type||'riesgo')==='oportunidad'?'oportunidad':'riesgo';
     const taskMsg = linkedTasks.length > 0
-      ? 'Tiene ' + linkedTasks.length + ' tarea(s) de mitigacion vinculada(s). Revisa su estado en Seguimiento.'
+      ? ' Tiene ' + linkedTasks.length + ' tarea(s) de mitigacion vinculada(s). Revisa su estado en Seguimiento.'
       : '';
     window.__confirm({
       icon: '\u2705',
-      title: 'Resolver ' + ((r.type||'riesgo')==='problema'?'problema':(r.type||'riesgo')==='oportunidad'?'oportunidad':'riesgo'),
-      message: 'Se movera a Resueltos.' + (taskMsg ? ' ' + taskMsg : ''),
+      title: 'Resolver ' + typeLabel,
+      message: 'Se movera a Resueltos.' + taskMsg,
       confirmLabel: 'Resolver',
       confirmColor: '#34C759',
       onConfirm: () => upd(r.id, { status:'mitigated', resolvedAt:new Date().toISOString() })
@@ -4369,7 +4380,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
   return html`
     <div data-esc="1">
-      <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
+      <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:12 }}>
         ${LEVELS.map(l => {
           const cnt = byLevel(l.id).length;
           return html`
@@ -4381,12 +4392,20 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
         })}
       </div>
 
+      <div style=${{ display:'flex', gap:4, marginBottom:12 }}>
+        ${TYPE_FILTERS.map(tf => html`
+          <button key=${tf.id} onClick=${()=>setTypeFilter(tf.id)}
+            style=${{ padding:'5px 10px', borderRadius:8, border:typeFilter===tf.id?'none':'1px solid #E5E5EA', background:typeFilter===tf.id?tf.color:'#FFF', color:typeFilter===tf.id?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+            ${tf.icon||''} ${tf.label}
+          </button>`)}
+      </div>
+
       ${LEVELS.map(l => {
         const items = byLevel(l.id);
         const isCollapsed = collapsed[l.id];
         return html`
           <div key=${l.id} style=${{ marginBottom:10 }}>
-            <div onClick=${()=>toggle(l.id)} style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:isCollapsed?0:8, paddingBottom:6, borderBottom:'2px solid '+l.color+'30', cursor:'pointer', userSelect:'none' }}>
+            <div onClick=${()=>toggle(l.id)} style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:isCollapsed?0:6, paddingBottom:5, borderBottom:'2px solid '+l.color+'30', cursor:'pointer', userSelect:'none' }}>
               <span style=${{ fontSize:10, color:'#86868B', transition:'transform .15s', transform:isCollapsed?'rotate(-90deg)':'rotate(0deg)' }}>\u25BC</span>
               <div style=${{ width:10, height:10, borderRadius:5, background:l.color }}></div>
               <span style=${{ fontSize:12, fontWeight:700, color:l.color }}>${l.label}</span>
@@ -4401,20 +4420,23 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
                 const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').indexOf(r)+1;
                 const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
                 const hasMit = !!(r.mitigation?.trim());
+                const hasLinked = (actions||[]).some(a=>a.riskId===r.id);
                 const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
                 const esc = r.escalation||{};
                 return html`
                   <div key=${r.id}
-                    onClick=${()=>{if(window.__goToRisk)window.__goToRisk(r.id)}}
+                    onClick=${()=>onOpenDetail&&onOpenDetail(r)}
                     style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:5, cursor:'pointer' }}>
-                    <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
                       <span style=${{ fontSize:13, fontWeight:800, color:l.color }}>${px}${rn}</span>
                       <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
                       ${hasMit && html`<span title="Mitigacion" style=${{ fontSize:9, background:'#34C75915', color:'#34C759', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>\uD83D\uDEE1\uFE0F</span>`}
+                      ${hasLinked && html`<span title="Tareas vinculadas" style=${{ fontSize:9, background:'#007AFF15', color:'#007AFF', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>\uD83D\uDD17</span>`}
                       ${l.id!=='equipo' && html`<span style=${{ fontSize:9, background:l.color+'15', color:l.color, padding:'2px 6px', borderRadius:6, fontWeight:700 }}>Escalado</span>`}
                     </div>
                     <div style=${{ display:'flex', gap:4, alignItems:'center', fontSize:10 }}>
-                      ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado: ${fd(esc.escalatedAt)}</span>`}
+                      ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado ${fd(esc.escalatedAt)}</span>`}
+                      ${r.owner && r.owner!=='Sin asignar' && html`<span style=${{ color:'#007AFF', fontWeight:600 }}>${r.owner}</span>`}
                       <div style=${{ marginLeft:'auto', display:'flex', gap:4 }}>
                         <button onClick=${e=>{e.stopPropagation();resolveRisk(r)}}
                           style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Resolver</button>
@@ -6158,6 +6180,7 @@ function RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMem
                   </div>`}
               </div>
               ${r.owner && html`<span style=${{ fontSize:11, fontWeight:600, color:'#007AFF', flexShrink:0 }}>${r.owner}</span>`}
+              ${r.escalation && r.escalation.level && r.escalation.level!=='equipo' && html`<span style=${{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:6, background:r.escalation.level==='sm'?'#FF3B3015':r.escalation.level==='dt'?'#5856D615':'#FF950015', color:r.escalation.level==='sm'?'#FF3B30':r.escalation.level==='dt'?'#5856D6':'#FF9500' }}>↑ ${r.escalation.levelLabel||'Escalado'}</span>`}
             </div>
 ${(()=>{const lt=(window.__currentActions||[]).filter(a=>a.riskId===r.id);return lt.length>0?html`
               <div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6, alignItems:'center' }}>
@@ -6486,7 +6509,7 @@ const addItem = () => {
         
         <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
           ${subTab==='escalado' ? html`
-            <${EscaladoPanel} risks=${allRisks} upd=${upd} escalForm=${escalForm} setEscalForm=${setEscalForm} />
+            <${EscaladoPanel} risks=${allRisks} upd=${upd} escalForm=${escalForm} setEscalForm=${setEscalForm} onOpenDetail=${x=>setDetailRisk({...x})} actions=${actions} />
           ` : subTab==='sugeridos' ? html`
             <${SuggestedEscalations} risks=${suggestedEscalations} allRisks=${allRisks} getAlerts=${getAlerts} upd=${upd} setSubTab=${setSubTab} setEscalForm=${setEscalForm} />
           ` : subTab==='historial' ? html`
