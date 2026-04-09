@@ -4465,7 +4465,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
                 const hasLinked = (actions||[]).some(a=>a.riskId===r.id);
                 const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
                 const esc = r.escalation||{};
-                const canEdit = isSM || (levelMembers[l.id]||[]).includes(user?.name);
+                const canEdit = isSM || l.id==='equipo' || (levelMembers[l.id]||[]).length===0 || (levelMembers[l.id]||[]).includes(user?.name);
                 return html`
                   <div key=${r.id}
                     onClick=${()=>onOpenDetail&&onOpenDetail({...r,_readOnly:!canEdit})}
@@ -6559,11 +6559,12 @@ const addItem = () => {
                           const dc = (r.type||'riesgo')==='oportunidad'?'#34C759':hc;
                           const hasMit = !!(r.mitigation?.trim());
                           const escLvl = r.escalation?.levelLabel;
+                          const ec = r.escalation?.level&&r.escalation.level!=='equipo'?({jp:'#FF9500',sm:'#FF3B30',dt:'#5856D6'})[r.escalation.level]:null;
                           return html`<div key=${r.id} style=${{ position:'relative' }}
                             onMouseEnter=${e=>{const t=e.currentTarget.lastElementChild;if(t)t.style.display='block'}}
                             onMouseLeave=${e=>{const t=e.currentTarget.lastElementChild;if(t)t.style.display='none'}}>
-                            ${(()=>{const ec = r.escalation?.level&&r.escalation.level!=='equipo'?{jp:'#FF9500',sm:'#FF3B30',dt:'#5856D6'}[r.escalation.level]:null;return html`<div onClick=${()=>setDetailRisk({...r})}
-                              style=${{ width:ec?34:28, height:ec?34:28, borderRadius:ec?17:14, background:dc, color:'#FFF', fontSize:ec?9:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:ec?'3px solid '+ec:'2px solid #FFF', boxShadow:ec?'0 0 0 2px #FFF, 0 2px 8px '+ec+'60':'0 2px 6px '+dc+'50', cursor:'pointer', animation:ec?'none':'none' }}>${pf}${rn}</div>`;})()}
+                            <div onClick=${()=>setDetailRisk({...r})}
+                              style=${{ width:ec?34:28, height:ec?34:28, borderRadius:'50%', background:dc, color:'#FFF', fontSize:ec?9:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:ec?'3px solid '+ec:'2px solid #FFF', boxShadow:ec?'0 0 0 2px #FFF, 0 2px 8px '+ec+'60':'0 2px 6px '+dc+'50', cursor:'pointer' }}>${pf}${rn}</div>
                             <div style=${{ display:'none', position:'absolute', bottom:34, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', borderRadius:10, padding:'8px 10px', fontSize:11, zIndex:9999, width:200, boxShadow:'0 4px 16px rgba(0,0,0,.25)', pointerEvents:'none', lineHeight:1.4 }}>
                               <div style=${{ fontWeight:700, marginBottom:3, color:dc }}>${pf}${rn} ${(r.type||'riesgo')==='oportunidad'?'Oportunidad':(r.type||'riesgo')==='problema'?'Problema':'Riesgo'}</div>
                               <div style=${{ marginBottom:4 }}>${r.text}</div>
@@ -8624,52 +8625,13 @@ function P4({ notes, actions, risks, sA, user }) {
         </div>
       </div>
 
-      ${detailAction && html`
-        <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
-          <div onClick=${()=>setDetailAction(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
-          <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:500,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24,animation:'fadeIn .15s ease'}}>
-            <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
-              <span style=${{fontSize:18}}>${(PRIS.find(p=>p.id===detailAction.priority)||PRIS[1]).icon}</span>
-              <h3 style=${{fontSize:16,fontWeight:700,margin:0,flex:1}}>${detailAction.text}</h3>
-              <button onClick=${()=>setDetailAction(null)} style=${{border:'none',background:'#F2F2F7',borderRadius:10,width:30,height:30,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:14}}>\u2715</button>
-            </div>
-            <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-              <div>
-                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Responsable</label>
-                <select value=${detailAction.owner||''} onChange=${e=>{const u={...detailAction,owner:e.target.value};setDetailAction(u);updA(u.id,{owner:u.owner})}}
-                  style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-                  <option value="">Sin asignar</option>
-                  ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||''} ${m.name}</option>`)}
-                </select>
-              </div>
-              <div>
-                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Prioridad</label>
-                <select value=${detailAction.priority||'medium'} onChange=${e=>{const u={...detailAction,priority:e.target.value};setDetailAction(u);updA(u.id,{priority:u.priority})}}
-                  style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-                  ${PRIS.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.label}</option>`)}
-                </select>
-              </div>
-              <div>
-                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Fecha</label>
-                <input type="date" value=${detailAction.date||''} onChange=${e=>{const u={...detailAction,date:e.target.value};setDetailAction(u);updA(u.id,{date:u.date})}}
-                  style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
-              </div>
-              <div>
-                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Estado</label>
-                <select value=${detailAction.status||'backlog'} onChange=${e=>{const u={...detailAction,status:e.target.value};setDetailAction(u);updA(u.id,{status:u.status})}}
-                  style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-                  ${[['backlog','Backlog'],['todo','Por hacer'],['in_progress','En curso'],['done','Hecho']].map(([id,lb])=>html`<option key=${id} value=${id}>${lb}</option>`)}
-                </select>
-              </div>
-            </div>
-            <div style=${{display:'flex',gap:8,justifyContent:'space-between'}}>
-              <button onClick=${()=>{delA(detailAction.id);setDetailAction(null)}}
-                style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
-              <button onClick=${()=>setDetailAction(null)}
-                style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Cerrar</button>
-            </div>
-          </div>
-        </div>`}
+      ${detailAction && html`<${TaskDetailModal}
+        task=${detailAction} teamMembers=${teamMembers}
+        tags=${[]} tagAssignments=${[]} onToggleTag=${()=>{}}
+        onSave=${(updated)=>{updA(updated.id,updated);setDetailAction(null)}}
+        onClose=${()=>setDetailAction(null)}
+        onDelete=${(id)=>{delA(id);setDetailAction(null)}}
+        onMitigateRisk=${()=>{}} onGoToRisk=${()=>{}} />`}
 
       ${showForm && html`
         <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
