@@ -4328,50 +4328,38 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
     { id:'sm',        label:'Service Manager',     color:'#FF3B30', desc:'Requiere intervención del Service Manager' },
     { id:'dt',        label:'Dirección Técnica',   color:'#5856D6', desc:'Elevar a Dirección Técnica (PM2)' },
   ];
-  const STATUS = [
-    { id:'pendiente', label:'Pendiente',  color:'#FF9500' },
-    { id:'en_curso',  label:'En curso',   color:'#007AFF' },
-    { id:'resuelto',  label:'Resuelto',   color:'#34C759' },
-    { id:'bloqueado', label:'Bloqueado',  color:'#FF3B30' },
-  ];
 
-  const openRisks = risks.filter(r => r.status !== 'mitigated' && (r.type||'riesgo') !== 'oportunidad');
   const escalated = risks.filter(r => r.escalation);
-  const byLevel   = (lid) => escalated.filter(r => r.escalation?.level === lid);
-
-  const saveEscalation = () => {
-    if (!escalForm.riskId || !escalForm.level) return;
-    const lvl = LEVELS.find(l=>l.id===escalForm.level);
-    upd(escalForm.riskId, {
-      escalation: {
-        level:     escalForm.level,
-        levelLabel: lvl?.label||'',
-        deadline:  escalForm.deadline||'',
-        note:      escalForm.note||'',
-        status:    escalForm.status||'pendiente',
-        createdAt: new Date().toISOString(),
-      }
-    });
-    setEscalForm({riskId:'', level:'equipo', deadline:'', note:'', status:'pendiente'});
-  };
-
-  const removeEscalation = (id) => upd(id, { escalation: null });
+  const byLevel = (lid) => escalated.filter(r => r.escalation?.level === lid);
+  const nonEscalated = risks.filter(r => r.status !== 'mitigated' && !r.escalation);
 
   const escalateNext = (r) => {
-    const idx = LEVELS.findIndex(l=>l.id===r.escalation?.level);
+    const current = r.escalation?.level || 'equipo';
+    const idx = LEVELS.findIndex(l=>l.id===current);
     const next = LEVELS[idx+1];
     if (!next) return;
-    upd(r.id, { escalation: {...r.escalation, level:next.id, levelLabel:next.label, status:'pendiente', createdAt:new Date().toISOString()} });
+    upd(r.id, { escalation: {...(r.escalation||{}), level:next.id, levelLabel:next.label, escalatedAt:new Date().toISOString()} });
+  };
+  const deescalate = (r) => {
+    const current = r.escalation?.level;
+    const idx = LEVELS.findIndex(l=>l.id===current);
+    if (idx <= 0) { upd(r.id, { escalation: null }); return; }
+    const prev = LEVELS[idx-1];
+    upd(r.id, { escalation: {...r.escalation, level:prev.id, levelLabel:prev.label} });
+  };
+  const resolveRisk = (r) => upd(r.id, { status:'mitigated', resolvedAt:new Date().toISOString() });
+  const escalateToLevel = (r, levelId) => {
+    const lvl = LEVELS.find(l=>l.id===levelId);
+    upd(r.id, { escalation: { level:levelId, levelLabel:lvl?.label||'', escalatedAt:new Date().toISOString() } });
   };
 
   return html`
-    <div>
-
+    <div data-esc="1">
       <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
         ${LEVELS.map(l => {
           const cnt = byLevel(l.id).length;
           return html`
-            <div style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', padding:'12px 10px', textAlign:'center', borderTop:'3px solid '+l.color }}>
+            <div key=${l.id} style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', padding:'12px 10px', textAlign:'center', borderTop:'3px solid '+l.color }}>
               <div style=${{ fontSize:22, fontWeight:800, color:l.color }}>${cnt||'—'}</div>
               <div style=${{ fontSize:11, fontWeight:700, color:'#1D1D1F', marginTop:2 }}>${l.label}</div>
               <div style=${{ fontSize:9, color:'#86868B', marginTop:2 }}>${l.desc}</div>
@@ -4379,119 +4367,70 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
         })}
       </div>
 
-      <div style=${{ display:'grid', gridTemplateColumns:'1fr 300px', gap:14, alignItems:'start' }}>
-
-        <div>
-          ${
-            LEVELS.map(l => {
-              const items = byLevel(l.id);
+      ${LEVELS.map(l => {
+        const items = byLevel(l.id);
+        return html`
+          <div key=${l.id} style=${{ marginBottom:14 }}>
+            <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:8, paddingBottom:6, borderBottom:'2px solid '+l.color+'30' }}>
+              <div style=${{ width:10, height:10, borderRadius:5, background:l.color }}></div>
+              <span style=${{ fontSize:12, fontWeight:700, color:l.color }}>${l.label}</span>
+              <span style=${{ fontSize:10, color:'#86868B' }}>${items.length} riesgo${items.length!==1?'s':''}</span>
+            </div>
+            ${items.length===0 ? html`
+              <div style=${{ padding:'12px 16px', textAlign:'center', color:'#C7C7CC', border:'1.5px dashed #E5E5EA', borderRadius:10, fontSize:11 }}>
+                Sin riesgos escalados a este nivel
+              </div>` :
+            items.map(r => {
+              const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').indexOf(r)+1;
+              const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+              const hasMit = !!(r.mitigation?.trim());
+              const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
+              const esc = r.escalation||{};
               return html`
-                <div key=${l.id} style=${{ marginBottom:14 }}>
-                  <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:8, paddingBottom:6, borderBottom:'2px solid '+l.color+'30' }}>
-                    <div style=${{ width:10, height:10, borderRadius:5, background:l.color }}></div>
-                    <span style=${{ fontSize:12, fontWeight:700, color:l.color }}>${l.label}</span>
-                    <span style=${{ fontSize:10, color:'#86868B' }}>${items.length} riesgo${items.length>1?'s':''}</span>
+                <div key=${r.id}
+                  onClick=${()=>{if(window.__goToRisk)window.__goToRisk(r.id)}}
+                  style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:6, cursor:'pointer' }}>
+                  <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                    <span style=${{ fontSize:13, fontWeight:800, color:l.color }}>${px}${rn}</span>
+                    <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
+                    ${hasMit && html`<span title="Tiene mitigación" style=${{ fontSize:10, background:'#34C75915', color:'#34C759', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>🛡️</span>`}
                   </div>
-                  ${items.length===0 ? html`
-                    <div style=${{ padding:'14px 16px', textAlign:'center', color:'#86868B', border:'1.5px dashed #E5E5EA', borderRadius:10, fontSize:11 }}>
-                      Sin riesgos escalados a este nivel — el equipo lo gestiona.
-                    </div>` :
-                  items.map(r => {
-                    const esc = r.escalation;
-                    const st  = STATUS.find(s=>s.id===esc.status)||STATUS[0];
-                    const rn  = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
-                    const px  = (r.type||'riesgo')==='problema'?'P':'R';
-                    const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===esc.level)+1];
-                    return html`
-                      <div style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA',
-                        borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:6 }}>
-                        <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                          <span style=${{ fontSize:12, fontWeight:800, color:l.color }}>${px}${rn}</span>
-                          <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
-                          <select value=${esc.status} onChange=${e=>upd(r.id,{escalation:{...esc,status:e.target.value}})}
-                            style=${{ fontSize:9, padding:'3px 6px', borderRadius:5, border:'1px solid #E5E5EA', outline:'none', color:st.color, background:st.color+'10' }}>
-                            ${STATUS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
-                          </select>
-                          <button onClick=${()=>window.__confirm({icon:'📈',title:'Quitar escalado',message:'¿Quitar el escalado de este riesgo?',confirmLabel:'Sí, quitar',onConfirm:()=>removeEscalation(r.id)})} style=${{ border:'none', background:'none', color:'#C7C7CC', fontSize:12, cursor:'pointer' }}>✕</button>
-                        </div>
-
-                        <div style=${{ display:'flex', alignItems:'center', gap:4, marginBottom:6 }}>
-                          ${LEVELS.map((lvl,i)=>html`
-                            <div key=${lvl.id} style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                              ${i>0&&html`<span style=${{ color:'#E5E5EA', fontSize:10 }}>→</span>`}
-                              <span style=${{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:8,
-                                background:lvl.id===esc.level?lvl.color:'#F2F2F7',
-                                color:lvl.id===esc.level?'#FFF':'#86868B' }}>${lvl.label}</span>
-                            </div>`)}
-                        </div>
-                        <div style=${{ display:'flex', gap:10, alignItems:'center', fontSize:10, color:'#86868B' }}>
-                          ${esc.deadline&&html`<span>📅 ${fd(esc.deadline)}</span>`}
-                          ${esc.note&&html`<span>📝 ${esc.note}</span>`}
-                          ${nextLvl&&html`
-                            <button onClick=${()=>escalateNext(r)}
-                              style=${{ marginLeft:'auto', fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:7,
-                                border:'1.5px solid '+nextLvl.color+'30', background:nextLvl.color+'10', color:nextLvl.color, cursor:'pointer' }}>
-                              ↑ Subir a ${nextLvl.label}
-                            </button>`}
-                        </div>
-                      </div>`;
-                  })}
+                  <div style=${{ display:'flex', gap:6, alignItems:'center', fontSize:10 }}>
+                    ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado: ${fd(esc.escalatedAt)}</span>`}
+                    <div style=${{ marginLeft:'auto', display:'flex', gap:4 }}>
+                      <button onClick=${e=>{e.stopPropagation();resolveRisk(r)}}
+                        style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Resolver</button>
+                      ${nextLvl && html`<button onClick=${e=>{e.stopPropagation();escalateNext(r)}}
+                        style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid '+nextLvl.color+'30', background:nextLvl.color+'10', color:nextLvl.color, cursor:'pointer' }}>↑ ${nextLvl.label}</button>`}
+                      <button onClick=${e=>{e.stopPropagation();deescalate(r)}}
+                        style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#F9F9FB', color:'#86868B', cursor:'pointer' }}>↓</button>
+                    </div>
+                  </div>
                 </div>`;
             })}
-        </div>
+          </div>`;
+      })}
 
-        <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', position:'sticky', top:0 }}>
-          <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>Escalar riesgo</h4>
-          <p style=${{ fontSize:10, color:'#86868B', marginBottom:12 }}>Selecciona el riesgo y el nivel de escalado</p>
-          <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
-            <select value=${escalForm.riskId} onChange=${e=>setEscalForm({...escalForm,riskId:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }}>
-              <option value="">— Selecciona riesgo —</option>
-              ${openRisks.map((r,i) => {
-                const px=(r.type||'riesgo')==='problema'?'P':'R';
-                const n=risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
-                return html`<option key=${r.id} value=${r.id}>${px}${n}: ${r.text.slice(0,40)}${r.text.length>40?'…':''}</option>`;
-              })}
-            </select>
-
-            <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
-              ${LEVELS.map(l=>html`
-                <label key=${l.id}
-                  onClick=${()=>setEscalForm({...escalForm,level:l.id})}
-                  style=${{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:9, cursor:'pointer',
-                    background:escalForm.level===l.id?l.color+'12':'#F9F9FB',
-                    border:'1.5px solid '+(escalForm.level===l.id?l.color:'#E5E5EA') }}>
-                  <div style=${{ width:10, height:10, borderRadius:5, background:l.color, flexShrink:0 }}></div>
-                  <div style=${{ flex:1 }}>
-                    <div style=${{ fontSize:12, fontWeight:600 }}>${l.label}</div>
-                    <div style=${{ fontSize:9, color:'#86868B' }}>${l.desc}</div>
-                  </div>
-                  ${escalForm.level===l.id&&html`<span style=${{ fontSize:10, color:l.color, fontWeight:700 }}>✓</span>`}
-                </label>`)}
-            </div>
-
-            <select value=${escalForm.status} onChange=${e=>setEscalForm({...escalForm,status:e.target.value})}
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, fontFamily:'inherit', outline:'none' }}>
-              ${STATUS.map(s=>html`<option key=${s.id} value=${s.id}>${s.label}</option>`)}
-            </select>
-            <div>
-              <label style=${{ fontSize:10, color:'#86868B', display:'block', marginBottom:3 }}>Fecha límite</label>
-              <input type="date" value=${escalForm.deadline||''} onInput=${e=>setEscalForm({...escalForm,deadline:e.target.value})}
-                style=${{ width:'100%', border:'1.5px solid #E5E5EA', borderRadius:8, padding:'7px 8px', fontSize:12, fontFamily:'inherit', outline:'none' }} />
-            </div>
-            <textarea value=${escalForm.note||''} onInput=${e=>setEscalForm({...escalForm,note:e.target.value})}
-              placeholder="Nota / justificación…" rows="2"
-              style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'8px 10px', fontSize:12, fontFamily:'inherit', outline:'none', resize:'vertical' }}></textarea>
-            <button onClick=${saveEscalation} disabled=${!escalForm.riskId||!escalForm.level}
-              style=${{ padding:'9px', borderRadius:9, border:'none', background:'#1D1D1F', color:'#FFF', fontSize:13, fontWeight:700, cursor:'pointer',
-                opacity:(escalForm.riskId&&escalForm.level)?1:.4 }}>
-              📈 Escalar
-            </button>
+      ${nonEscalated.length>0 && html`
+        <div style=${{ marginTop:8, padding:'12px 14px', background:'#F9F9FB', borderRadius:12, border:'1.5px solid #E5E5EA' }}>
+          <h4 style=${{ fontSize:11, fontWeight:700, color:'#86868B', marginBottom:8 }}>Riesgos sin escalar (${nonEscalated.length})</h4>
+          <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
+            ${nonEscalated.slice(0,10).map(r => {
+              const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').indexOf(r)+1;
+              const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+              return html`
+                <div key=${r.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:8, background:'#FFF', border:'1px solid #E5E5EA' }}>
+                  <span style=${{ fontSize:11, fontWeight:800, color:'#FF9500' }}>${px}${rn}</span>
+                  <span style=${{ fontSize:11, flex:1 }}>${r.text}</span>
+                  <button onClick=${()=>escalateToLevel(r,'equipo')}
+                    style=${{ fontSize:9, fontWeight:600, padding:'2px 8px', borderRadius:5, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Escalar</button>
+                </div>`;
+            })}
           </div>
-        </div>
-      </div>
+        </div>`}
     </div>`;
 }
+
 
 /* ═══ PFTEs — dedicación y FTEs del equipo ═══ */
 function PFTEs({ team, org, orgData: orgDataProp }) {
@@ -6472,40 +6411,57 @@ const addItem = () => {
       ${subTab==='resumen' && html`
         <div data-section="resumen" style=${{display:'flex',flexDirection:'column',gap:16}}>
           <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
-            ${[[riesgos.length,'Riesgos','#FF9500'],[problemas.length,'Problemas','#FF3B30'],[oportunidades.length,'Oportunidades','#34C759'],[mitigados.length,'Mitigados','#007AFF']].map(([v,l,c])=>html`
-              <div key=${l} onClick=${()=>setSubTab(l.toLowerCase())} style=${{ background:'#FFF', borderRadius:14, padding:'16px', border:'1.5px solid #E5E5EA', textAlign:'center', cursor:'pointer' }}>
-                <div style=${{ fontSize:28, fontWeight:800, color:c }}>${v}</div>
-                <div style=${{ fontSize:11, color:'#86868B', marginTop:4 }}>${l}</div>
+            ${[['AlertTriangle','Riesgos',riesgos.length,'#FF9500'],['AlertOctagon','Problemas',problemas.length,'#FF3B30'],['Star','Oportunidades',oportunidades.length,'#34C759'],['CheckCircle2','Mitigados',mitigados.length,'#007AFF']].map(([ic,lb,val,col])=>html`
+              <div key=${lb} onClick=${()=>setSubTab(lb.toLowerCase())} style=${{ background:'#FFF', borderRadius:14, padding:'14px 16px', border:'1.5px solid #E5E5EA', textAlign:'center', cursor:'pointer', transition:'all .15s' }}
+                onMouseOver=${e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.boxShadow='0 4px 16px '+col+'20'}}
+                onMouseOut=${e=>{e.currentTarget.style.borderColor='#E5E5EA';e.currentTarget.style.boxShadow='none'}}>
+                <div style=${{ width:36,height:36,borderRadius:10,background:col+'15',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px' }}>
+                  <${Icon} name=${ic} size=${18} color=${col} />
+                </div>
+                <div style=${{ fontSize:28, fontWeight:800, color:col, lineHeight:1 }}>${val}</div>
+                <div style=${{ fontSize:11, color:'#86868B', marginTop:4 }}>${lb}</div>
               </div>`)}
           </div>
-          <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:16 }}>
-            <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>Mapa de calor</h4>
-            <div style=${{ position:'relative', paddingLeft:28 }}>
-              <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:3 }}>
-                ${['alta','media','baja'].flatMap(prob =>
-                  ['bajo','medio','alto'].map(imp => {
-                    const pI = prob==='alta'?2:prob==='media'?1:0;
-                    const iI = imp==='alto'?2:imp==='medio'?1:0;
-                    const sc = (pI+1)*(iI+1);
-                    const color = sc>=6?'#FF3B30':sc>=3?'#FF9500':'#34C759';
-                    const inCell = allRisks.filter(r=>r.status!=='mitigated'&&(r.impact||'medio')===imp&&(r.prob||'media')===prob);
-                    return html`<div key=${prob+imp} style=${{ background:color+'18', border:'1px solid '+color+'25', borderRadius:8, padding:6, minHeight:48, display:'flex', flexWrap:'wrap', gap:3, alignContent:'flex-start' }}>
-                      ${inCell.map(r => {
-                        const idx = allRisks.filter(x=>x.status!=='mitigated').indexOf(r)+1;
-                        const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
-                        return html`<div key=${r.id} title=${r.text} style=${{ width:26, height:26, borderRadius:13, background:color, color:'#FFF', fontSize:8, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #FFF', boxShadow:'0 1px 4px '+color+'40' }}>${pf}${idx}</div>`;
-                      })}
-                    </div>`;
-                  })
-                )}
+          <div style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', padding:'16px 18px' }}>
+            <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>Mapa de calor de riesgos</h4>
+            <div style=${{ display:'flex', gap:16, alignItems:'flex-start' }}>
+              <div style=${{ flex:1 }}>
+                <div style=${{ display:'grid', gridTemplateColumns:'28px repeat(3,1fr)', gap:3 }}>
+                  <div style=${{ gridColumn:'1', gridRow:'1/5', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <span style=${{ fontSize:9, color:'#86868B', writingMode:'vertical-rl', transform:'rotate(180deg)', fontWeight:700 }}>IMPACTO</span>
+                  </div>
+                  ${['Baja','Media','Alta'].map(p=>html`<div key=${p} style=${{ textAlign:'center', fontSize:9, fontWeight:700, color:'#86868B', paddingBottom:4 }}>${p}</div>`)}
+                  ${['alto','medio','bajo'].flatMap(imp =>
+                    ['baja','media','alta'].map(prob => {
+                      const pI = prob==='alta'?2:prob==='media'?1:0;
+                      const iI = imp==='alto'?2:imp==='medio'?1:0;
+                      const sc = (pI+1)*(iI+1);
+                      const hc = sc>=6?'#FF3B30':sc>=3?'#FF9500':'#34C759';
+                      const cellRisks = allRisks.filter(r=>r.status!=='mitigated'&&(r.impact||'medio')===imp&&(r.prob||'media')===prob);
+                      return html`<div key=${imp+prob} style=${{ background:hc+'18', border:'1.5px solid '+hc+'30', borderRadius:10, minHeight:64, padding:6, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start' }}>
+                        ${cellRisks.map(r => {
+                          const rn = riskNum(r);
+                          const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+                          const dc = (r.type||'riesgo')==='oportunidad'?'#34C759':hc;
+                          return html`<div key=${r.id} onClick=${()=>setDetailRisk({...r})} title=${r.text}
+                            style=${{ width:28, height:28, borderRadius:14, background:dc, color:'#FFF', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #FFF', boxShadow:'0 2px 6px '+dc+'50', cursor:'pointer' }}>${pf}${rn}</div>`;
+                        })}
+                      </div>`;
+                    })
+                  )}
+                  <div style=${{ gridColumn:'2/5', textAlign:'center', paddingTop:4 }}>
+                    <span style=${{ fontSize:9, color:'#86868B', fontWeight:700 }}>PROBABILIDAD</span>
+                  </div>
+                </div>
               </div>
-              <div style=${{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:9, color:'#86868B', fontWeight:600 }}>
-                <span>Bajo</span><span>Medio</span><span>Alto</span>
+              <div style=${{ display:'flex', flexDirection:'column', gap:6, minWidth:100 }}>
+                <p style=${{ fontSize:11, fontWeight:700, marginBottom:4 }}>Leyenda</p>
+                ${[['#FF3B30','Critico'],['#FF9500','Moderado'],['#34C759','Bajo']].map(([co,la])=>html`
+                  <div key=${la} style=${{ display:'flex', alignItems:'center', gap:6, fontSize:11 }}>
+                    <div style=${{ width:14, height:14, borderRadius:3, background:co+'25', border:'2px solid '+co }}></div>
+                    <span style=${{ color:'#86868B' }}>${la}</span>
+                  </div>`)}
               </div>
-              <div style=${{ position:'absolute', left:0, top:0, bottom:20, display:'flex', flexDirection:'column', justifyContent:'space-between', fontSize:9, color:'#86868B', fontWeight:600 }}>
-                <span>A</span><span>M</span><span>B</span>
-              </div>
-              <div style=${{ textAlign:'center', fontSize:9, color:'#86868B', marginTop:2 }}>IMPACTO</div>
             </div>
           </div>
         </div>
