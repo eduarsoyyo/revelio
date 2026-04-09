@@ -4325,13 +4325,14 @@ function SuggestedEscalations({ risks, allRisks, getAlerts, upd, setSubTab, setE
 
 
 /* ═══ ESCALADO PANEL ═══ */
-function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, actions, teamMembers }) {
+function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, actions, teamMembers, user }) {
   const LEVELS = [
     { id:'equipo', label:'Equipo', color:'#34C759', desc:'Se gestiona internamente' },
     { id:'jp',     label:'Jefe de Proyecto', color:'#FF9500', desc:'Escalar al JP' },
     { id:'sm',     label:'Service Manager', color:'#FF3B30', desc:'Requiere SM' },
     { id:'dt',     label:'Direccion Tecnica', color:'#5856D6', desc:'Elevar a DT' },
   ];
+  const isSM = user?._isAdmin || user?.isSuperuser;
   const TYPE_FILTERS = [
     { id:'all', label:'Todos', color:'#1D1D1F' },
     { id:'riesgo', label:'Riesgos', color:'#FF9500', icon:'\u26A0\uFE0F' },
@@ -4344,7 +4345,19 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
   const [levelMembers, setLevelMembers] = useState(() => {
     try { return JSON.parse(localStorage.getItem('rf-level-members-'+SALA)||'{}'); } catch { return {}; }
   });
-  const saveLevelMembers = (lm) => { setLevelMembers(lm); try{localStorage.setItem('rf-level-members-'+SALA,JSON.stringify(lm))}catch{} };
+  useEffect(() => {
+    supabase.from('rooms').select('metadata').eq('slug',SALA).limit(1).then(({data})=>{
+      if(data?.[0]?.metadata?.levelMembers) { setLevelMembers(data[0].metadata.levelMembers); localStorage.setItem('rf-level-members-'+SALA,JSON.stringify(data[0].metadata.levelMembers)); }
+    });
+  }, []);
+  const saveLevelMembers = (lm) => {
+    setLevelMembers(lm);
+    try{localStorage.setItem('rf-level-members-'+SALA,JSON.stringify(lm))}catch{}
+    supabase.from('rooms').select('metadata').eq('slug',SALA).limit(1).then(({data})=>{
+      const meta = {...(data?.[0]?.metadata||{}), levelMembers:lm};
+      supabase.from('rooms').update({metadata:meta}).eq('slug',SALA);
+    });
+  };
   const toggleLevelMember = (levelId, memberName) => {
     const cur = levelMembers[levelId] || [];
     const next = cur.includes(memberName) ? cur.filter(x=>x!==memberName) : [...cur, memberName];
@@ -4452,6 +4465,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
                 const hasLinked = (actions||[]).some(a=>a.riskId===r.id);
                 const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
                 const esc = r.escalation||{};
+                const canEdit = isSM || l.id==='equipo' || (levelMembers[l.id]||[]).includes(user?.name);
                 return html`
                   <div key=${r.id}
                     onClick=${()=>onOpenDetail&&onOpenDetail(r)}
@@ -4466,14 +4480,15 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
                     <div style=${{ display:'flex', gap:4, alignItems:'center', fontSize:10 }}>
                       ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado ${fd(esc.escalatedAt)}</span>`}
                       ${r.owner && r.owner!=='Sin asignar' && html`<span style=${{ color:'#007AFF', fontWeight:600 }}>${r.owner}</span>`}
-                      <div style=${{ marginLeft:'auto', display:'flex', gap:4 }}>
+                      ${canEdit && html`<div style=${{ marginLeft:'auto', display:'flex', gap:4 }}>
                         <button onClick=${e=>{e.stopPropagation();resolveRisk(r)}}
                           style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Resolver</button>
                         ${nextLvl && html`<button onClick=${e=>{e.stopPropagation();escalateNext(r)}}
                           style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid '+nextLvl.color+'30', background:nextLvl.color+'10', color:nextLvl.color, cursor:'pointer' }}>\u2191 ${nextLvl.label}</button>`}
                         ${l.id!=='equipo' && html`<button onClick=${e=>{e.stopPropagation();deescalate(r)}}
                           style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#F9F9FB', color:'#86868B', cursor:'pointer' }}>\u2193</button>`}
-                      </div>
+                      </div>`}
+                      ${!canEdit && html`<span style=${{ marginLeft:'auto', fontSize:9, color:'#C7C7CC', fontStyle:'italic' }}>Solo lectura</span>`}
                     </div>
                   </div>`;
               })}
@@ -5189,7 +5204,8 @@ function PTrabajo({ actions, sA, risks, user }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, text, type:'task'} // {riskId, taskText}
   const [showTagManager, setShowTagManager] = useState(false);
   const [searchQ, setSearchQ] = useState('');
-  const [sortBy, setSortBy] = useState('priority'); // priority | date | type | status
+  const [sortBy, setSortBy] = useState('priority');
+  const [filterOwner, setFilterOwner] = useState('all');
   const [dragAct, setDragAct] = useState(null);
   const [overCol, setOverCol] = useState(null);
 
@@ -5237,6 +5253,8 @@ function PTrabajo({ actions, sA, risks, user }) {
   // ── Filtered/sorted data ──
   const filterActions = (arr) => {
     let filtered = arr;
+    if (filterOwner === 'mine') filtered = filtered.filter(a => a.owner === user.name || a.createdBy === user.id);
+    else if (filterOwner && filterOwner !== 'all') filtered = filtered.filter(a => a.owner === filterOwner);
     if (searchQ) {
       const q = searchQ.toLowerCase();
       filtered = filtered.filter(a => a.text.toLowerCase().includes(q) || (a.owner||'').toLowerCase().includes(q) || (a.description||'').toLowerCase().includes(q));
@@ -5386,6 +5404,14 @@ function PTrabajo({ actions, sA, risks, user }) {
           <${Icon} name="Search" size=${14} color="#C7C7CC" />
           <input value=${searchQ} onInput=${e=>setSearchQ(e.target.value)} placeholder="Buscar tareas…"
             style=${{ border:'1.5px solid #E5E5EA', borderRadius:9, padding:'7px 10px 7px 8px', fontSize:12, fontFamily:'inherit', outline:'none', width:'100%', background:'#FAFAFA' }} />
+        </div>
+        <button onClick=${()=>setFilterOwner(filterOwner==='mine'?'all':'mine')}
+          style=${{ padding:'5px 10px', borderRadius:8, border:filterOwner==='mine'?'none':'1px solid #E5E5EA', background:filterOwner==='mine'?'#5856D6':'#FFF', color:filterOwner==='mine'?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>Mis tareas</button>
+        <select value=${filterOwner==='mine'?'all':filterOwner} onChange=${e=>setFilterOwner(e.target.value)}
+          style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
+          <option value="all">Todos</option>
+          ${(teamMembers||[]).map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||''} ${m.name}</option>`)}
+        </select>
         </div>
         ${tags.length>0 && html`
           <div style=${{ display:'flex', gap:3, alignItems:'center' }}>
@@ -6013,7 +6039,7 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
   const hc = typeKey==='problema' ? '#FF3B30' : heatColor(f.impact||'medio', f.prob||'media');
   const linkedTasks = (window.__currentActions||[]).filter(a=>a.riskId===risk.id);
   const allR = window.__currentRisks||[];
-  const idx = allR.filter(x=>(x.type||'riesgo')===(risk.type||'riesgo')).indexOf(risk)+1;
+  const idx = allR.filter(x=>(x.type||'riesgo')===(risk.type||'riesgo')&&x.status!=='mitigated').findIndex(x=>x.id===risk.id)+1;
 
   const TYPE_OPTS = [
     {id:'riesgo',label:'Riesgo',icon:'⚠️'},
@@ -6175,7 +6201,7 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
               }} style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#FFF'}}>
                 ${[['equipo','Equipo'],['jp','Jefe de Proyecto'],['sm','Service Manager'],['dt','Direccion Tecnica']].map(([id,lb])=>html`<option key=${id} value=${id}>${lb}</option>`)}
               </select>
-              ${f.escalation?.level&&f.escalation.level!=='equipo'&&html`
+              ${(f.escalation?.level||'equipo')!=='equipo'&&html`
                 <div style=${{marginTop:6}}>
                   ${fieldLabel('Fecha escalado')}
                   <input type="date" value=${(f.escalation?.escalatedAt||'').slice(0,10)} onInput=${e=>setF({...f,escalation:{...(f.escalation||{}),escalatedAt:e.target.value}})}
@@ -6560,7 +6586,7 @@ const addItem = () => {
         
         <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
           ${subTab==='escalado' ? html`
-            <${EscaladoPanel} risks=${allRisks} upd=${upd} escalForm=${escalForm} setEscalForm=${setEscalForm} onOpenDetail=${x=>setDetailRisk({...x})} actions=${actions} teamMembers=${teamMembers} />
+            <${EscaladoPanel} risks=${allRisks} upd=${upd} escalForm=${escalForm} setEscalForm=${setEscalForm} onOpenDetail=${x=>setDetailRisk({...x})} actions=${actions} teamMembers=${teamMembers} user=${user} />
           ` : subTab==='sugeridos' ? html`
             <${SuggestedEscalations} risks=${suggestedEscalations} allRisks=${allRisks} getAlerts=${getAlerts} upd=${upd} setSubTab=${setSubTab} setEscalForm=${setEscalForm} />
           ` : subTab==='historial' ? html`
@@ -7608,6 +7634,9 @@ function RetroBoard({ user, onLogout }) {
                     </div>`}
               </div>`}
           </div>
+          <a href=${window.location.pathname} style=${{ padding:'5px 10px', borderRadius:8, border:'1px solid #E5E5EA', background:'#FFF', fontSize:12, color:'#6E6E73', cursor:'pointer', display:'flex', alignItems:'center', gap:4, textDecoration:'none' }}>
+            <${Icon} name="Home" size=${13} color="#86868B" /> Home
+          </a>
           ${(user._isAdmin || user.isSuperuser) && html`
             <a href=${window.location.pathname+'?admin'} style=${{ padding:'5px 12px', borderRadius:8, border:'1.5px solid #5856D630', background:'#5856D608', fontSize:12, color:'#5856D6', cursor:'pointer', display:'flex', alignItems:'center', gap:5, textDecoration:'none', fontWeight:700 }}>
               ← Centro de control
