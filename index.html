@@ -4468,7 +4468,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
                 const canEdit = isSM || (levelMembers[l.id]||[]).includes(user?.name);
                 return html`
                   <div key=${r.id}
-                    onClick=${()=>onOpenDetail&&onOpenDetail(r)}
+                    onClick=${()=>onOpenDetail&&onOpenDetail({...r,_readOnly:!canEdit})}
                     style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:5, cursor:'pointer' }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
                       <span style=${{ fontSize:13, fontWeight:800, color:l.color }}>${px}${rn}</span>
@@ -6028,11 +6028,18 @@ function heatColor(imp, prob) {
   const score = iv * pv;
   return score >= 6 ? '#FF3B30' : score >= 3 ? '#FF9500' : '#34C759';
 }
+function voteMajority(votes, def) {
+  const vals = Object.values(votes||{}).filter(Boolean);
+  if(!vals.length) return def;
+  const counts = {}; vals.forEach(v=>{counts[v]=(counts[v]||0)+1});
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+}
 
 
 /* ═══ RISK DETAIL MODAL ═══ */
 function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToTask }) {
   const [f, setF] = useState({...risk});
+  const readOnly = risk._readOnly || false;
   const typeKey = f.type||'riesgo';
   const prefix = typeKey==='problema'?'P':typeKey==='oportunidad'?'O':'R';
   const hc = typeKey==='problema' ? '#FF3B30' : heatColor(f.impact||'medio', f.prob||'media');
@@ -6068,7 +6075,7 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
           <button onClick=${onClose} style=${{border:'none',background:'#F2F2F7',borderRadius:10,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:16,color:'#86868B'}}>✕</button>
         </div>
 
-        <div style=${{display:'flex',flex:1,overflow:'hidden'}}>
+        <div style=${{display:'flex',flex:1,overflow:'hidden',pointerEvents:readOnly?'none':'auto',opacity:readOnly?.7:1}}>
 
           <div style=${{flex:1,padding:'20px',overflowY:'auto',display:'flex',flexDirection:'column',gap:14}}>
             <div>
@@ -6217,12 +6224,16 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
         </div>
 
         <div style=${{padding:'14px 24px',borderTop:'1px solid #F2F2F7',display:'flex',gap:8,justifyContent:'space-between',flexShrink:0,background:'#FAFAFA'}}>
-          <button onClick=${()=>window.__confirm({icon:'⚠️',title:'Eliminar riesgo',message:html`¿Eliminar <b>${risk.text?.slice(0,50)}</b>?<br/>Esta acción no se puede deshacer.`,onConfirm:()=>onDelete(risk.id)})}
-            style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
-          <div style=${{display:'flex',gap:8}}>
-            <button onClick=${onClose} style=${{padding:'8px 20px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:500,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
-            <button onClick=${()=>{onSave({...f});onClose();}} style=${{padding:'8px 24px',borderRadius:10,border:'none',background:'linear-gradient(135deg,#007AFF,#5856D6)',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
-          </div>
+          ${readOnly ? html`
+            <div style=${{flex:1,textAlign:'center',fontSize:12,color:'#86868B',fontStyle:'italic',padding:'8px 0'}}>Solo lectura — no tienes permisos en este nivel de escalado</div>
+          ` : html`
+            <button onClick=${()=>window.__confirm({icon:'⚠️',title:'Eliminar riesgo',message:html`¿Eliminar <b>${risk.text?.slice(0,50)}</b>?<br/>Esta acción no se puede deshacer.`,onConfirm:()=>onDelete(risk.id)})}
+              style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>
+            <div style=${{display:'flex',gap:8}}>
+              <button onClick=${onClose} style=${{padding:'8px 20px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:500,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+              <button onClick=${()=>{onSave({...f});onClose();}} style=${{padding:'8px 24px',borderRadius:10,border:'none',background:'linear-gradient(135deg,#007AFF,#5856D6)',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
+            </div>
+          `}
         </div>
       </div>
     </div>`;
@@ -6430,7 +6441,7 @@ const addItem = () => {
       status: 'open', impactVotes:{}, probVotes:{},
       createdAt: new Date().toISOString()
     }]);
-    setForm({type:form.type, text:'', impact:'medio', prob:'media', owner:'', mitigation:'', status:'open', opportunity:''});
+    setForm({type:form.type, text:'', impact:'medio', prob:form.type==='problema'?'alta':'media', owner:'', mitigation:'', status:'open', opportunity:''});
     // Offer to create/link task
     setLinkModal({riskId:newId, riskText});
   };
@@ -6535,7 +6546,7 @@ const addItem = () => {
                       const iI = imp==='alto'?2:imp==='medio'?1:0;
                       const sc = (pI+1)*(iI+1);
                       const hc = sc>=6?'#FF3B30':sc>=3?'#FF9500':'#34C759';
-                      const cellRisks = allRisks.filter(r=>r.status!=='mitigated'&&(r.impact||'medio')===imp&&(r.prob||'media')===prob);
+                      const cellRisks = allRisks.filter(r=>r.status!=='mitigated'&&voteMajority(r.impactVotes,r.impact||'medio')===imp&&voteMajority(r.probVotes,r.prob||'media')===prob);
                       return html`<div key=${imp+prob} style=${{ background:hc+'18', border:'1.5px solid '+hc+'30', borderRadius:10, minHeight:64, padding:6, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start' }}>
                         ${cellRisks.map(r => {
                           const rn = riskNum(r);
@@ -8715,8 +8726,23 @@ function P5Risks({ risks, sR, notes, user }) {
 
   const IMPACT_BTNS = [{id:'alto',label:'Alto',color:'#FF3B30'},{id:'medio',label:'Medio',color:'#FF9500'},{id:'bajo',label:'Bajo',color:'#34C759'}];
   const PROB_BTNS = [{id:'alta',label:'Alta',color:'#FF3B30'},{id:'media',label:'Media',color:'#FF9500'},{id:'baja',label:'Baja',color:'#34C759'}];
-  const impMap = {alto:2,medio:1,bajo:0};
-  const probMap = {alta:2,media:1,baja:0};
+
+  const voteImpact = (riskId, level) => sR(risks.map(r=>{
+    if(r.id!==riskId) return r;
+    const v={...(r.impactVotes||{})}; v[user.id]=v[user.id]===level?undefined:level;
+    if(!v[user.id]) delete v[user.id]; return {...r, impactVotes:v};
+  }));
+  const voteProb = (riskId, level) => sR(risks.map(r=>{
+    if(r.id!==riskId) return r;
+    const v={...(r.probVotes||{})}; v[user.id]=v[user.id]===level?undefined:level;
+    if(!v[user.id]) delete v[user.id]; return {...r, probVotes:v};
+  }));
+  const majority = (votes, def) => {
+    const vals = Object.values(votes||{}).filter(Boolean);
+    if(!vals.length) return def;
+    const counts = {}; vals.forEach(v=>{counts[v]=(counts[v]||0)+1});
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+  };
 
   return html`
     <div data-p="risks" style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, maxWidth:'100%' }}>
@@ -8732,7 +8758,7 @@ function P5Risks({ risks, sR, notes, user }) {
                   const iIdx = imp==='alto'?2:imp==='medio'?1:0;
                   const score = (pIdx+1)*(iIdx+1);
                   const color = score>=6?'#FF3B30':score>=3?'#FF9500':'#34C759';
-                  const inCell = openRisks.filter(r => (r.impact||'medio')===imp && (r.prob||'media')===prob);
+                  const inCell = openRisks.filter(r => (voteMajority(r.impactVotes,r.impact||'medio'))===imp && (voteMajority(r.probVotes,r.prob||'media'))===prob);
                   return html`<div key=${prob+imp} style=${{ background:color+'18', border:'1px solid '+color+'25', borderRadius:8, padding:6, minHeight:56, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start' }}>
                     ${inCell.map(r => {
                       const rn = openRisks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
@@ -8791,7 +8817,7 @@ function P5Risks({ risks, sR, notes, user }) {
           ${openRisks.length===0 && html`<div style=${{ textAlign:'center', padding:28, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:12, fontSize:12 }}>Sin riesgos. Crea uno o convierte una nota.</div>`}
           ${openRisks.map((r, idx) => {
             const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
-            const hc = (r.type||'riesgo')==='problema'?'#FF3B30':heatColor(r.impact||'medio', r.prob||'media');
+            const hc = (r.type||'riesgo')==='problema'?'#FF3B30':heatColor(voteMajority(r.impactVotes,r.impact||'medio'), voteMajority(r.probVotes,r.prob||'media'));
             return html`
               <div key=${r.id} onClick=${()=>setDetailRisk({...r})}
                 style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+hc, padding:'10px 14px', cursor:'pointer' }}>
@@ -8803,13 +8829,19 @@ function P5Risks({ risks, sR, notes, user }) {
                 <div style=${{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
                   <div style=${{ display:'flex', alignItems:'center', gap:3 }}>
                     <span style=${{ fontSize:9, color:'#86868B', fontWeight:600 }}>Imp:</span>
-                    ${IMPACT_BTNS.map(l => html`<button key=${l.id} onClick=${e=>{e.stopPropagation();if(r.createdBy===user.id||r.owner===user.name)upd(r.id,{impact:l.id})}}
-                      style=${{ padding:'2px 7px', borderRadius:5, border:(r.impact||'medio')===l.id?'2px solid '+l.color:'1px solid #E5E5EA', background:(r.impact||'medio')===l.id?l.color+'15':'#FFF', fontSize:9, fontWeight:700, color:l.color, cursor:(r.createdBy===user.id||r.owner===user.name)?'pointer':'default', opacity:(r.createdBy===user.id||r.owner===user.name)?1:.5 }}>${l.label}</button>`)}
+                    ${IMPACT_BTNS.map(l => {
+                      const myVote=(r.impactVotes||{})[user.id]; const cnt=Object.values(r.impactVotes||{}).filter(v=>v===l.id).length;
+                      return html`<button key=${l.id} onClick=${e=>{e.stopPropagation();voteImpact(r.id,l.id)}}
+                        style=${{ padding:'2px 7px', borderRadius:5, border:myVote===l.id?'2px solid '+l.color:'1px solid #E5E5EA', background:myVote===l.id?l.color+'15':'#FFF', fontSize:9, fontWeight:700, color:l.color, cursor:'pointer' }}>${l.label}${cnt>0?' '+cnt:''}</button>`;
+                    })}
                   </div>
                   ${(r.type||'riesgo')!=='problema' && html`<div style=${{ display:'flex', alignItems:'center', gap:3 }}>
                     <span style=${{ fontSize:9, color:'#86868B', fontWeight:600 }}>Prob:</span>
-                    ${PROB_BTNS.map(l => html`<button key=${l.id} onClick=${e=>{e.stopPropagation();if(r.createdBy===user.id||r.owner===user.name)upd(r.id,{prob:l.id})}}
-                      style=${{ padding:'2px 7px', borderRadius:5, border:(r.prob||'media')===l.id?'2px solid '+l.color:'1px solid #E5E5EA', background:(r.prob||'media')===l.id?l.color+'15':'#FFF', fontSize:9, fontWeight:700, color:l.color, cursor:(r.createdBy===user.id||r.owner===user.name)?'pointer':'default', opacity:(r.createdBy===user.id||r.owner===user.name)?1:.5 }}>${l.label}</button>`)}
+                    ${PROB_BTNS.map(l => {
+                      const myVote=(r.probVotes||{})[user.id]; const cnt=Object.values(r.probVotes||{}).filter(v=>v===l.id).length;
+                      return html`<button key=${l.id} onClick=${e=>{e.stopPropagation();voteProb(r.id,l.id)}}
+                        style=${{ padding:'2px 7px', borderRadius:5, border:myVote===l.id?'2px solid '+l.color:'1px solid #E5E5EA', background:myVote===l.id?l.color+'15':'#FFF', fontSize:9, fontWeight:700, color:l.color, cursor:'pointer' }}>${l.label}${cnt>0?' '+cnt:''}</button>`;
+                    })}
                   </div>`}
                 </div>
               </div>`;
