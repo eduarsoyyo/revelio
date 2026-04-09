@@ -302,6 +302,81 @@ async function sbCreateRetroArchive(sala, tipo, stateData, userId) {
   } catch(e) { console.warn('sbCreateRetroArchive:', e); }
 }
 
+/* ═══ SKILL MATRIX — Supabase CRUD ═══ */
+async function sbLoadSkillProfiles(sala) {
+  try { const {data}=await supabase.from('skill_profiles').select('*').eq('sala',sala).order('sort_order'); return data||[]; } catch{return [];}
+}
+async function sbSaveSkillProfile(p) {
+  try { const {data,error}=await supabase.from('skill_profiles').upsert(p,{onConflict:'id'}).select(); if(error)console.warn('sbSaveSkillProfile:',error.message); return data?.[0]; } catch{return null;}
+}
+async function sbDeleteSkillProfile(id) {
+  try { await supabase.from('skill_profiles').delete().eq('id',id); } catch{}
+}
+async function sbLoadSkills(sala) {
+  try { const {data}=await supabase.from('skills').select('*').eq('sala',sala).order('category,name'); return data||[]; } catch{return [];}
+}
+async function sbSaveSkill(s) {
+  try { const {data,error}=await supabase.from('skills').upsert(s,{onConflict:'id'}).select(); if(error)console.warn('sbSaveSkill:',error.message); return data?.[0]; } catch{return null;}
+}
+async function sbDeleteSkill(id) {
+  try { await supabase.from('skills').delete().eq('id',id); } catch{}
+}
+async function sbLoadProfileSkills(profileId) {
+  try { const {data}=await supabase.from('profile_skills').select('*').eq('profile_id',profileId); return data||[]; } catch{return [];}
+}
+async function sbLoadAllProfileSkills(sala) {
+  try {
+    const profiles = await sbLoadSkillProfiles(sala);
+    const ids = profiles.map(p=>p.id);
+    if(!ids.length) return [];
+    const {data}=await supabase.from('profile_skills').select('*').in('profile_id',ids);
+    return data||[];
+  } catch{return [];}
+}
+async function sbSaveProfileSkill(ps) {
+  try { const {data,error}=await supabase.from('profile_skills').upsert(ps,{onConflict:'profile_id,skill_id'}).select(); if(error)console.warn('sbSaveProfileSkill:',error.message); return data?.[0]; } catch{return null;}
+}
+async function sbDeleteProfileSkill(id) {
+  try { await supabase.from('profile_skills').delete().eq('id',id); } catch{}
+}
+async function sbLoadMemberSkills(sala) {
+  try {
+    // Load all member skills for members in this sala
+    const {data}=await supabase.from('member_skills').select('*');
+    return data||[];
+  } catch{return [];}
+}
+async function sbSaveMemberSkill(ms) {
+  try { const {data,error}=await supabase.from('member_skills').upsert(ms,{onConflict:'member_id,skill_id'}).select(); if(error)console.warn('sbSaveMemberSkill:',error.message); return data?.[0]; } catch{return null;}
+}
+async function sbLoadMemberProfiles(sala) {
+  try { const {data}=await supabase.from('member_profiles').select('*').eq('sala',sala); return data||[]; } catch{return [];}
+}
+async function sbSaveMemberProfile(mp) {
+  try { const {data,error}=await supabase.from('member_profiles').upsert(mp,{onConflict:'member_id,profile_id,sala'}).select(); if(error)console.warn('sbSaveMemberProfile:',error.message); return data?.[0]; } catch{return null;}
+}
+async function sbDeleteMemberProfile(id) {
+  try { await supabase.from('member_profiles').delete().eq('id',id); } catch{}
+}
+async function sbLoadSkillActions(sala) {
+  try { const {data}=await supabase.from('skill_actions').select('*').eq('sala',sala).order('created_at',{ascending:false}); return data||[]; } catch{return [];}
+}
+async function sbSaveSkillAction(a) {
+  try { const {data,error}=await supabase.from('skill_actions').upsert(a,{onConflict:'id'}).select(); if(error)console.warn('sbSaveSkillAction:',error.message); return data?.[0]; } catch{return null;}
+}
+async function sbDeleteSkillAction(id) {
+  try { await supabase.from('skill_actions').delete().eq('id',id); } catch{}
+}
+async function sbLoadTrainingCatalog() {
+  try { const {data}=await supabase.from('training_catalog').select('*').order('category,name'); return data||[]; } catch{return [];}
+}
+async function sbSaveTraining(t) {
+  try { const {data,error}=await supabase.from('training_catalog').upsert(t,{onConflict:'id'}).select(); if(error)console.warn('sbSaveTraining:',error.message); return data?.[0]; } catch{return null;}
+}
+async function sbDeleteTraining(id) {
+  try { await supabase.from('training_catalog').delete().eq('id',id); } catch{}
+}
+
 /* ═══ CONSTANTS ═══ */
 const CATS = [
   { id:'good', label:'Good', emoji:'✅', color:'#34C759', bg:'#F0FFF4' },
@@ -4202,544 +4277,485 @@ async function saveTeamSupabase(team, vacs) {
 function PEquipo() {
   const [team,    setTeam]   = useState([]);
   const [loading, setLoading]= useState(true);
-  const [subTab,  setSubTab] = useState('lista');
-  const [org,     setOrg]    = useState({}); // { memberId: managerId }
-  const [orgData, setOrgData]= useState([]); // full org_chart rows
+  const [subTab,  setSubTab] = useState('perfiles');
+  const [org,     setOrg]    = useState({});
+  const [orgData, setOrgData]= useState([]);
   const [orgSaving, setOrgSaving] = useState(false);
-  const [tags, setTags] = useState([]);
-  const [tagAssign, setTagAssign] = useState([]);
-  const [activeTagFilter, setActiveTagFilter] = useState(null);
+
+  // Skill Matrix state
+  const [profiles, setProfiles] = useState([]);
+  const [skills,   setSkills]   = useState([]);
+  const [profSkills, setProfSkills] = useState([]);
+  const [memSkills,  setMemSkills]  = useState([]);
+  const [memProfiles, setMemProfiles] = useState([]);
+
+  // Modals
+  const [editProfile, setEditProfile] = useState(null);
+  const [editSkill, setEditSkill] = useState(null);
+  const [editCategory, setEditCategory] = useState(null);
+  const [evalMember, setEvalMember] = useState(null);
 
   useEffect(() => {
-    Promise.all([sbLoadTeamMembers(), sbLoadOrgChart(SALA)]).then(([data, chart]) => {
-      const salaMembers = data.filter(m => (m.rooms||[]).includes(SALA));
-      const salaMembersFinal = salaMembers.length > 0 ? salaMembers : data;
-      setTeam(salaMembersFinal);
-      saveTeamLocal(salaMembers.map(m=>({id:m.id,name:m.name,avatar:m.avatar||'👤',role:m.role_label||'',color:m.color||'#007AFF'})));
+    Promise.all([
+      sbLoadTeamMembers(),
+      sbLoadOrgChart(SALA),
+      sbLoadSkillProfiles(SALA),
+      sbLoadSkills(SALA),
+      sbLoadAllProfileSkills(SALA),
+      sbLoadMemberSkills(SALA),
+      sbLoadMemberProfiles(SALA),
+    ]).then(([members, chart, profs, sks, ps, ms, mp]) => {
+      const salaM = members.filter(m=>(m.rooms||[]).includes(SALA));
+      setTeam(salaM.length>0?salaM:members);
       const orgMap = {};
-      chart.forEach(n => { orgMap[n.member_id] = n.manager_id || null; });
-      setOrg(orgMap);
-      setOrgData(chart);
+      chart.forEach(n => { orgMap[n.member_id] = n.manager_id||null; });
+      setOrg(orgMap); setOrgData(chart);
+      setProfiles(profs); setSkills(sks); setProfSkills(ps); setMemSkills(ms); setMemProfiles(mp);
       setLoading(false);
     });
-    sbLoadTags(SALA).then(t=>setTags(t||[]));
-    sbLoadTagAssignments(SALA).then(a=>setTagAssign(a||[]));
   }, []);
-  const hasMemberTag = (tagId,memberId) => tagAssign.some(a=>a.tag_id===tagId&&a.entity_type==='member'&&a.entity_id===memberId);
-  const memberTagList = (memberId) => tags.filter(t=>hasMemberTag(t.id,memberId));
-  const toggleMemberTag = async (tagId,memberId) => {
-    const added = await sbToggleTagAssignment(tagId,'member',memberId,SALA);
-    if(added) setTagAssign(prev=>[...prev,{tag_id:tagId,entity_type:'member',entity_id:memberId,sala:SALA}]);
-    else setTagAssign(prev=>prev.filter(a=>!(a.tag_id===tagId&&a.entity_type==='member'&&a.entity_id===memberId)));
-  };
 
   const setManager = async (memberId, managerId) => {
     setOrgSaving(true);
-    const newOrg = {...org, [memberId]: managerId || null};
-    setOrg(newOrg);
-    await sbSaveOrgNode(SALA, memberId, managerId || null);
+    setOrg(prev=>({...prev,[memberId]:managerId||null}));
+    await sbSaveOrgNode(SALA, memberId, managerId||null);
     setOrgSaving(false);
   };
 
-  const updateOrgField = async (memberId, field, val, rowId) => {
-    setOrgSaving(true);
-    const managerId = org[memberId] || null;
-    if (rowId) {
-      await supabase.from('org_chart').update({ [field]:val||null }).eq('id', rowId);
-      setOrgData(prev => prev.map(r=>r.id===rowId?{...r,[field]:val}:r));
-    } else {
-      const { data:_ex } = await supabase.from('org_chart').select('id').eq('sala',SALA).eq('member_id',memberId).order('created_at',{ascending:true}).limit(1).single();
-      if (_ex?.id) {
-        await supabase.from('org_chart').update({ [field]:val||null }).eq('id',_ex.id);
-        setOrgData(prev => prev.map((r,i)=>r.member_id===memberId&&prev.findIndex(x=>x.member_id===memberId)===i?{...r,[field]:val}:r));
-      } else {
-        await supabase.from('org_chart').insert({ sala:SALA, member_id:memberId, manager_id:managerId, [field]:val||null });
-        setOrgData(prev=>[...prev,{sala:SALA,member_id:memberId,manager_id:managerId,[field]:val}]);
-      }
-    }
-    setOrgSaving(false);
+  // ── Skill Matrix helpers ──
+  const LEVEL_COLORS = {1:'#FF3B30',2:'#FF9500',3:'#34C759',4:'#007AFF'};
+  const LEVEL_LABELS = {1:'Introducción',2:'Asistido',3:'Independiente',4:'Experto'};
+  const LEVEL_ICONS  = {1:'📖',2:'🤝',3:'🎯',4:'⭐'};
+  const categories = [...new Set(skills.map(s=>s.category))].sort();
+
+  const profileSkillsFor = (pid) => profSkills.filter(ps=>ps.profile_id===pid);
+  const memberSkillLevel = (mid, sid) => memSkills.find(ms=>ms.member_id===mid&&ms.skill_id===sid)?.current_level||0;
+  const memberProfile = (mid) => {
+    const mp = memProfiles.find(mp=>mp.member_id===mid);
+    return mp ? profiles.find(p=>p.id===mp.profile_id) : null;
+  };
+  const memberFit = (mid) => {
+    const prof = memberProfile(mid);
+    if(!prof) return null;
+    const reqs = profileSkillsFor(prof.id);
+    if(!reqs.length) return null;
+    const totalReq = reqs.reduce((s,r)=>s+r.required_level,0);
+    const totalAct = reqs.reduce((s,r)=>s+Math.min(memberSkillLevel(mid,r.skill_id),r.required_level),0);
+    return Math.round(totalAct/totalReq*100);
+  };
+  const fitColor = (pct) => pct>=90?'#34C759':pct>=70?'#FF9500':'#FF3B30';
+
+  // ── CRUD actions ──
+  const saveProfile = async (p) => {
+    const saved = await sbSaveSkillProfile({...p, sala:SALA});
+    if(saved) setProfiles(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+    return saved;
+  };
+  const deleteProfile = async (id) => {
+    await sbDeleteSkillProfile(id);
+    setProfiles(prev=>prev.filter(x=>x.id!==id));
+    setProfSkills(prev=>prev.filter(x=>x.profile_id!==id));
+    setMemProfiles(prev=>prev.filter(x=>x.profile_id!==id));
+  };
+  const saveSkill = async (s) => {
+    const saved = await sbSaveSkill({...s, sala:SALA});
+    if(saved) setSkills(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+    return saved;
+  };
+  const deleteSkill = async (id) => {
+    await sbDeleteSkill(id);
+    setSkills(prev=>prev.filter(x=>x.id!==id));
+    setProfSkills(prev=>prev.filter(x=>x.skill_id!==id));
+    setMemSkills(prev=>prev.filter(x=>x.skill_id!==id));
+  };
+  const saveProfSkill = async (profileId, skillId, level) => {
+    const saved = await sbSaveProfileSkill({profile_id:profileId, skill_id:skillId, required_level:level});
+    if(saved) setProfSkills(prev=>{
+      const ex = prev.findIndex(x=>x.profile_id===profileId&&x.skill_id===skillId);
+      return ex>=0 ? prev.map((x,i)=>i===ex?saved:x) : [...prev,saved];
+    });
+  };
+  const removeProfSkill = async (profileId, skillId) => {
+    const row = profSkills.find(x=>x.profile_id===profileId&&x.skill_id===skillId);
+    if(row) { await sbDeleteProfileSkill(row.id); setProfSkills(prev=>prev.filter(x=>x.id!==row.id)); }
+  };
+  const saveMemSkill = async (memberId, skillId, level) => {
+    const saved = await sbSaveMemberSkill({member_id:memberId, skill_id:skillId, current_level:level, assessed_at:new Date().toISOString()});
+    if(saved) setMemSkills(prev=>{
+      const ex = prev.findIndex(x=>x.member_id===memberId&&x.skill_id===skillId);
+      return ex>=0 ? prev.map((x,i)=>i===ex?saved:x) : [...prev,saved];
+    });
+  };
+  const assignProfile = async (memberId, profileId) => {
+    // Remove existing assignment first
+    const old = memProfiles.find(x=>x.member_id===memberId&&x.sala===SALA);
+    if(old) { await sbDeleteMemberProfile(old.id); setMemProfiles(prev=>prev.filter(x=>x.id!==old.id)); }
+    if(!profileId) return;
+    const saved = await sbSaveMemberProfile({member_id:memberId, profile_id:profileId, sala:SALA});
+    if(saved) setMemProfiles(prev=>[...prev,saved]);
   };
 
-  const today = new Date().toISOString().slice(0,10);
-  const ROLE_COLORS = {'Scrum Master':'#007AFF','Product Owner':'#5856D6','Desarrollador/a':'#34C759','QA / Tester':'#FF9500','Diseñador/a':'#FF2D55','DevOps':'#00C7BE','Tech Lead':'#FF3B30','Analista':'#AF52DE','Project Manager':'#007AFF','Stakeholder':'#86868B'};
-  const rc = (r) => ROLE_COLORS[r] || '#5856D6';
+  const TABS = [
+    {id:'perfiles',  icon:'Target',       label:'Perfiles'},
+    {id:'personas',  icon:'Users',        label:'Personas'},
+    {id:'matriz',    icon:'BarChart3',    label:'Matriz'},
+    {id:'ftes',      icon:'Calendar',     label:'FTEs'},
+    {id:'organigrama',icon:'GitBranch',   label:'Organigrama'},
+  ];
 
-  // Build org tree
-  const buildTree = (managerId) => team.filter(m => (org[m.id]||null) === managerId);
-  const roots = buildTree(null);
+  if(loading) return html`<div style=${{textAlign:'center',padding:48,color:'#86868B'}}>Cargando equipo...</div>`;
 
-  return html`
-    <div style=${{ maxWidth:960, margin:'0 auto' }}>
+  return html`<div>
+    <div style=${{display:'flex',gap:0,marginBottom:16,borderRadius:12,overflow:'hidden',border:'1.5px solid #E5E5EA',width:'fit-content'}}>
+      ${TABS.map(t=>html`
+        <button key=${t.id} onClick=${()=>setSubTab(t.id)}
+          style=${{padding:'8px 16px',fontSize:12,fontWeight:subTab===t.id?700:500,background:subTab===t.id?'#1D1D1F':'#FFF',color:subTab===t.id?'#FFF':'#6E6E73',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:5}}>
+          <${Icon} name=${t.icon} size=${13} color=${subTab===t.id?'#FFF':'#86868B'} /> ${t.label}
+        </button>`)}
+    </div>
 
-      <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+    ${subTab==='perfiles' && html`
+      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
         <div>
-          <h2 style=${{ fontSize:20, fontWeight:700 }}>👥 Equipo</h2>
-          <p style=${{ fontSize:12, color:'#86868B', marginTop:2 }}>${team.length} miembros · ${SALA_DISPLAY}</p>
+          <h3 style=${{fontSize:16,fontWeight:700,margin:0}}>Perfiles del servicio</h3>
+          <p style=${{fontSize:12,color:'#86868B',marginTop:2}}>Roles requeridos y habilidades necesarias</p>
         </div>
-        ${orgSaving && html`<span style=${{ fontSize:11, color:'#007AFF' }}>💾 Guardando…</span>`}
-      </div>
-      <div style=${{ display:'flex', gap:4, padding:'0 0 14px', flexWrap:'wrap' }}>
-        ${[
-          ['lista',        'Users',      'Lista'],
-          ['organigrama',  'GitBranch',  'Organigrama'],
-          ['vacaciones',   'Palmtree',   'Vacaciones'],
-          ['ftes',         'BarChart2',  'FTEs'],
-        ].map(([tid,icon,label])=>html`
-          <button key=${tid} onClick=${()=>setSubTab(tid)}
-            style=${{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:20,
-              border:'1.5px solid '+(subTab===tid?'#007AFF':'#E5E5EA'),
-              background:subTab===tid?'#007AFF':'#FFF',
-              color:subTab===tid?'#FFF':'#6E6E73',
-              fontSize:12, fontWeight:subTab===tid?600:500, cursor:'pointer', transition:'all .15s' }}>
-            <${Icon} name=${icon} size=${13} color=${subTab===tid?'#FFF':'#86868B'} />
-            ${label}
-          </button>`)}
+        <div style=${{display:'flex',gap:6}}>
+          <button onClick=${()=>setEditSkill({name:'',category:categories[0]||'técnica',icon:'📘'})}
+            style=${{padding:'7px 14px',borderRadius:9,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73'}}>+ Habilidad</button>
+          <button onClick=${()=>setEditCategory('')}
+            style=${{padding:'7px 14px',borderRadius:9,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73'}}>+ Categoría</button>
+          <button onClick=${()=>setEditProfile({name:'',description:'',fte:1.00,color:'#007AFF',icon:'🧑‍💻'})}
+            style=${{padding:'7px 14px',borderRadius:9,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Perfil</button>
+        </div>
       </div>
 
-      ${loading ? html`<div style=${{ textAlign:'center', padding:40, color:'#86868B' }}>⏳ Cargando equipo…</div>` : html`
+      ${profiles.length===0 && html`
+        <div style=${{textAlign:'center',padding:48,border:'2px dashed #E5E5EA',borderRadius:16,color:'#C7C7CC'}}>
+          <${Icon} name="Target" size=${36} color="#C7C7CC" />
+          <p style=${{fontSize:14,fontWeight:600,color:'#6E6E73',marginTop:8}}>Sin perfiles definidos</p>
+          <p style=${{fontSize:12,color:'#86868B',marginTop:4}}>Crea el primer perfil del servicio</p>
+        </div>`}
 
-        ${subTab==='lista' && html`
-
-          ${tags.length>0&&html`
-            <div style=${{display:'flex',gap:4,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
-              <${Icon} name='Tag' size=${12} color='#86868B' />
-              <button onClick=${()=>setActiveTagFilter(null)}
-                style=${{padding:'3px 10px',borderRadius:20,border:'1.5px solid '+(activeTagFilter===null?'#1D1D1F':'#E5E5EA'),
-                  background:activeTagFilter===null?'#1D1D1F':'#FFF',color:activeTagFilter===null?'#FFF':'#6E6E73',
-                  fontSize:10,fontWeight:600,cursor:'pointer'}}>Todos</button>
-              ${tags.map(t=>html`
-                <button key=${t.id} onClick=${()=>setActiveTagFilter(activeTagFilter===t.id?null:t.id)}
-                  style=${{padding:'3px 10px',borderRadius:20,border:'1.5px solid '+(activeTagFilter===t.id?t.color:'#E5E5EA'),
-                    background:activeTagFilter===t.id?t.color:'#FFF',color:activeTagFilter===t.id?'#FFF':t.color,
-                    fontSize:10,fontWeight:700,cursor:'pointer'}}>${t.name}</button>`)}
-            </div>`}
-
-          <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
-            ${team.length===0 ? html`
-              <div style=${{ textAlign:'center', padding:'48px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:16 }}>
-                <p style=${{ fontSize:40, marginBottom:8 }}>👤</p>
-                <p style=${{ fontSize:14 }}>No hay miembros asignados aún. Asígnalos desde Centro de control > Proyectos.</p>
-                <p style=${{ fontSize:12, marginTop:6 }}>Añádelos desde Admin → Usuarios</p>
-              </div>` :
-              (activeTagFilter ? team.filter(m=>hasMemberTag(activeTagFilter,m.id)) : team).map(m => {
-                const onVac = (m.vacations||[]).some(v=>v.from<=today&&(!v.to||v.to>=today));
-                const color = rc(m.role_label||'');
-                const row = orgData.find(r=>r.member_id===m.id)||{};
-                return html`
-                  <div key=${m.id} style=${{ borderRadius:14, background:onVac?'#FFF9E6':'#FFF',
-                    border:'1.5px solid '+(onVac?'#FF9500':'#E5E5EA'), overflow:'hidden' }}>
-
-                    <div style=${{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px' }}>
-                      <div style=${{ width:44, height:44, borderRadius:12, background:m.color||'#E5E5EA',
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0 }}>
-                        ${m.avatar||'👤'}
-                      </div>
-                      <div style=${{ flex:1 }}>
-                        <div style=${{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                          <span style=${{ fontSize:14, fontWeight:700 }}>${m.name}</span>
-                          ${m.company && html`<span style=${{ fontSize:10, color:'#86868B', background:'#F2F2F7', padding:'2px 7px', borderRadius:8 }}>🏢 ${m.company}</span>`}
-                          ${onVac && html`<span style=${{ fontSize:10, color:'#FF9500', fontWeight:700, background:'#FF950015', padding:'2px 7px', borderRadius:8 }}>🏖️ Vacaciones</span>`}
-                        </div>
-                        ${org[m.id] && html`<div style=${{ fontSize:11, color:'#86868B', marginTop:1 }}>Reporta a: <strong>${team.find(x=>x.id===org[m.id])?.name||'—'}</strong></div>`}
-                      ${tags.length>0&&html`
-                        <div style=${{display:'flex',gap:3,flexWrap:'wrap',marginTop:4}}>
-                          ${memberTagList(m.id).map(t=>html`
-                            <span key=${t.id} onClick=${()=>toggleMemberTag(t.id,m.id)}
-                              style=${{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10,background:t.color,color:'#FFF',cursor:'pointer'}}>
-                              ${t.name} ✕</span>`)}
-                          ${tags.filter(t=>!hasMemberTag(t.id,m.id)).map(t=>html`
-                            <span key=${t.id} onClick=${()=>toggleMemberTag(t.id,m.id)}
-                              style=${{fontSize:9,padding:'1px 6px',borderRadius:10,border:'1px dashed '+t.color+'80',color:t.color,cursor:'pointer'}}>
-                              + ${t.name}</span>`)}
-                        </div>`}
-                      </div>
-                    </div>
-
-                    <div style=${{ padding:'8px 16px 12px', borderTop:'1px solid #F2F2F7', background:'#FAFAFA' }}>
-                    <div style=${{ display:'grid', gridTemplateColumns:'1fr 120px 120px 80px auto', gap:8, alignItems:'end' }}>
-                      <div>
-                        <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>Rol en proyecto</label>
-                        <select value=${row.role_in_project||m.role_label||''} onChange=${e=>updateOrgField(m.id,'role_in_project',e.target.value)}
-                          style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#FFF' }}>
-                          <option value="">— Sin rol —</option>
-                          ${getAllRoles([m.role_label]).map(r=>html`<option key=${r} value=${r}>${r}</option>`)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>Inicio</label>
-                        <input type="date" value=${row.start_date||''} onInput=${e=>updateOrgField(m.id,'start_date',e.target.value)}
-                          style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 6px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#FFF' }} />
-                      </div>
-                      <div>
-                        <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>Fin</label>
-                        <input type="date" value=${row.end_date||''} onInput=${e=>updateOrgField(m.id,'end_date',e.target.value)}
-                          style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 6px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#FFF' }} />
-                      </div>
-                      <div>
-                        <label style=${{ fontSize:9, color:'#86868B', fontWeight:700, display:'block', marginBottom:3, textTransform:'uppercase' }}>FTE</label>
-                        <input type="number" min="0.1" max="1" step="0.1" value=${row.dedication??1}
-                          onInput=${e=>updateOrgField(m.id,'dedication',parseFloat(e.target.value)||1)}
-                          style=${{ width:'100%', border:'1px solid #E5E5EA', borderRadius:7, padding:'5px 6px', fontSize:12, fontWeight:700, textAlign:'center', fontFamily:'inherit', outline:'none', background:'#FFF' }} />
-                      </div>
-                      <button onClick=${async ()=>{
-                        const newRow={sala:SALA,member_id:m.id,manager_id:org[m.id]||null,role_in_project:'',start_date:'',end_date:'',dedication:1};
-                        const {data}=await supabase.from('org_chart').insert(newRow).select().single();
-                        if(data) setOrgData(prev=>[...prev,data]);
-                      }}
-                        title="Añadir otro período"
-                        style=${{ alignSelf:'flex-end', width:28,height:28,borderRadius:8,border:'1.5px solid #007AFF30',background:'#EEF5FF',color:'#007AFF',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>+</button>
-                    </div>
-                    ${orgData.filter(r=>r.member_id===m.id).length>1&&html`
-                      <div style=${{marginTop:6,display:'flex',flexDirection:'column',gap:4}}>
-                        ${orgData.filter(r=>r.member_id===m.id).slice(1).map((row2,pi)=>html`
-                          <div key=${row2.id} style=${{display:'grid',gridTemplateColumns:'1fr 120px 120px 80px auto',gap:6,alignItems:'center',padding:'4px 0',borderTop:'1px solid #F2F2F7'}}>
-                            <span style=${{fontSize:10,color:'#86868B'}}>Período ${pi+2}</span>
-                            <input type="date" value=${row2.start_date||''} onInput=${e=>updateOrgField(m.id,'start_date',e.target.value,row2.id)}
-                              style=${{border:'1px solid #E5E5EA',borderRadius:7,padding:'4px 5px',fontSize:10,fontFamily:'inherit',outline:'none'}} />
-                            <input type="date" value=${row2.end_date||''} onInput=${e=>updateOrgField(m.id,'end_date',e.target.value,row2.id)}
-                              style=${{border:'1px solid #E5E5EA',borderRadius:7,padding:'4px 5px',fontSize:10,fontFamily:'inherit',outline:'none'}} />
-                            <input type="number" min="0.1" max="1" step="0.1" value=${row2.dedication??1}
-                              onInput=${e=>updateOrgField(m.id,'dedication',parseFloat(e.target.value)||1,row2.id)}
-                              style=${{border:'1px solid #E5E5EA',borderRadius:7,padding:'4px 5px',fontSize:11,fontWeight:700,textAlign:'center',fontFamily:'inherit',outline:'none'}} />
-                            <button onClick=${async()=>{
-                              await supabase.from('org_chart').delete().eq('id',row2.id);
-                              setOrgData(prev=>prev.filter(r=>r.id!==row2.id));
-                            }} style=${{width:24,height:24,borderRadius:6,border:'none',background:'#FFF5F5',color:'#FF3B30',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
-                          </div>`)}
-                      </div>`}
-                    </div>
-                  </div>`;
-              })}
-          </div>
-          <div style=${{ padding:'10px 14px', borderRadius:10, background:'#F0F7FF', border:'1px solid #007AFF15', textAlign:'center' }}>
-            <p style=${{ fontSize:11, color:'#007AFF' }}>Para añadir o quitar miembros ve a <strong>Admin → Usuarios</strong></p>
-          </div>
-        `}
-
-        ${subTab==='vacaciones' && html`<${PVacaciones} embeddedTeam=${team} />`}
-        ${subTab==='ftes' && html`<${PFTEs} team=${team} org=${org} orgData=${orgData} />`}
-
-        ${subTab==='organigrama' && html`
-          <div>
-
-            <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:'16px', marginBottom:16 }}>
-              <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>⚙️ Configurar jerarquía</h4>
-              <div style=${{ display:'flex', flexDirection:'column', gap:6 }}>
-                ${team.map(m => html`
-                  <div key=${m.id} style=${{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:10, background:'#F9F9FB' }}>
-                    <div style=${{ width:32, height:32, borderRadius:9, background:m.color||'#E5E5EA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>${m.avatar||'👤'}</div>
-                    <span style=${{ flex:1, fontSize:13, fontWeight:600 }}>${m.name}</span>
-                    ${m.role_label && html`<span style=${{ fontSize:9, color:'#FFF', background:rc(m.role_label), padding:'2px 7px', borderRadius:9, fontWeight:700 }}>${m.role_label}</span>`}
-                    <span style=${{ fontSize:11, color:'#86868B', marginRight:4 }}>Reporta a:</span>
-                    <select value=${org[m.id]||''} onChange=${e=>setManager(m.id, e.target.value||null)}
-                      style=${{ border:'1.5px solid #E5E5EA', borderRadius:8, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#FFF', maxWidth:160 }}>
-                      <option value="">— Nadie (raíz) —</option>
-                      ${team.filter(x=>x.id!==m.id).map(x=>html`<option key=${x.id} value=${x.id}>${x.name}</option>`)}
-                    </select>
-                  </div>`)}
-              </div>
-            </div>
-
-            ${roots.length===0 ? html`
-              <div style=${{ textAlign:'center', padding:32, color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:14 }}>
-                <p style=${{ fontSize:28, marginBottom:8 }}>🏢</p>
-                <p style=${{ fontSize:13 }}>Asigna reportes arriba para ver el organigrama</p>
-              </div>` :
-              html`<${OrgTree} nodes=${roots} all=${team} org=${org} rc=${rc} depth=${0} />`}
-          </div>
-        `}
-      `}
-    </div>`;
-}
-
-/* ─── OrgTree — recursive org chart renderer ─── */
-function OrgTree({ nodes, all, org, rc, depth }) {
-  if (!nodes.length) return null;
-  return html`
-    <div style=${{ display:'flex', gap:24, justifyContent:'center', position:'relative', padding:'0 8px' }}>
-      ${nodes.map((m, i) => {
-        const children = all.filter(x => org[x.id] === m.id);
-        const color = rc(m.role_label||'');
+      ${profiles.map(prof => {
+        const reqs = profileSkillsFor(prof.id);
+        const assigned = memProfiles.filter(mp=>mp.profile_id===prof.id).map(mp=>team.find(m=>m.id===mp.member_id)).filter(Boolean);
+        const avgFit = assigned.length ? Math.round(assigned.reduce((s,m)=>{const f=memberFit(m.id);return s+(f||0)},0)/assigned.length) : null;
         return html`
-          <div key=${m.id} style=${{ display:'flex', flexDirection:'column', alignItems:'center', gap:0 }}>
-
-            ${depth > 0 && html`<div style=${{ width:2, height:24, background:'#E5E5EA' }}></div>`}
-
-            <div style=${{ background:'#FFF', borderRadius:14, border:'2px solid '+(depth===0?'#1D1D1F':'#E5E5EA'),
-              padding:'12px 14px', minWidth:130, textAlign:'center', boxShadow:depth===0?'0 4px 16px rgba(0,0,0,.08)':'0 2px 8px rgba(0,0,0,.04)',
-              position:'relative' }}>
-              <div style=${{ width:44, height:44, borderRadius:12, background:m.color||'#E5E5EA',
-                display:'flex', alignItems:'center', justifyContent:'center', fontSize:24,
-                margin:'0 auto 6px' }}>${m.avatar||'👤'}</div>
-              <p style=${{ fontSize:12, fontWeight:700, margin:'0 0 4px' }}>${m.name}</p>
-              ${m.role_label && html`
-                <span style=${{ fontSize:9, color:'#FFF', background:color, padding:'2px 8px', borderRadius:8, fontWeight:700, display:'inline-block' }}>${m.role_label}</span>`}
-              ${m.company && html`
-                <p style=${{ fontSize:9, color:'#86868B', marginTop:4 }}>🏢 ${m.company}</p>`}
-              ${children.length > 0 && html`
-                <div style=${{ position:'absolute', left:'50%', transform:'translateX(-50%)',
-                  width:2, height:24, background:'#E5E5EA', bottom:-24 }}></div>`}
+          <div key=${prof.id} style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',borderLeft:'4px solid '+(prof.color||'#007AFF'),padding:'16px 18px',marginBottom:10}}>
+            <div style=${{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+              <span style=${{fontSize:22}}>${prof.icon||'🧑‍💻'}</span>
+              <div style=${{flex:1}}>
+                <div style=${{display:'flex',alignItems:'center',gap:8}}>
+                  <h4 style=${{fontSize:15,fontWeight:700,margin:0}}>${prof.name}</h4>
+                  <span style=${{fontSize:10,fontWeight:700,color:'#007AFF',background:'#007AFF12',padding:'2px 8px',borderRadius:6}}>${prof.fte} FTE</span>
+                  ${avgFit!==null && html`<span style=${{fontSize:10,fontWeight:700,color:fitColor(avgFit),background:fitColor(avgFit)+'15',padding:'2px 8px',borderRadius:6}}>Encaje ${avgFit}%</span>`}
+                </div>
+                ${prof.description && html`<p style=${{fontSize:11,color:'#86868B',margin:'2px 0 0'}}>${prof.description}</p>`}
+              </div>
+              <button onClick=${()=>setEditProfile({...prof})} style=${{border:'none',background:'#F2F2F7',borderRadius:8,padding:'5px 10px',fontSize:11,cursor:'pointer',color:'#6E6E73'}}>Editar</button>
             </div>
 
-            ${children.length > 0 && html`
-              <div style=${{ marginTop:24, position:'relative' }}>
-                ${children.length > 1 && html`
-                  <div style=${{ position:'absolute', top:0, left:'50%', width:'80%', height:2, background:'#E5E5EA', transform:'translateX(-50%)' }}></div>`}
-                <${OrgTree} nodes=${children} all=${all} org=${org} rc=${rc} depth=${depth+1} />
+            <div style=${{display:'flex',flexWrap:'wrap',gap:5,marginBottom:8}}>
+              ${reqs.map(r => {
+                const sk = skills.find(s=>s.id===r.skill_id);
+                if(!sk) return null;
+                return html`<div key=${r.id} style=${{display:'flex',alignItems:'center',gap:4,padding:'4px 8px',borderRadius:8,background:LEVEL_COLORS[r.required_level]+'12',border:'1px solid '+LEVEL_COLORS[r.required_level]+'30'}}>
+                  <span style=${{fontSize:10,fontWeight:700,color:LEVEL_COLORS[r.required_level]}}>${sk.name}</span>
+                  <span style=${{fontSize:9,fontWeight:800,color:'#FFF',background:LEVEL_COLORS[r.required_level],borderRadius:4,padding:'1px 4px',minWidth:12,textAlign:'center'}}>${r.required_level}</span>
+                  <button onClick=${async()=>{await removeProfSkill(prof.id,r.skill_id)}} style=${{border:'none',background:'none',fontSize:9,cursor:'pointer',color:'#C7C7CC',padding:0}}>✕</button>
+                </div>`;
+              })}
+              <select onChange=${async e=>{if(e.target.value){await saveProfSkill(prof.id,e.target.value,2);e.target.value=''}}}
+                style=${{fontSize:10,border:'1px dashed #E5E5EA',borderRadius:8,padding:'4px 6px',color:'#86868B',background:'#FAFAFA',cursor:'pointer'}}>
+                <option value="">+ Skill...</option>
+                ${skills.filter(s=>!reqs.some(r=>r.skill_id===s.id)).map(s=>html`<option key=${s.id} value=${s.id}>${s.category}: ${s.name}</option>`)}
+              </select>
+            </div>
+
+            <div style=${{display:'flex',gap:4,alignItems:'center',flexWrap:'wrap'}}>
+              ${assigned.map(m=>html`<span key=${m.id} style=${{fontSize:10,display:'flex',alignItems:'center',gap:3,padding:'3px 8px',borderRadius:8,background:'#F2F2F7'}}>
+                <span style=${{fontSize:14}}>${m.avatar||'👤'}</span> ${m.name}
+              </span>`)}
+              ${assigned.length===0 && html`<span style=${{fontSize:10,color:'#C7C7CC',fontStyle:'italic'}}>Sin asignar</span>`}
+            </div>
+          </div>`;
+      })}
+
+      ${skills.length>0 && html`
+        <div style=${{marginTop:16,background:'#F9F9FB',borderRadius:12,padding:14}}>
+          <h4 style=${{fontSize:13,fontWeight:700,marginBottom:8}}>Catálogo de habilidades (${skills.length})</h4>
+          ${categories.map(cat => html`
+            <div key=${cat} style=${{marginBottom:8}}>
+              <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:4,textTransform:'capitalize'}}>${cat}</div>
+              <div style=${{display:'flex',flexWrap:'wrap',gap:4}}>
+                ${skills.filter(s=>s.category===cat).map(s=>html`
+                  <span key=${s.id} style=${{fontSize:10,padding:'3px 8px',borderRadius:6,background:'#FFF',border:'1px solid #E5E5EA',display:'flex',alignItems:'center',gap:4}}>
+                    ${s.icon||'📘'} ${s.name}
+                    <button onClick=${async()=>{if(confirm('Eliminar '+s.name+'?'))await deleteSkill(s.id)}} style=${{border:'none',background:'none',fontSize:8,cursor:'pointer',color:'#C7C7CC'}}>✕</button>
+                  </span>`)}
+              </div>
+            </div>`)}
+        </div>`}
+    `}
+
+    ${subTab==='personas' && html`
+      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+        <div>
+          <h3 style=${{fontSize:16,fontWeight:700,margin:0}}>Equipo y competencias</h3>
+          <p style=${{fontSize:12,color:'#86868B',marginTop:2}}>${team.length} personas · ${profiles.length} perfiles</p>
+        </div>
+      </div>
+
+      ${team.map(m => {
+        const prof = memberProfile(m.id);
+        const fit = memberFit(m.id);
+        const reqs = prof ? profileSkillsFor(prof.id) : [];
+        return html`
+          <div key=${m.id} style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px 16px',marginBottom:8}}>
+            <div style=${{display:'flex',alignItems:'center',gap:10,marginBottom:reqs.length?10:0}}>
+              <div style=${{width:40,height:40,borderRadius:12,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>${m.avatar||'👤'}</div>
+              <div style=${{flex:1,minWidth:0}}>
+                <div style=${{fontSize:14,fontWeight:700}}>${m.name}</div>
+                <div style=${{fontSize:11,color:'#86868B'}}>${m.role_label||''} ${m.company?'· '+m.company:''}</div>
+              </div>
+              <select value=${prof?.id||''} onChange=${e=>assignProfile(m.id,e.target.value||null)}
+                style=${{fontSize:11,border:'1.5px solid #E5E5EA',borderRadius:8,padding:'5px 8px',fontFamily:'inherit',outline:'none',background:'#FFF',maxWidth:160}}>
+                <option value="">Sin perfil</option>
+                ${profiles.map(p=>html`<option key=${p.id} value=${p.id}>${p.icon} ${p.name}</option>`)}
+              </select>
+              ${fit!==null && html`<div style=${{textAlign:'center',minWidth:50}}>
+                <div style=${{fontSize:18,fontWeight:800,color:fitColor(fit)}}>${fit}%</div>
+                <div style=${{fontSize:8,color:'#86868B'}}>encaje</div>
+              </div>`}
+              ${prof && html`<button onClick=${()=>setEvalMember(m)} style=${{border:'none',background:'#5856D6',color:'#FFF',borderRadius:8,padding:'5px 12px',fontSize:11,fontWeight:600,cursor:'pointer'}}>Evaluar</button>`}
+            </div>
+            ${reqs.length>0 && html`
+              <div style=${{display:'flex',flexDirection:'column',gap:4}}>
+                ${reqs.map(r => {
+                  const sk = skills.find(s=>s.id===r.skill_id);
+                  if(!sk) return null;
+                  const cur = memberSkillLevel(m.id,r.skill_id);
+                  const gap = r.required_level - cur;
+                  const pct = cur>0?Math.min(100,cur/r.required_level*100):0;
+                  return html`<div key=${r.id} style=${{display:'flex',alignItems:'center',gap:8,fontSize:11}}>
+                    <span style=${{width:120,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${sk.name}</span>
+                    <div style=${{flex:1,height:8,background:'#F2F2F7',borderRadius:4,overflow:'hidden'}}>
+                      <div style=${{width:pct+'%',height:'100%',background:gap<=0?'#34C759':gap===1?'#FF9500':'#FF3B30',borderRadius:4,transition:'width .3s'}}></div>
+                    </div>
+                    <span style=${{fontSize:10,fontWeight:700,color:LEVEL_COLORS[cur]||'#C7C7CC',minWidth:18,textAlign:'center'}}>${cur||'—'}</span>
+                    <span style=${{fontSize:9,color:'#86868B'}}>/</span>
+                    <span style=${{fontSize:10,fontWeight:700,color:LEVEL_COLORS[r.required_level],minWidth:18,textAlign:'center'}}>${r.required_level}</span>
+                    <span style=${{fontSize:10,minWidth:16}}>${gap<=0?'✅':gap===1?'🔶':'🔴'}</span>
+                  </div>`;
+                })}
               </div>`}
           </div>`;
       })}
-    </div>`;
-}
+    `}
 
-/* ═══ SUGGESTED ESCALATIONS ═══ */
-function SuggestedEscalations({ risks, allRisks, getAlerts, upd, setSubTab, setEscalForm }) {
-  if (!risks.length) return html`
-    <div style=${{ textAlign:'center', padding:'48px 20px', color:'#C7C7CC', border:'2px dashed #E5E5EA', borderRadius:16 }}>
-      <p style=${{ fontSize:36, marginBottom:8 }}>🔔</p>
-      <p style=${{ fontSize:14 }}>Sin escalados sugeridos</p>
-      <p style=${{ fontSize:12, marginTop:6 }}>Los riesgos que lleven más de 5 días sin actualizar, aparezcan en 2+ retros o tengan accionables vencidos aparecerán aquí</p>
-    </div>`;
+    ${subTab==='matriz' && html`
+      <h3 style=${{fontSize:16,fontWeight:700,marginBottom:12}}>Matriz de competencias</h3>
+      ${skills.length===0||team.length===0 ? html`<p style=${{color:'#86868B',textAlign:'center',padding:32}}>Añade perfiles y habilidades primero</p>` : html`
+        <div style=${{overflowX:'auto'}}>
+          <table style=${{borderCollapse:'collapse',fontSize:11,width:'100%'}}>
+            <thead><tr>
+              <th style=${{padding:'6px 10px',textAlign:'left',borderBottom:'2px solid #E5E5EA',position:'sticky',left:0,background:'#FFF',zIndex:1}}>Persona</th>
+              ${skills.map(s=>html`<th key=${s.id} style=${{padding:'6px 4px',textAlign:'center',borderBottom:'2px solid #E5E5EA',fontSize:9,fontWeight:700,writingMode:'vertical-rl',transform:'rotate(180deg)',maxWidth:30,height:80}}>${s.name}</th>`)}
+            </tr></thead>
+            <tbody>
+              ${team.map(m=>html`<tr key=${m.id}>
+                <td style=${{padding:'6px 10px',borderBottom:'1px solid #F2F2F7',fontWeight:600,whiteSpace:'nowrap',position:'sticky',left:0,background:'#FFF',zIndex:1}}>
+                  <span style=${{fontSize:14,marginRight:4}}>${m.avatar||'👤'}</span>${m.name}
+                </td>
+                ${skills.map(s=>{
+                  const lvl = memberSkillLevel(m.id,s.id);
+                  const prof = memberProfile(m.id);
+                  const req = prof?profSkills.find(ps=>ps.profile_id===prof.id&&ps.skill_id===s.id):null;
+                  const isGap = req && lvl < req.required_level;
+                  return html`<td key=${s.id} style=${{padding:'2px',textAlign:'center',borderBottom:'1px solid #F2F2F7',background:lvl?LEVEL_COLORS[lvl]+'15':'transparent',border:isGap?'2px solid #FF3B3040':'1px solid #F2F2F7'}}>
+                    ${lvl?html`<span style=${{fontSize:11,fontWeight:800,color:LEVEL_COLORS[lvl]}}>${lvl}</span>`:html`<span style=${{color:'#E5E5EA'}}>·</span>`}
+                  </td>`;
+                })}
+              </tr>`)}
+            </tbody>
+          </table>
+        </div>`}
+    `}
 
-  const ALERT_COLORS = { stale:'#FF9500', retros:'#FF3B30', overdue:'#FF3B30' };
-  const ALERT_ICONS  = { stale:'⏱', retros:'🔁', overdue:'⚠️' };
-  const ALERT_DESC   = {
-    stale: 'No se ha actualizado en varios días — nadie lo está gestionando activamente.',
-    retros: 'Ha aparecido en múltiples retros consecutivas — el equipo no puede resolverlo solo.',
-    overdue: 'Tiene un accionable de mitigación vencido — la solución está bloqueada.',
-  };
+    ${subTab==='ftes' && html`<${PFTEs} team=${team} org=${org} orgData=${orgData} />`}
 
-  return html`
-    <div style=${{ display:'flex', flexDirection:'column', gap:10 }}>
-      <div style=${{ padding:'12px 16px', borderRadius:12, background:'#FFF9E6', border:'1.5px solid #FF950040', marginBottom:4 }}>
-        <p style=${{ fontSize:12, fontWeight:700, color:'#FF9500', marginBottom:2 }}>🔔 Escalados sugeridos automáticamente</p>
-        <p style=${{ fontSize:11, color:'#86868B' }}>Estos riesgos cumplen criterios que indican que el equipo no puede resolverlos sin ayuda externa. Revísalos y decide si escalar.</p>
+    ${subTab==='organigrama' && html`
+      <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:16}}>
+        <h4 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Organigrama del proyecto</h4>
+        ${team.filter(m=>(org[m.id]||null)===null).map(m=>html`<${OrgNode} key=${m.id} m=${m} depth=${0} team=${team} org=${org} setManager=${setManager} orgSaving=${orgSaving} />`)}
+        ${team.filter(m=>!Object.keys(org).includes(m.id)).length>0 && html`
+          <div style=${{marginTop:12,padding:10,background:'#F9F9FB',borderRadius:10}}>
+            <p style=${{fontSize:11,color:'#86868B',marginBottom:6}}>Sin asignar al organigrama:</p>
+            <div style=${{display:'flex',flexWrap:'wrap',gap:4}}>
+              ${team.filter(m=>!Object.keys(org).includes(m.id)).map(m=>html`
+                <button key=${m.id} onClick=${()=>setManager(m.id,null)}
+                  style=${{fontSize:10,padding:'4px 8px',borderRadius:6,border:'1px dashed #E5E5EA',background:'#FFF',cursor:'pointer'}}>${m.avatar||'👤'} ${m.name}</button>`)}
+            </div>
+          </div>`}
       </div>
+    `}
 
-      ${risks.map(r => {
-        const alerts = getAlerts(r);
-        const rn = allRisks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
-        const prefix = (r.type||'riesgo')==='problema'?'P':'R';
-        const topAlert = alerts[0];
-        const color = ALERT_COLORS[topAlert?.type] || '#FF9500';
-
-        return html`
-          <div key=${r.id} style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid '+color+'40', borderLeft:'4px solid '+color, padding:'14px 16px' }}>
-            <div style=${{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:10 }}>
-              <span style=${{ fontSize:13, fontWeight:800, color:color }}>${prefix}${rn}</span>
-              <div style=${{ flex:1 }}>
-                <p style=${{ fontSize:13, fontWeight:600, margin:'0 0 4px' }}>${r.text}</p>
-                ${r.owner && html`<span style=${{ fontSize:11, color:'#007AFF' }}>👤 ${r.owner}</span>`}
+    ${editProfile && html`
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick=${()=>setEditProfile(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+        <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:480,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>${editProfile.id?'Editar perfil':'Nuevo perfil'}</h3>
+          <div style=${{display:'flex',flexDirection:'column',gap:10}}>
+            <input value=${editProfile.name} onInput=${e=>setEditProfile({...editProfile,name:e.target.value})} placeholder="Nombre del perfil"
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:14,fontFamily:'inherit',outline:'none'}} />
+            <input value=${editProfile.description||''} onInput=${e=>setEditProfile({...editProfile,description:e.target.value})} placeholder="Descripción (opcional)"
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 14px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+            <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+              <div>
+                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>FTE</label>
+                <input type="number" step="0.25" min="0.25" max="2" value=${editProfile.fte} onInput=${e=>setEditProfile({...editProfile,fte:parseFloat(e.target.value)||1})}
+                  style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+              </div>
+              <div>
+                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Color</label>
+                <input type="color" value=${editProfile.color||'#007AFF'} onInput=${e=>setEditProfile({...editProfile,color:e.target.value})}
+                  style=${{width:'100%',height:36,border:'1.5px solid #E5E5EA',borderRadius:9,cursor:'pointer',boxSizing:'border-box'}} />
+              </div>
+              <div>
+                <label style=${{fontSize:10,color:'#86868B',display:'block',marginBottom:3}}>Icono</label>
+                <input value=${editProfile.icon||'🧑‍💻'} onInput=${e=>setEditProfile({...editProfile,icon:e.target.value})}
+                  style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:16,textAlign:'center',fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
               </div>
             </div>
+            ${editProfile.id && html`
+              <div style=${{borderTop:'1px solid #F2F2F7',paddingTop:10}}>
+                <label style=${{fontSize:11,fontWeight:700,display:'block',marginBottom:6}}>Habilidades requeridas</label>
+                ${profileSkillsFor(editProfile.id).map(ps => {
+                  const sk = skills.find(s=>s.id===ps.skill_id);
+                  return sk ? html`<div key=${ps.id} style=${{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                    <span style=${{fontSize:11,flex:1}}>${sk.name}</span>
+                    ${[1,2,3,4].map(l=>html`<button key=${l} onClick=${async()=>await saveProfSkill(editProfile.id,ps.skill_id,l)}
+                      style=${{width:26,height:26,borderRadius:6,border:ps.required_level===l?'2px solid '+LEVEL_COLORS[l]:'1px solid #E5E5EA',background:ps.required_level===l?LEVEL_COLORS[l]+'15':'#FFF',fontSize:10,fontWeight:700,color:LEVEL_COLORS[l],cursor:'pointer'}}>${l}</button>`)}
+                  </div>` : null;
+                })}
+              </div>`}
+          </div>
+          <div style=${{display:'flex',gap:8,justifyContent:'space-between',marginTop:16}}>
+            ${editProfile.id && html`<button onClick=${async()=>{await deleteProfile(editProfile.id);setEditProfile(null)}}
+              style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #FF3B3015',background:'#FFF5F5',color:'#FF3B30',fontSize:12,fontWeight:600,cursor:'pointer'}}>Eliminar</button>`}
+            <div style=${{flex:1}}></div>
+            <button onClick=${()=>setEditProfile(null)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+            <button onClick=${async()=>{if(editProfile.name?.trim()){await saveProfile(editProfile);setEditProfile(null)}}}
+              style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'linear-gradient(135deg,#007AFF,#5856D6)',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
+          </div>
+        </div>
+      </div>`}
 
-            <div style=${{ display:'flex', flexDirection:'column', gap:4, marginBottom:12 }}>
-              ${alerts.map(a => html`
-                <div key=${a.type} style=${{ display:'flex', alignItems:'flex-start', gap:8, padding:'6px 10px', borderRadius:9, background:ALERT_COLORS[a.type]+'10', border:'1px solid '+ALERT_COLORS[a.type]+'25' }}>
-                  <span style=${{ fontSize:14 }}>${ALERT_ICONS[a.type]}</span>
-                  <div>
-                    <span style=${{ fontSize:11, fontWeight:700, color:ALERT_COLORS[a.type] }}>${a.label}</span>
-                    <p style=${{ fontSize:10, color:'#86868B', margin:'2px 0 0' }}>${ALERT_DESC[a.type]}</p>
+    ${editSkill && html`
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick=${()=>setEditSkill(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+        <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:400,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>Nueva habilidad</h3>
+          <div style=${{display:'flex',flexDirection:'column',gap:10}}>
+            <input value=${editSkill.name} onInput=${e=>setEditSkill({...editSkill,name:e.target.value})} placeholder="Nombre"
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none'}} />
+            <select value=${editSkill.category} onChange=${e=>setEditSkill({...editSkill,category:e.target.value})}
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 14px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+              ${categories.map(c=>html`<option key=${c} value=${c}>${c}</option>`)}
+            </select>
+          </div>
+          <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:14}}>
+            <button onClick=${()=>setEditSkill(null)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+            <button onClick=${async()=>{if(editSkill.name?.trim()){await saveSkill(editSkill);setEditSkill(null)}}}
+              style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Crear</button>
+          </div>
+        </div>
+      </div>`}
+
+    ${editCategory!==null && html`
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick=${()=>setEditCategory(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+        <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:360,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>Nueva categoría</h3>
+          <input value=${editCategory} onInput=${e=>setEditCategory(e.target.value)} placeholder="Nombre de la categoría"
+            style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+          <p style=${{fontSize:10,color:'#86868B',marginTop:6}}>Se creará al añadir la primera habilidad con esta categoría</p>
+          <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:14}}>
+            <button onClick=${()=>setEditCategory(null)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+            <button onClick=${()=>{if(editCategory.trim()){setEditSkill({name:'',category:editCategory.trim(),icon:'📘'});setEditCategory(null)}}}
+              style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Crear y añadir skill</button>
+          </div>
+        </div>
+      </div>`}
+
+    ${evalMember && html`
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick=${()=>setEvalMember(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+        <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:520,maxHeight:'80vh',overflow:'auto',boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
+          <div style=${{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+            <div style=${{width:44,height:44,borderRadius:14,background:evalMember.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}}>${evalMember.avatar||'👤'}</div>
+            <div>
+              <h3 style=${{fontSize:16,fontWeight:700,margin:0}}>Evaluar: ${evalMember.name}</h3>
+              <p style=${{fontSize:11,color:'#86868B',margin:0}}>${memberProfile(evalMember.id)?.name||'Sin perfil'}</p>
+            </div>
+            <div style=${{marginLeft:'auto'}}>
+              ${(()=>{const f=memberFit(evalMember.id);return f!==null?html`<div style=${{fontSize:24,fontWeight:800,color:fitColor(f)}}>${f}%</div>`:''})()}
+            </div>
+            <button onClick=${()=>setEvalMember(null)} style=${{border:'none',background:'#F2F2F7',borderRadius:10,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:14}}>✕</button>
+          </div>
+          <div style=${{display:'flex',flexDirection:'column',gap:6}}>
+            ${(()=>{
+              const prof = memberProfile(evalMember.id);
+              const reqs = prof ? profileSkillsFor(prof.id) : [];
+              return reqs.map(r => {
+                const sk = skills.find(s=>s.id===r.skill_id);
+                if(!sk) return null;
+                const cur = memberSkillLevel(evalMember.id,r.skill_id);
+                const gap = r.required_level - cur;
+                return html`<div key=${r.id} style=${{padding:'10px 12px',borderRadius:10,background:'#FAFAFA',border:'1px solid #F2F2F7'}}>
+                  <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                    <span style=${{fontSize:12,fontWeight:700,flex:1}}>${sk.name}</span>
+                    <span style=${{fontSize:9,color:'#86868B'}}>Requerido: ${LEVEL_LABELS[r.required_level]}</span>
+                    <span style=${{fontSize:10,fontWeight:700,color:LEVEL_COLORS[r.required_level]}}>${r.required_level}</span>
                   </div>
-                </div>`)}
-            </div>
-
-            <div style=${{ display:'flex', gap:8 }}>
-              <button onClick=${()=>{ setSubTab('escalado'); setEscalForm({riskId:r.id, memberId:'', deadline:'', note:'', status:'pendiente'}); }}
-                style=${{ flex:1, padding:'8px', borderRadius:9, border:'none', background:color, color:'#FFF', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                📈 Iniciar escalado
-              </button>
-              <button onClick=${()=>upd(r.id,{updatedAt:new Date().toISOString(),_snoozed:true})}
-                style=${{ padding:'8px 14px', borderRadius:9, border:'1.5px solid #E5E5EA', background:'#FFF', fontSize:12, color:'#86868B', cursor:'pointer' }}
-                title="Posponer — marcar como revisado hoy">
-                😴 Posponer
-              </button>
-            </div>
-          </div>`;
-      })}
-    </div>`;
+                  <div style=${{display:'flex',gap:4}}>
+                    ${[1,2,3,4].map(l=>html`<button key=${l} onClick=${async()=>await saveMemSkill(evalMember.id,r.skill_id,l)}
+                      style=${{flex:1,padding:'8px 4px',borderRadius:8,border:cur===l?'2px solid '+LEVEL_COLORS[l]:'1.5px solid #E5E5EA',background:cur===l?LEVEL_COLORS[l]+'15':'#FFF',cursor:'pointer',textAlign:'center'}}>
+                      <div style=${{fontSize:14}}>${LEVEL_ICONS[l]}</div>
+                      <div style=${{fontSize:9,fontWeight:cur===l?700:500,color:cur===l?LEVEL_COLORS[l]:'#86868B'}}>${LEVEL_LABELS[l]}</div>
+                    </button>`)}
+                  </div>
+                  ${gap>0 && html`<div style=${{marginTop:4,fontSize:10,color:gap>=2?'#FF3B30':'#FF9500'}}>
+                    ${gap>=2?'🔴':'🔶'} Gap: ${gap} nivel${gap>1?'es':''} — ${gap>=2?'Formación requerida':'Práctica/mentoring'}
+                  </div>`}
+                </div>`;
+              });
+            })()}
+          </div>
+        </div>
+      </div>`}
+  </div>`;
 }
 
-
-/* ═══ ESCALADO PANEL ═══ */
-function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, actions, teamMembers, user, suggestions, getAlerts }) {
-  const LEVELS = [
-    { id:'equipo', label:'Equipo', color:'#34C759', desc:'Se gestiona internamente' },
-    { id:'jp',     label:'Jefe de Proyecto', color:'#FF9500', desc:'Escalar al JP' },
-    { id:'sm',     label:'Service Manager', color:'#FF3B30', desc:'Requiere SM' },
-    { id:'dt',     label:'Direccion Tecnica', color:'#5856D6', desc:'Elevar a DT' },
-  ];
-  const isSM = user?._isAdmin || user?.isSuperuser;
-  const TYPE_FILTERS = [
-    { id:'all', label:'Todos', color:'#1D1D1F' },
-    { id:'riesgo', label:'Riesgos', color:'#FF9500', icon:'\u26A0\uFE0F' },
-    { id:'oportunidad', label:'Oportunidades', color:'#34C759', icon:'\uD83C\uDF1F' },
-    { id:'problema', label:'Problemas', color:'#FF3B30', icon:'\uD83D\uDD34' },
-  ];
-  const [collapsed, setCollapsed] = useState({});
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [expandedLevel, setExpandedLevel] = useState(null);
-  const [levelMembers, setLevelMembers] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('rf-level-members-'+SALA)||'{}'); } catch { return {}; }
-  });
-  useEffect(() => {
-    supabase.from('rooms').select('metadata').eq('slug',SALA).limit(1).then(({data})=>{
-      if(data?.[0]?.metadata?.levelMembers) { setLevelMembers(data[0].metadata.levelMembers); localStorage.setItem('rf-level-members-'+SALA,JSON.stringify(data[0].metadata.levelMembers)); }
-    });
-  }, []);
-  const saveLevelMembers = (lm) => {
-    setLevelMembers(lm);
-    try{localStorage.setItem('rf-level-members-'+SALA,JSON.stringify(lm))}catch{}
-    supabase.from('rooms').select('metadata').eq('slug',SALA).limit(1).then(({data})=>{
-      const meta = {...(data?.[0]?.metadata||{}), levelMembers:lm};
-      supabase.from('rooms').update({metadata:meta}).eq('slug',SALA);
-    });
-  };
-  const toggleLevelMember = (levelId, memberName) => {
-    const cur = levelMembers[levelId] || [];
-    const next = cur.includes(memberName) ? cur.filter(x=>x!==memberName) : [...cur, memberName];
-    saveLevelMembers({...levelMembers, [levelId]: next});
-  };
-  const toggle = (id) => setCollapsed(prev => ({...prev, [id]: !prev[id]}));
-
-  const openRisks = risks.filter(r => r.status !== 'mitigated');
-  const byLevel = (lid) => {
-    let items;
-    if (lid === 'equipo') items = openRisks.filter(r => !r.escalation || r.escalation.level === 'equipo');
-    else items = openRisks.filter(r => r.escalation?.level === lid);
-    if (typeFilter !== 'all') items = items.filter(r => (r.type||'riesgo') === typeFilter);
-    return items;
-  };
-
-  const escalateNext = (r) => {
-    const current = r.escalation?.level || 'equipo';
-    const idx = LEVELS.findIndex(l=>l.id===current);
-    const next = LEVELS[idx+1];
-    if (!next) return;
-    upd(r.id, { escalation: { level:next.id, levelLabel:next.label, escalatedAt:new Date().toISOString() } });
-  };
-  const deescalate = (r) => {
-    const current = r.escalation?.level;
-    if (!current || current === 'equipo') { upd(r.id, { escalation: null }); return; }
-    const idx = LEVELS.findIndex(l=>l.id===current);
-    if (idx <= 0) { upd(r.id, { escalation: null }); return; }
-    const prev = LEVELS[idx-1];
-    upd(r.id, { escalation: { ...r.escalation, level:prev.id, levelLabel:prev.label } });
-  };
-  const resolveRisk = (r) => {
-    const linkedTasks = (actions||[]).filter(a=>a.riskId===r.id);
-    const typeLabel = (r.type||'riesgo')==='problema'?'problema':(r.type||'riesgo')==='oportunidad'?'oportunidad':'riesgo';
-    const taskMsg = linkedTasks.length > 0
-      ? ' Tiene ' + linkedTasks.length + ' tarea(s) de mitigacion vinculada(s). Revisa su estado en Seguimiento.'
-      : '';
-    window.__confirm({
-      icon: '\u2705',
-      title: 'Resolver ' + typeLabel,
-      message: 'Se movera a Resueltos.' + taskMsg,
-      confirmLabel: 'Resolver',
-      confirmColor: '#34C759',
-      onConfirm: () => upd(r.id, { status:'mitigated', resolvedAt:new Date().toISOString() })
-    });
-  };
-
+function OrgNode({m, depth, team, org, setManager, orgSaving}) {
+  const children = team.filter(x=>(org[x.id]||null)===m.id);
   return html`
-    <div data-esc="1">
-      <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:12 }}>
-        ${LEVELS.map(l => {
-          const cnt = byLevel(l.id).length;
-          const members = levelMembers[l.id]||[];
-          const isExp = expandedLevel===l.id;
-          return html`
-            <div key=${l.id} style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid '+(isExp?l.color:'#E5E5EA'), padding:'10px', textAlign:'center', borderTop:'3px solid '+l.color, position:'relative' }}>
-              <div style=${{ fontSize:22, fontWeight:800, color:l.color }}>${cnt||'—'}</div>
-              <div style=${{ fontSize:11, fontWeight:700, color:'#1D1D1F', marginTop:2 }}>${l.label}</div>
-              ${members.length>0 && html`<div style=${{ fontSize:9, color:'#86868B', marginTop:3 }}>${members.join(', ')}</div>`}
-              <button onClick=${e=>{e.stopPropagation();setExpandedLevel(isExp?null:l.id)}}
-                style=${{ marginTop:4, fontSize:9, padding:'2px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#F9F9FB', color:'#86868B', cursor:'pointer' }}>
-                ${isExp?'Cerrar':'Asignar'}
-              </button>
-              ${isExp && html`
-                <div style=${{ position:'absolute', top:'100%', left:0, right:0, zIndex:100, background:'#FFF', borderRadius:10, border:'1.5px solid '+l.color, boxShadow:'0 8px 24px rgba(0,0,0,.12)', padding:6, marginTop:4, maxHeight:200, overflowY:'auto' }}>
-                  ${(teamMembers||[]).map(m=>html`
-                    <label key=${m.id} onClick=${()=>toggleLevelMember(l.id,m.name)}
-                      style=${{ display:'flex', alignItems:'center', gap:6, padding:'5px 6px', borderRadius:6, cursor:'pointer', fontSize:11, background:members.includes(m.name)?l.color+'12':'transparent' }}>
-                      <div style=${{ width:16, height:16, borderRadius:4, border:'1.5px solid '+(members.includes(m.name)?l.color:'#E5E5EA'), background:members.includes(m.name)?l.color:'#FFF', display:'flex', alignItems:'center', justifyContent:'center', color:'#FFF', fontSize:10, flexShrink:0 }}>${members.includes(m.name)?'✓':''}</div>
-                      <span>${m.avatar||''} ${m.name}</span>
-                    </label>`)}
-                </div>`}
-            </div>`;
-        })}
+    <div style=${{display:'flex',flexDirection:'column',alignItems:'center'}}>
+      ${depth>0&&html`<div style=${{width:2,height:16,background:'#E5E5EA'}}></div>`}
+      <div style=${{background:'#FFF',borderRadius:12,border:'1.5px solid '+(depth===0?'#1D1D1F':'#E5E5EA'),padding:'10px 12px',minWidth:100,textAlign:'center',boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
+        <div style=${{fontSize:24,marginBottom:4}}>${m.avatar||'👤'}</div>
+        <div style=${{fontSize:11,fontWeight:700}}>${m.name}</div>
+        ${m.role_label&&html`<div style=${{fontSize:9,color:'#86868B'}}>${m.role_label}</div>`}
       </div>
-
-      <div style=${{ display:'flex', gap:4, marginBottom:12 }}>
-        ${TYPE_FILTERS.map(tf => html`
-          <button key=${tf.id} onClick=${()=>setTypeFilter(tf.id)}
-            style=${{ padding:'5px 10px', borderRadius:8, border:typeFilter===tf.id?'none':'1px solid #E5E5EA', background:typeFilter===tf.id?tf.color:'#FFF', color:typeFilter===tf.id?'#FFF':'#6E6E73', fontSize:11, fontWeight:600, cursor:'pointer' }}>
-            ${tf.icon||''} ${tf.label}
-          </button>`)}
-      </div>
-
-      ${LEVELS.map(l => {
-        const items = byLevel(l.id);
-        const isCollapsed = collapsed[l.id];
-        return html`
-          <div key=${l.id} style=${{ marginBottom:10 }}>
-            <div onClick=${()=>toggle(l.id)} style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:isCollapsed?0:6, paddingBottom:5, borderBottom:'2px solid '+l.color+'30', cursor:'pointer', userSelect:'none' }}>
-              <span style=${{ fontSize:10, color:'#86868B', transition:'transform .15s', transform:isCollapsed?'rotate(-90deg)':'rotate(0deg)' }}>\u25BC</span>
-              <div style=${{ width:10, height:10, borderRadius:5, background:l.color }}></div>
-              <span style=${{ fontSize:12, fontWeight:700, color:l.color }}>${l.label}</span>
-              <span style=${{ fontSize:10, color:'#86868B' }}>${items.length}</span>
-            </div>
-            ${!isCollapsed && html`<div data-lvl=${l.id}>
-              ${items.length===0 ? html`
-                <div style=${{ padding:'10px 16px', textAlign:'center', color:'#C7C7CC', border:'1.5px dashed #E5E5EA', borderRadius:10, fontSize:11 }}>
-                  Sin riesgos escalados a este nivel
-                </div>` :
-              items.map(r => {
-                const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').indexOf(r)+1;
-                const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
-                const hasMit = !!(r.mitigation?.trim());
-                const hasLinked = (actions||[]).some(a=>a.riskId===r.id);
-                const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
-                const esc = r.escalation||{};
-                const canEdit = isSM || l.id==='equipo' || (levelMembers[l.id]||[]).length===0 || (levelMembers[l.id]||[]).includes(user?.name);
-                const alerts = getAlerts?getAlerts(r):[];
-                return html`
-                  <div key=${r.id}
-                    onClick=${()=>onOpenDetail&&onOpenDetail({...r,_readOnly:!canEdit})}
-                    style=${{ background:alerts.length>0?'#FFFBF5':'#FFF', borderRadius:12, border:'1.5px solid '+(alerts.length>0?'#FF950030':'#E5E5EA'), borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:5, cursor:'pointer' }}>
-                    <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-                      <span style=${{ fontSize:13, fontWeight:800, color:l.color }}>${px}${rn}</span>
-                      <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
-                      ${hasMit && html`<span title="Mitigacion" style=${{ fontSize:9, background:'#34C75915', color:'#34C759', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>\uD83D\uDEE1\uFE0F</span>`}
-                      ${hasLinked && html`<span title="Tareas vinculadas" style=${{ fontSize:9, background:'#007AFF15', color:'#007AFF', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>\uD83D\uDD17</span>`}
-                      ${l.id!=='equipo' && html`<span style=${{ fontSize:9, background:l.color+'15', color:l.color, padding:'2px 6px', borderRadius:6, fontWeight:700 }}>Escalado</span>`}
-                    </div>
-                    ${alerts.length>0 && html`<div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:4 }}>
-                      ${alerts.map(a => html`<span key=${a.type} style=${{ fontSize:9, fontWeight:700, color:'#FFF', background:a.color, padding:'2px 7px', borderRadius:10 }}>${a.label}</span>`)}
-                      ${nextLvl && canEdit && html`<span style=${{ fontSize:9, fontWeight:600, color:'#FF9500', fontStyle:'italic' }}>Se sugiere escalar</span>`}
-                    </div>`}
-                    <div style=${{ display:'flex', gap:4, alignItems:'center', fontSize:10 }}>
-                      ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado ${fd(esc.escalatedAt)}</span>`}
-                      ${r.owner && r.owner!=='Sin asignar' && html`<span style=${{ color:'#007AFF', fontWeight:600 }}>${r.owner}</span>`}
-                      ${canEdit && html`<div style=${{ marginLeft:'auto', display:'flex', gap:4 }}>
-                        <button onClick=${e=>{e.stopPropagation();resolveRisk(r)}}
-                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Resolver</button>
-                        ${nextLvl && html`<button onClick=${e=>{e.stopPropagation();escalateNext(r)}}
-                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid '+nextLvl.color+'30', background:nextLvl.color+'10', color:nextLvl.color, cursor:'pointer' }}>\u2191 ${nextLvl.label}</button>`}
-                        ${l.id!=='equipo' && html`<button onClick=${e=>{e.stopPropagation();deescalate(r)}}
-                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#F9F9FB', color:'#86868B', cursor:'pointer' }}>\u2193</button>`}
-                      </div>`}
-                      ${!canEdit && html`<span style=${{ marginLeft:'auto', fontSize:9, color:'#C7C7CC', fontStyle:'italic' }}>Solo lectura</span>`}
-                    </div>
-                  </div>`;
-              })}
-            </div>`}
-          </div>`;
-      })}
-
+      ${children.length>0&&html`
+        <div><div style=${{width:2,height:16,background:'#E5E5EA',margin:'0 auto'}}></div>
+        <div style=${{display:'flex',gap:12,justifyContent:'center'}}>
+          ${children.map(ch=>html`<${OrgNode} key=${ch.id} m=${ch} depth=${depth+1} team=${team} org=${org} setManager=${setManager} orgSaving=${orgSaving} />`)}
+        </div></div>`}
     </div>`;
 }
+
 
 function PFTEs({ team, org, orgData: orgDataProp }) {
   const FTE_VIEWS = ['mes', 'anual'];
