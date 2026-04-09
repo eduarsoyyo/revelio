@@ -4323,34 +4323,48 @@ function SuggestedEscalations({ risks, allRisks, getAlerts, upd, setSubTab, setE
 /* ═══ ESCALADO PANEL ═══ */
 function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
   const LEVELS = [
-    { id:'equipo',    label:'Equipo',             color:'#34C759', desc:'Se gestiona internamente en el equipo' },
-    { id:'jp',        label:'Jefe de Proyecto',    color:'#FF9500', desc:'Escalar al Jefe de Proyecto' },
-    { id:'sm',        label:'Service Manager',     color:'#FF3B30', desc:'Requiere intervención del Service Manager' },
-    { id:'dt',        label:'Dirección Técnica',   color:'#5856D6', desc:'Elevar a Dirección Técnica (PM2)' },
+    { id:'equipo', label:'Equipo', color:'#34C759', desc:'Se gestiona internamente en el equipo' },
+    { id:'jp',     label:'Jefe de Proyecto', color:'#FF9500', desc:'Escalar al Jefe de Proyecto' },
+    { id:'sm',     label:'Service Manager', color:'#FF3B30', desc:'Requiere intervencion del Service Manager' },
+    { id:'dt',     label:'Direccion Tecnica', color:'#5856D6', desc:'Elevar a Direccion Tecnica (PM2)' },
   ];
+  const [collapsed, setCollapsed] = useState({});
+  const toggle = (id) => setCollapsed(prev => ({...prev, [id]: !prev[id]}));
 
-  const escalated = risks.filter(r => r.escalation);
-  const byLevel = (lid) => escalated.filter(r => r.escalation?.level === lid);
-  const nonEscalated = risks.filter(r => r.status !== 'mitigated' && !r.escalation);
+  const openRisks = risks.filter(r => r.status !== 'mitigated');
+  const byLevel = (lid) => {
+    if (lid === 'equipo') return openRisks.filter(r => !r.escalation || r.escalation.level === 'equipo');
+    return openRisks.filter(r => r.escalation?.level === lid);
+  };
 
   const escalateNext = (r) => {
     const current = r.escalation?.level || 'equipo';
     const idx = LEVELS.findIndex(l=>l.id===current);
     const next = LEVELS[idx+1];
     if (!next) return;
-    upd(r.id, { escalation: {...(r.escalation||{}), level:next.id, levelLabel:next.label, escalatedAt:new Date().toISOString()} });
+    upd(r.id, { escalation: { level:next.id, levelLabel:next.label, escalatedAt:new Date().toISOString() } });
   };
   const deescalate = (r) => {
     const current = r.escalation?.level;
+    if (!current || current === 'equipo') { upd(r.id, { escalation: null }); return; }
     const idx = LEVELS.findIndex(l=>l.id===current);
     if (idx <= 0) { upd(r.id, { escalation: null }); return; }
     const prev = LEVELS[idx-1];
-    upd(r.id, { escalation: {...r.escalation, level:prev.id, levelLabel:prev.label} });
+    upd(r.id, { escalation: { ...r.escalation, level:prev.id, levelLabel:prev.label } });
   };
-  const resolveRisk = (r) => upd(r.id, { status:'mitigated', resolvedAt:new Date().toISOString() });
-  const escalateToLevel = (r, levelId) => {
-    const lvl = LEVELS.find(l=>l.id===levelId);
-    upd(r.id, { escalation: { level:levelId, levelLabel:lvl?.label||'', escalatedAt:new Date().toISOString() } });
+  const resolveRisk = (r) => {
+    const linkedTasks = (window.__currentActions||[]).filter(a=>a.riskId===r.id);
+    const taskMsg = linkedTasks.length > 0
+      ? 'Tiene ' + linkedTasks.length + ' tarea(s) de mitigacion vinculada(s). Revisa su estado en Seguimiento.'
+      : '';
+    window.__confirm({
+      icon: '\u2705',
+      title: 'Resolver ' + ((r.type||'riesgo')==='problema'?'problema':(r.type||'riesgo')==='oportunidad'?'oportunidad':'riesgo'),
+      message: 'Se movera a Resueltos.' + (taskMsg ? ' ' + taskMsg : ''),
+      confirmLabel: 'Resolver',
+      confirmColor: '#34C759',
+      onConfirm: () => upd(r.id, { status:'mitigated', resolvedAt:new Date().toISOString() })
+    });
   };
 
   return html`
@@ -4369,70 +4383,55 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm }) {
 
       ${LEVELS.map(l => {
         const items = byLevel(l.id);
+        const isCollapsed = collapsed[l.id];
         return html`
-          <div key=${l.id} style=${{ marginBottom:14 }}>
-            <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:8, paddingBottom:6, borderBottom:'2px solid '+l.color+'30' }}>
+          <div key=${l.id} style=${{ marginBottom:10 }}>
+            <div onClick=${()=>toggle(l.id)} style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:isCollapsed?0:8, paddingBottom:6, borderBottom:'2px solid '+l.color+'30', cursor:'pointer', userSelect:'none' }}>
+              <span style=${{ fontSize:10, color:'#86868B', transition:'transform .15s', transform:isCollapsed?'rotate(-90deg)':'rotate(0deg)' }}>\u25BC</span>
               <div style=${{ width:10, height:10, borderRadius:5, background:l.color }}></div>
               <span style=${{ fontSize:12, fontWeight:700, color:l.color }}>${l.label}</span>
-              <span style=${{ fontSize:10, color:'#86868B' }}>${items.length} riesgo${items.length!==1?'s':''}</span>
+              <span style=${{ fontSize:10, color:'#86868B' }}>${items.length}</span>
             </div>
-            ${items.length===0 ? html`
-              <div style=${{ padding:'12px 16px', textAlign:'center', color:'#C7C7CC', border:'1.5px dashed #E5E5EA', borderRadius:10, fontSize:11 }}>
-                Sin riesgos escalados a este nivel
-              </div>` :
-            items.map(r => {
-              const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').indexOf(r)+1;
-              const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
-              const hasMit = !!(r.mitigation?.trim());
-              const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
-              const esc = r.escalation||{};
-              return html`
-                <div key=${r.id}
-                  onClick=${()=>{if(window.__goToRisk)window.__goToRisk(r.id)}}
-                  style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:6, cursor:'pointer' }}>
-                  <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                    <span style=${{ fontSize:13, fontWeight:800, color:l.color }}>${px}${rn}</span>
-                    <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
-                    ${hasMit && html`<span title="Tiene mitigación" style=${{ fontSize:10, background:'#34C75915', color:'#34C759', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>🛡️</span>`}
-                  </div>
-                  <div style=${{ display:'flex', gap:6, alignItems:'center', fontSize:10 }}>
-                    ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado: ${fd(esc.escalatedAt)}</span>`}
-                    <div style=${{ marginLeft:'auto', display:'flex', gap:4 }}>
-                      <button onClick=${e=>{e.stopPropagation();resolveRisk(r)}}
-                        style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Resolver</button>
-                      ${nextLvl && html`<button onClick=${e=>{e.stopPropagation();escalateNext(r)}}
-                        style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid '+nextLvl.color+'30', background:nextLvl.color+'10', color:nextLvl.color, cursor:'pointer' }}>↑ ${nextLvl.label}</button>`}
-                      <button onClick=${e=>{e.stopPropagation();deescalate(r)}}
-                        style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#F9F9FB', color:'#86868B', cursor:'pointer' }}>↓</button>
+            ${!isCollapsed && html`<div data-lvl=${l.id}>
+              ${items.length===0 ? html`
+                <div style=${{ padding:'10px 16px', textAlign:'center', color:'#C7C7CC', border:'1.5px dashed #E5E5EA', borderRadius:10, fontSize:11 }}>
+                  Sin riesgos escalados a este nivel
+                </div>` :
+              items.map(r => {
+                const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').indexOf(r)+1;
+                const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+                const hasMit = !!(r.mitigation?.trim());
+                const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
+                const esc = r.escalation||{};
+                return html`
+                  <div key=${r.id}
+                    onClick=${()=>{if(window.__goToRisk)window.__goToRisk(r.id)}}
+                    style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:5, cursor:'pointer' }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                      <span style=${{ fontSize:13, fontWeight:800, color:l.color }}>${px}${rn}</span>
+                      <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
+                      ${hasMit && html`<span title="Mitigacion" style=${{ fontSize:9, background:'#34C75915', color:'#34C759', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>\uD83D\uDEE1\uFE0F</span>`}
+                      ${l.id!=='equipo' && html`<span style=${{ fontSize:9, background:l.color+'15', color:l.color, padding:'2px 6px', borderRadius:6, fontWeight:700 }}>Escalado</span>`}
                     </div>
-                  </div>
-                </div>`;
-            })}
+                    <div style=${{ display:'flex', gap:4, alignItems:'center', fontSize:10 }}>
+                      ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado: ${fd(esc.escalatedAt)}</span>`}
+                      <div style=${{ marginLeft:'auto', display:'flex', gap:4 }}>
+                        <button onClick=${e=>{e.stopPropagation();resolveRisk(r)}}
+                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Resolver</button>
+                        ${nextLvl && html`<button onClick=${e=>{e.stopPropagation();escalateNext(r)}}
+                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid '+nextLvl.color+'30', background:nextLvl.color+'10', color:nextLvl.color, cursor:'pointer' }}>\u2191 ${nextLvl.label}</button>`}
+                        ${l.id!=='equipo' && html`<button onClick=${e=>{e.stopPropagation();deescalate(r)}}
+                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#F9F9FB', color:'#86868B', cursor:'pointer' }}>\u2193</button>`}
+                      </div>
+                    </div>
+                  </div>`;
+              })}
+            </div>`}
           </div>`;
       })}
-
-      ${nonEscalated.length>0 && html`
-        <div style=${{ marginTop:8, padding:'12px 14px', background:'#F9F9FB', borderRadius:12, border:'1.5px solid #E5E5EA' }}>
-          <h4 style=${{ fontSize:11, fontWeight:700, color:'#86868B', marginBottom:8 }}>Riesgos sin escalar (${nonEscalated.length})</h4>
-          <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
-            ${nonEscalated.slice(0,10).map(r => {
-              const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').indexOf(r)+1;
-              const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
-              return html`
-                <div key=${r.id} style=${{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:8, background:'#FFF', border:'1px solid #E5E5EA' }}>
-                  <span style=${{ fontSize:11, fontWeight:800, color:'#FF9500' }}>${px}${rn}</span>
-                  <span style=${{ fontSize:11, flex:1 }}>${r.text}</span>
-                  <button onClick=${()=>escalateToLevel(r,'equipo')}
-                    style=${{ fontSize:9, fontWeight:600, padding:'2px 8px', borderRadius:5, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Escalar</button>
-                </div>`;
-            })}
-          </div>
-        </div>`}
     </div>`;
 }
 
-
-/* ═══ PFTEs — dedicación y FTEs del equipo ═══ */
 function PFTEs({ team, org, orgData: orgDataProp }) {
   const FTE_VIEWS = ['mes', 'anual'];
   const [fteView, setFteView] = useState('mes');
@@ -6443,8 +6442,22 @@ const addItem = () => {
                           const rn = riskNum(r);
                           const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
                           const dc = (r.type||'riesgo')==='oportunidad'?'#34C759':hc;
-                          return html`<div key=${r.id} onClick=${()=>setDetailRisk({...r})} title=${r.text}
-                            style=${{ width:28, height:28, borderRadius:14, background:dc, color:'#FFF', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #FFF', boxShadow:'0 2px 6px '+dc+'50', cursor:'pointer' }}>${pf}${rn}</div>`;
+                          const hasMit = !!(r.mitigation?.trim());
+                          const escLvl = r.escalation?.levelLabel;
+                          return html`<div key=${r.id} style=${{ position:'relative' }}
+                            onMouseEnter=${e=>{const t=e.currentTarget.lastElementChild;if(t)t.style.display='block'}}
+                            onMouseLeave=${e=>{const t=e.currentTarget.lastElementChild;if(t)t.style.display='none'}}>
+                            <div onClick=${()=>setDetailRisk({...r})}
+                              style=${{ width:28, height:28, borderRadius:14, background:dc, color:'#FFF', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #FFF', boxShadow:'0 2px 6px '+dc+'50', cursor:'pointer' }}>${pf}${rn}</div>
+                            <div style=${{ display:'none', position:'absolute', bottom:34, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', borderRadius:10, padding:'8px 10px', fontSize:11, zIndex:9999, width:200, boxShadow:'0 4px 16px rgba(0,0,0,.25)', pointerEvents:'none', lineHeight:1.4 }}>
+                              <div style=${{ fontWeight:700, marginBottom:3, color:dc }}>${pf}${rn} ${(r.type||'riesgo')==='oportunidad'?'Oportunidad':(r.type||'riesgo')==='problema'?'Problema':'Riesgo'}</div>
+                              <div style=${{ marginBottom:4 }}>${r.text}</div>
+                              ${r.owner&&r.owner!=='Sin asignar' ? html`<div style=${{ fontSize:10, color:'#AAA' }}>Owner: ${r.owner}</div>` : ''}
+                              ${hasMit ? html`<div style=${{ fontSize:10, color:'#86D67A' }}>Con mitigacion</div>` : ''}
+                              ${escLvl ? html`<div style=${{ fontSize:10, color:'#FF9500' }}>Escalado: ${escLvl}</div>` : ''}
+                              <div style=${{ position:'absolute', bottom:-5, left:'50%', transform:'translateX(-50%)', width:0, height:0, borderLeft:'5px solid transparent', borderRight:'5px solid transparent', borderTop:'5px solid #1D1D1F' }}></div>
+                            </div>
+                          </div>`;
                         })}
                       </div>`;
                     })
