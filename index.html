@@ -4466,10 +4466,11 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
                 const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
                 const esc = r.escalation||{};
                 const canEdit = isSM || l.id==='equipo' || (levelMembers[l.id]||[]).length===0 || (levelMembers[l.id]||[]).includes(user?.name);
+                const alerts = getAlerts?getAlerts(r):[];
                 return html`
                   <div key=${r.id}
                     onClick=${()=>onOpenDetail&&onOpenDetail({...r,_readOnly:!canEdit})}
-                    style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:5, cursor:'pointer' }}>
+                    style=${{ background:alerts.length>0?'#FFFBF5':'#FFF', borderRadius:12, border:'1.5px solid '+(alerts.length>0?'#FF950030':'#E5E5EA'), borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:5, cursor:'pointer' }}>
                     <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
                       <span style=${{ fontSize:13, fontWeight:800, color:l.color }}>${px}${rn}</span>
                       <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.text}</span>
@@ -4477,6 +4478,10 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
                       ${hasLinked && html`<span title="Tareas vinculadas" style=${{ fontSize:9, background:'#007AFF15', color:'#007AFF', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>\uD83D\uDD17</span>`}
                       ${l.id!=='equipo' && html`<span style=${{ fontSize:9, background:l.color+'15', color:l.color, padding:'2px 6px', borderRadius:6, fontWeight:700 }}>Escalado</span>`}
                     </div>
+                    ${alerts.length>0 && html`<div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:4 }}>
+                      ${alerts.map(a => html`<span key=${a.type} style=${{ fontSize:9, fontWeight:700, color:'#FFF', background:a.color, padding:'2px 7px', borderRadius:10 }}>${a.label}</span>`)}
+                      ${nextLvl && canEdit && html`<span style=${{ fontSize:9, fontWeight:600, color:'#FF9500', fontStyle:'italic' }}>Se sugiere escalar</span>`}
+                    </div>`}
                     <div style=${{ display:'flex', gap:4, alignItems:'center', fontSize:10 }}>
                       ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado ${fd(esc.escalatedAt)}</span>`}
                       ${r.owner && r.owner!=='Sin asignar' && html`<span style=${{ color:'#007AFF', fontWeight:600 }}>${r.owner}</span>`}
@@ -4495,34 +4500,6 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
             </div>`}
           </div>`;
       })}
-
-      ${(suggestions||[]).length>0 && html`
-        <div style=${{ marginTop:12, padding:'14px', background:'#FFF8F0', borderRadius:14, border:'1.5px solid #FF950030' }}>
-          <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
-            <span style=${{ fontSize:14 }}>🔔</span>
-            <h4 style=${{ fontSize:13, fontWeight:700, color:'#FF9500', margin:0 }}>Sugerencias de escalado (${suggestions.length})</h4>
-          </div>
-          <p style=${{ fontSize:10, color:'#86868B', marginBottom:10 }}>Riesgos que cumplen umbrales de alerta y no estan escalados</p>
-          <div style=${{ display:'flex', flexDirection:'column', gap:5 }}>
-            ${suggestions.map(r => {
-              const alerts = getAlerts?getAlerts(r):[];
-              const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').indexOf(r)+1;
-              const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
-              return html`
-                <div key=${r.id} style=${{ background:'#FFF', borderRadius:10, border:'1px solid #FF950020', padding:'10px 12px' }}>
-                  <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-                    <span style=${{ fontSize:12, fontWeight:800, color:'#FF9500' }}>${px}${rn}</span>
-                    <span style=${{ fontSize:12, fontWeight:600, flex:1 }}>${r.text}</span>
-                    <button onClick=${()=>{upd(r.id,{escalation:{level:'jp',levelLabel:'Jefe de Proyecto',escalatedAt:new Date().toISOString()}})}}
-                      style=${{ fontSize:10, fontWeight:600, padding:'4px 10px', borderRadius:7, border:'1px solid #FF950030', background:'#FF950010', color:'#FF9500', cursor:'pointer' }}>Escalar a JP</button>
-                  </div>
-                  <div style=${{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                    ${alerts.map(a => html`<span key=${a.type} style=${{ fontSize:9, fontWeight:700, color:'#FFF', background:a.color, padding:'2px 7px', borderRadius:10 }}>${a.label}</span>`)}
-                  </div>
-                </div>`;
-            })}
-          </div>
-        </div>`}
 
     </div>`;
 }
@@ -6577,14 +6554,14 @@ const addItem = () => {
                       const cellRisks = allRisks.filter(r=>{
                         if(r.status==='mitigated') return false;
                         const ri = voteMajority(r.impactVotes, r.impact||'medio')||'medio';
-                        const rp = (r.type||'riesgo')==='problema'?'alta':(voteMajority(r.probVotes, r.prob||'media')||'media');
+                        const rp = voteMajority(r.probVotes, r.prob||'media')||'media';
                         return ri===imp && rp===prob;
                       });
                       return html`<div key=${imp+prob} style=${{ background:hc+'18', border:'1.5px solid '+hc+'30', borderRadius:10, minHeight:64, padding:6, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start' }}>
                         ${cellRisks.map(r => {
                           const rn = riskNum(r);
                           const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
-                          const dc = (r.type||'riesgo')==='oportunidad'?'#34C759':hc;
+                          const dc = (r.type||'riesgo')==='problema'?'#FF3B30':(r.type||'riesgo')==='oportunidad'?'#34C759':'#FF9500';
                           const hasMit = !!(r.mitigation?.trim());
                           const escLvl = r.escalation?.levelLabel;
                           const ec = r.escalation?.level&&r.escalation.level!=='equipo'?({jp:'#FF9500',sm:'#FF3B30',dt:'#5856D6'})[r.escalation.level]:null;
@@ -6612,13 +6589,29 @@ const addItem = () => {
                 </div>
               </div>
               <div style=${{ display:'flex', flexDirection:'column', gap:6, minWidth:100 }}>
-                <p style=${{ fontSize:11, fontWeight:700, marginBottom:4 }}>Leyenda</p>
+                <p style=${{ fontSize:11, fontWeight:700, marginBottom:6 }}>Leyenda</p>
+                <p style=${{ fontSize:9, fontWeight:600, color:'#86868B', marginBottom:4 }}>Celdas</p>
                 ${[['#FF3B30','Critico'],['#FF9500','Moderado'],['#34C759','Bajo']].map(([co,la])=>html`
-                  <div key=${la} style=${{ display:'flex', alignItems:'center', gap:6, fontSize:11 }}>
+                  <div key=${la} style=${{ display:'flex', alignItems:'center', gap:6, fontSize:11, marginBottom:3 }}>
                     <div style=${{ width:14, height:14, borderRadius:3, background:co+'25', border:'2px solid '+co }}></div>
                     <span style=${{ color:'#86868B' }}>${la}</span>
                   </div>`)}
-              </div>
+                <p style=${{ fontSize:9, fontWeight:600, color:'#86868B', marginTop:8, marginBottom:4 }}>Tipo</p>
+                ${[['#FF9500','R','Riesgo'],['#FF3B30','P','Problema'],['#34C759','O','Oportunidad']].map(([co,pf,la])=>html`
+                  <div key=${la} style=${{ display:'flex', alignItems:'center', gap:6, fontSize:11, marginBottom:3 }}>
+                    <div style=${{ width:18, height:18, borderRadius:9, background:co, color:'#FFF', fontSize:8, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>${pf}</div>
+                    <span style=${{ color:'#86868B' }}>${la}</span>
+                  </div>`)}
+                <p style=${{ fontSize:9, fontWeight:600, color:'#86868B', marginTop:8, marginBottom:4 }}>Escalado</p>
+                ${[['#FF9500','JP'],['#FF3B30','SM'],['#5856D6','DT']].map(([co,la])=>html`
+                  <div key=${la} style=${{ display:'flex', alignItems:'center', gap:6, fontSize:11, marginBottom:3 }}>
+                    <div style=${{ width:18, height:18, borderRadius:9, background:'#CCC', border:'3px solid '+co, boxShadow:'0 0 0 1.5px #FFF inset' }}></div>
+                    <span style=${{ color:'#86868B' }}>${la}</span>
+                  </div>`)}
+                <div style=${{ display:'flex', alignItems:'center', gap:6, fontSize:11 }}>
+                  <div style=${{ width:18, height:18, borderRadius:9, background:'#CCC', border:'2px solid #FFF' }}></div>
+                  <span style=${{ color:'#C7C7CC' }}>Equipo</span>
+                </div>
             </div>
           </div>
         </div>
@@ -8753,16 +8746,17 @@ function P5Risks({ risks, sR, notes, user }) {
                   const color = score>=6?'#FF3B30':score>=3?'#FF9500':'#34C759';
                   const inCell = openRisks.filter(r => {
                     const ri = voteMajority(r.impactVotes, r.impact||'medio')||'medio';
-                    const rp = (r.type||'riesgo')==='problema'?'alta':(voteMajority(r.probVotes, r.prob||'media')||'media');
+                    const rp = voteMajority(r.probVotes, r.prob||'media')||'media';
                     return ri===imp && rp===prob;
                   });
                   return html`<div key=${prob+imp} style=${{ background:color+'18', border:'1px solid '+color+'25', borderRadius:8, padding:6, minHeight:56, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start' }}>
                     ${inCell.map(r => {
                       const rn = openRisks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
                       const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
-                      const _ec = r.escalation?.level&&r.escalation.level!=='equipo'?{jp:'#FF9500',sm:'#FF3B30',dt:'#5856D6'}[r.escalation.level]:null;
+                      const _dc = (r.type||'riesgo')==='problema'?'#FF3B30':(r.type||'riesgo')==='oportunidad'?'#34C759':'#FF9500';
+                      const _ec = r.escalation?.level&&r.escalation.level!=='equipo'?({jp:'#FF9500',sm:'#FF3B30',dt:'#5856D6'})[r.escalation.level]:null;
                       return html`<div key=${r.id} title=${r.text} onClick=${()=>setDetailRisk({...r})}
-                        style=${{ width:_ec?32:28, height:_ec?32:28, borderRadius:_ec?16:14, background:color, color:'#FFF', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:_ec?'3px solid '+_ec:'2px solid #FFF', boxShadow:_ec?'0 0 0 2px #FFF, 0 2px 6px '+_ec+'60':'0 1px 4px '+color+'40' }}>${pf}${rn}</div>`;
+                        style=${{ width:_ec?32:28, height:_ec?32:28, borderRadius:'50%', background:_dc, color:'#FFF', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:_ec?'3px solid '+_ec:'2px solid #FFF', boxShadow:_ec?'0 0 0 2px #FFF, 0 2px 6px '+_ec+'60':'0 1px 4px '+_dc+'40' }}>${pf}${rn}</div>`;
                     })}
                   </div>`;
                 })
@@ -8777,9 +8771,12 @@ function P5Risks({ risks, sR, notes, user }) {
             <div style=${{ position:'absolute', left:-20, top:'40%', transform:'rotate(-90deg)', fontSize:8, color:'#86868B', fontWeight:700, whiteSpace:'nowrap' }}>PROB.</div>
             <div style=${{ textAlign:'center', fontSize:10, color:'#86868B', marginTop:2, fontWeight:600 }}>IMPACTO</div>
           </div>
-          <div style=${{ display:'flex', gap:12, marginTop:10, fontSize:10, color:'#6E6E73', justifyContent:'center' }}>
-            ${[{c:'#FF3B30',l:'Critico'},{c:'#FF9500',l:'Moderado'},{c:'#34C759',l:'Bajo'}].map(x=>html`
+          <div style=${{ display:'flex', gap:16, marginTop:10, fontSize:10, color:'#6E6E73', justifyContent:'center', flexWrap:'wrap' }}>
+            ${[{c:'#FF3B30',l:'Celda critica'},{c:'#FF9500',l:'Celda moderada'},{c:'#34C759',l:'Celda baja'}].map(x=>html`
               <div key=${x.l} style=${{ display:'flex', alignItems:'center', gap:4 }}><div style=${{ width:8, height:8, borderRadius:4, background:x.c }}></div> ${x.l}</div>`)}
+            <span style=${{ color:'#C7C7CC' }}>|</span>
+            ${[{c:'#FF9500',l:'R Riesgo'},{c:'#FF3B30',l:'P Problema'},{c:'#34C759',l:'O Oportunidad'}].map(x=>html`
+              <div key=${x.l} style=${{ display:'flex', alignItems:'center', gap:3 }}><div style=${{ width:12, height:12, borderRadius:6, background:x.c, color:'#FFF', fontSize:7, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>${x.l[0]}</div> <span style=${{fontSize:9}}>${x.l.slice(2)}</span></div>`)}
           </div>
         </div>
 
