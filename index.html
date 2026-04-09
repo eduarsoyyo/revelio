@@ -9162,24 +9162,6 @@ ${ranking.map((r,i)=>'<div class="rk"><div style="width:28px;font-size:'+(i<3?18
 
 
 render(html`<div><${App} /><${GlobalConfirm} /></div>`, document.getElementById('app'));
-
-// Cleanup: remove stray "div" text nodes (htm parser quirk)
-// Run ONCE after render stabilizes — no MutationObserver to avoid infinite loop with Preact
-const _cleanDivText = () => {
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const toRemove = [];
-  while(walker.nextNode()) {
-    const n = walker.currentNode;
-    if (n.textContent.trim() === 'div' && n.parentElement && n.parentElement.children.length > 0) {
-      toRemove.push(n);
-    }
-  }
-  toRemove.forEach(n => n.remove());
-};
-setTimeout(_cleanDivText, 800);
-setTimeout(_cleanDivText, 3000);
-// Re-run on navigation (tab clicks trigger hashchange or popstate)
-window.addEventListener('click', () => setTimeout(_cleanDivText, 200), { passive: true });
 </script>
 </body>
 </html>
