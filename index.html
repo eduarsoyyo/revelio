@@ -115,7 +115,7 @@ async function sbLoadTagAssignments(sala) {
 }
 async function sbToggleTagAssignment(tagId, entityType, entityId, sala) {
   try {
-    const {data:ex}=await supabase.from('tag_assignments').select('id').eq('tag_id',tagId).eq('entity_type',entityType).eq('entity_id',entityId).single();
+    const {data:ex}=await supabase.from('tag_assignments').select('id').eq('tag_id',tagId).eq('entity_type',entityType).eq('entity_id',entityId).maybeSingle();
     if (ex?.id) { await supabase.from('tag_assignments').delete().eq('id',ex.id); return false; }
     else { await supabase.from('tag_assignments').insert({tag_id:tagId,entity_type:entityType,entity_id:entityId,sala}); return true; }
   } catch { return false; }
@@ -168,7 +168,7 @@ async function sbSaveOrgNode(sala, memberId, managerId) {
   try {
     // Try update first, then insert (works with or without UNIQUE constraint)
     const { data: existing } = await supabase.from('org_chart')
-      .select('id').eq('sala',sala).eq('member_id',memberId).single();
+      .select('id').eq('sala',sala).eq('member_id',memberId).maybeSingle();
     if (existing?.id) {
       await supabase.from('org_chart').update({ manager_id: managerId||null }).eq('id', existing.id);
     } else {
@@ -3081,13 +3081,13 @@ function AdminEscaladoGlobal({ rooms }) {
   const setGlobalManager = async (memberId, managerId) => {
     setOrgSaving(true);
     setGlobalOrg(prev=>({...prev,[memberId]:managerId||null}));
-    await (async()=>{ const {data:_g}=await supabase.from('org_chart').select('id').eq('sala','__global__').eq('member_id',memberId).single(); if(_g?.id){await supabase.from('org_chart').update({manager_id:managerId||null}).eq('id',_g.id);}else{await supabase.from('org_chart').insert({sala:'__global__',member_id:memberId,manager_id:managerId||null});} })();
+    await (async()=>{ const {data:_g}=await supabase.from('org_chart').select('id').eq('sala','__global__').eq('member_id',memberId).maybeSingle(); if(_g?.id){await supabase.from('org_chart').update({manager_id:managerId||null}).eq('id',_g.id);}else{await supabase.from('org_chart').insert({sala:'__global__',member_id:memberId,manager_id:managerId||null});} })();
     setOrgSaving(false);
   };
   const addToOrg = async (memberId) => {
     if (Object.keys(globalOrg).includes(memberId)) return;
     setGlobalOrg(prev=>({...prev,[memberId]:null}));
-    await (async()=>{ const {data:_g2}=await supabase.from('org_chart').select('id').eq('sala','__global__').eq('member_id',memberId).single(); if(_g2?.id){await supabase.from('org_chart').update({manager_id:null}).eq('id',_g2.id);}else{await supabase.from('org_chart').insert({sala:'__global__',member_id:memberId,manager_id:null});} })();
+    await (async()=>{ const {data:_g2}=await supabase.from('org_chart').select('id').eq('sala','__global__').eq('member_id',memberId).maybeSingle(); if(_g2?.id){await supabase.from('org_chart').update({manager_id:null}).eq('id',_g2.id);}else{await supabase.from('org_chart').insert({sala:'__global__',member_id:memberId,manager_id:null});} })();
   };
 
   const LEVELS = [
@@ -5279,7 +5279,7 @@ function PFTEs({ team, org, orgData: orgDataProp }) {
   const prevM = () => { if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1); };
   const nextM = () => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1); };
   const updateOrgField = async (memberId, managerId, field, val) => {
-    const {data:_pf}=await supabase.from('org_chart').select('id').eq('sala',SALA).eq('member_id',memberId).single(); if(_pf?.id){await supabase.from('org_chart').update({[field]:val}).eq('id',_pf.id);}else{await supabase.from('org_chart').insert({sala:SALA,member_id:memberId,manager_id:managerId||null,[field]:val});}
+    const {data:_pf}=await supabase.from('org_chart').select('id').eq('sala',SALA).eq('member_id',memberId).maybeSingle(); if(_pf?.id){await supabase.from('org_chart').update({[field]:val}).eq('id',_pf.id);}else{await supabase.from('org_chart').insert({sala:SALA,member_id:memberId,manager_id:managerId||null,[field]:val});}
     setOrgData(prev=>prev.map(r=>r.member_id===memberId?{...r,[field]:val}:r));
   };
 
