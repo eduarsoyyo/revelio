@@ -1359,6 +1359,215 @@ function PersonasPanel({ rooms }) {
 }
 
 /* ═══ GOBIERNO PANEL (SM homepage) ═══ */
+function MaestrosPanel({ rooms }) {
+  const [tab, setTab] = useState('perfiles');
+  const [loading, setLoading] = useState(true);
+  const [profiles, setProfiles] = useState([]);
+  const [skills, setSkills] = useState([]);
+  const [catalog, setCatalog] = useState([]);
+  const [editItem, setEditItem] = useState(null);
+  const [importText, setImportText] = useState('');
+  const [showImport, setShowImport] = useState(false);
+  const [filterSala, setFilterSala] = useState('__all__');
+
+  useEffect(() => {
+    Promise.all([sbLoadTrainingCatalog()]).then(([cat]) => {
+      setCatalog(cat);
+      // Load profiles and skills from all salas
+      const slugs = rooms.map(r=>r.slug);
+      Promise.all(slugs.map(s=>Promise.all([sbLoadSkillProfiles(s),sbLoadSkills(s)]))).then(results => {
+        const allProf = results.flatMap(([p])=>p);
+        const allSk = results.flatMap(([,s])=>s);
+        // Deduplicate skills by name+category
+        const seen = new Set();
+        const uniq = allSk.filter(s => { const k=s.name+'|'+s.category; if(seen.has(k))return false; seen.add(k); return true; });
+        setProfiles(allProf); setSkills(uniq);
+        setLoading(false);
+      });
+    });
+  }, []);
+
+  const TABS = [{id:'perfiles',icon:'Target',label:'Perfiles'},{id:'habilidades',icon:'Zap',label:'Habilidades'},{id:'catalogo',icon:'BookOpen',label:'Catálogo formación'}];
+
+  const categories = [...new Set(skills.map(s=>s.category))].sort();
+  const catCategories = [...new Set(catalog.map(t=>t.category))].sort();
+  const filteredProfiles = filterSala==='__all__'?profiles:profiles.filter(p=>p.sala===filterSala);
+  const filteredSkills = filterSala==='__all__'?skills:skills.filter(s=>s.sala===filterSala);
+
+  // CSV Import for training catalog
+  const doImport = async () => {
+    if(!importText.trim()) return;
+    const lines = importText.trim().split('\n');
+    const header = lines[0].split('\t');
+    const idxId = header.findIndex(h=>h.toLowerCase().includes('ident'));
+    const idxName = header.findIndex(h=>h.toLowerCase().includes('curso')||h.toLowerCase().includes('name'));
+    const idxCat = header.findIndex(h=>h.toLowerCase().includes('categoría')||h.toLowerCase().includes('category'));
+    const idxSub = header.findIndex(h=>h.toLowerCase().includes('sub'));
+    if(idxName<0||idxCat<0) { alert('CSV debe tener columnas: Curso/Name, Categoría/Category'); return; }
+    let count = 0;
+    for(let i=1;i<lines.length;i++) {
+      const cols = lines[i].split('\t');
+      if(!cols[idxName]?.trim()) continue;
+      const item = {
+        external_id: idxId>=0?cols[idxId]?.trim():'',
+        name: cols[idxName].trim(),
+        category: cols[idxCat]?.trim()||'General',
+        subcategory: idxSub>=0?cols[idxSub]?.trim():'',
+        provider: 'ALTEN',
+      };
+      const saved = await sbSaveTraining(item);
+      if(saved) { setCatalog(prev=>[...prev,saved]); count++; }
+    }
+    alert('Importados '+count+' cursos');
+    setShowImport(false); setImportText('');
+  };
+
+  if(loading) return html`<div style=${{textAlign:'center',padding:48,color:'#86868B'}}>Cargando maestros...</div>`;
+
+  return html`<div>
+    <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Maestros</h1>
+    <p style=${{fontSize:13,color:'#86868B',marginBottom:16}}>Perfiles, habilidades y catálogo de formación</p>
+
+    <div style=${{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
+      <div style=${{display:'flex',gap:0,borderRadius:10,overflow:'hidden',border:'1.5px solid #E5E5EA'}}>
+        ${TABS.map(t=>html`
+          <button key=${t.id} onClick=${()=>setTab(t.id)}
+            style=${{padding:'7px 14px',fontSize:12,fontWeight:tab===t.id?700:500,background:tab===t.id?'#1D1D1F':'#FFF',color:tab===t.id?'#FFF':'#6E6E73',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+            <${Icon} name=${t.icon} size=${12} color=${tab===t.id?'#FFF':'#86868B'} /> ${t.label}
+          </button>`)}
+      </div>
+      ${tab!=='catalogo' && html`
+        <select value=${filterSala} onChange=${e=>setFilterSala(e.target.value)}
+          style=${{fontSize:11,border:'1.5px solid #E5E5EA',borderRadius:8,padding:'6px 10px',fontFamily:'inherit',outline:'none',background:'#FFF'}}>
+          <option value="__all__">Todos los proyectos</option>
+          ${rooms.map(r=>html`<option key=${r.slug} value=${r.slug}>${r.name||r.slug}</option>`)}
+        </select>`}
+    </div>
+
+    ${tab==='perfiles' && html`
+      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${filteredProfiles.length} perfiles</span>
+      </div>
+      ${filteredProfiles.length===0?html`<p style=${{color:'#C7C7CC',textAlign:'center',padding:32}}>Sin perfiles. Créalos desde cada proyecto en Equipo → Perfiles.</p>`:html`
+        <div style=${{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:10}}>
+          ${filteredProfiles.map(p=>html`
+            <div key=${p.id} style=${{background:'#FFF',borderRadius:12,border:'1.5px solid #E5E5EA',borderLeft:'4px solid '+(p.color||'#007AFF'),padding:'12px 14px'}}>
+              <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                <span style=${{fontSize:18}}>${p.icon||'🧑‍💻'}</span>
+                <div style=${{flex:1}}>
+                  <div style=${{fontSize:13,fontWeight:700}}>${p.name}</div>
+                  <div style=${{fontSize:10,color:'#86868B'}}>${rooms.find(r=>r.slug===p.sala)?.name||p.sala} · ${p.fte} FTE</div>
+                </div>
+              </div>
+              ${p.description && html`<p style=${{fontSize:10,color:'#86868B',margin:0}}>${p.description}</p>`}
+            </div>`)}
+        </div>`}
+    `}
+
+    ${tab==='habilidades' && html`
+      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${filteredSkills.length} habilidades en ${categories.length} categorías</span>
+        <button onClick=${()=>setEditItem({_type:'skill',name:'',category:categories[0]||'técnica',icon:'📘',sala:filterSala==='__all__'?rooms[0]?.slug||'':filterSala})}
+          style=${{padding:'7px 14px',borderRadius:9,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Habilidad</button>
+      </div>
+      ${categories.map(cat => html`
+        <div key=${cat} style=${{marginBottom:12}}>
+          <div style=${{fontSize:12,fontWeight:700,color:'#6E6E73',marginBottom:6,textTransform:'capitalize',borderBottom:'1px solid #F2F2F7',paddingBottom:4}}>${cat}</div>
+          <div style=${{display:'flex',flexWrap:'wrap',gap:5}}>
+            ${filteredSkills.filter(s=>s.category===cat).map(s=>html`
+              <div key=${s.id} style=${{fontSize:11,padding:'5px 10px',borderRadius:8,background:'#FFF',border:'1.5px solid #E5E5EA',display:'flex',alignItems:'center',gap:5}}>
+                ${s.icon||'📘'} ${s.name}
+                <span style=${{fontSize:8,color:'#C7C7CC'}}>${rooms.find(r=>r.slug===s.sala)?.name||s.sala}</span>
+              </div>`)}
+          </div>
+        </div>`)}
+    `}
+
+    ${tab==='catalogo' && html`
+      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${catalog.length} cursos en ${catCategories.length} categorías</span>
+        <div style=${{display:'flex',gap:6}}>
+          <button onClick=${()=>setShowImport(true)}
+            style=${{padding:'7px 14px',borderRadius:9,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73'}}>📥 Importar CSV</button>
+          <button onClick=${()=>setEditItem({_type:'training',name:'',category:'',subcategory:'',provider:'ALTEN',duration_hours:null})}
+            style=${{padding:'7px 14px',borderRadius:9,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Curso</button>
+        </div>
+      </div>
+      ${catCategories.map(cat => html`
+        <div key=${cat} style=${{marginBottom:12}}>
+          <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+            <span style=${{fontSize:12,fontWeight:700,color:'#6E6E73'}}>${cat}</span>
+            <span style=${{fontSize:10,color:'#C7C7CC'}}>${catalog.filter(t=>t.category===cat).length} cursos</span>
+          </div>
+          <div style=${{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:5}}>
+            ${catalog.filter(t=>t.category===cat).map(t=>html`
+              <div key=${t.id} style=${{fontSize:11,padding:'8px 10px',borderRadius:8,background:'#FFF',border:'1px solid #F2F2F7',display:'flex',alignItems:'center',gap:6}}>
+                <div style=${{flex:1,minWidth:0}}>
+                  <div style=${{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${t.name}</div>
+                  <div style=${{fontSize:9,color:'#86868B'}}>${t.subcategory||''} ${t.provider?'· '+t.provider:''} ${t.duration_hours?'· '+t.duration_hours+'h':''}</div>
+                </div>
+                <button onClick=${async()=>{if(confirm('Eliminar?'))await sbDeleteTraining(t.id);setCatalog(prev=>prev.filter(x=>x.id!==t.id))}}
+                  style=${{border:'none',background:'none',fontSize:10,cursor:'pointer',color:'#C7C7CC'}}>✕</button>
+              </div>`)}
+          </div>
+        </div>`)}
+    `}
+
+    ${showImport && html`
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick=${()=>setShowImport(false)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+        <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:560,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:6}}>Importar catálogo CSV</h3>
+          <p style=${{fontSize:11,color:'#86868B',marginBottom:12}}>Pega datos tabulados (TSV). Columnas esperadas: <b>Ident.</b> (opcional), <b>Curso</b>, <b>Categoría</b>, <b>Sub-Categoría</b> (opcional). Separador: tabulador.</p>
+          <textarea value=${importText} onInput=${e=>setImportText(e.target.value)} placeholder=${"Ident.\tCurso\tCategoría\tSub-Categoría\n496\tHEALTHY ALTEN\tB+Healthy\tHealthy ALTEN"}
+            style=${{width:'100%',height:200,border:'1.5px solid #E5E5EA',borderRadius:10,padding:12,fontSize:11,fontFamily:'monospace',outline:'none',resize:'vertical',boxSizing:'border-box'}} />
+          <p style=${{fontSize:10,color:'#86868B',marginTop:4}}>${importText.trim()?importText.trim().split('\n').length-1+' filas detectadas':'Pega los datos aquí'}</p>
+          <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:12}}>
+            <button onClick=${()=>setShowImport(false)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+            <button onClick=${doImport}
+              style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#5856D6',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Importar</button>
+          </div>
+        </div>
+      </div>`}
+
+    ${editItem && html`
+      <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick=${()=>setEditItem(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
+        <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:420,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>${editItem._type==='skill'?'Nueva habilidad':'Nuevo curso'}</h3>
+          <div style=${{display:'flex',flexDirection:'column',gap:10}}>
+            <input value=${editItem.name} onInput=${e=>setEditItem({...editItem,name:e.target.value})} placeholder="Nombre"
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none'}} />
+            <input value=${editItem.category||''} onInput=${e=>setEditItem({...editItem,category:e.target.value})} placeholder="Categoría"
+              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 14px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+            ${editItem._type==='training' && html`
+              <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <input value=${editItem.subcategory||''} onInput=${e=>setEditItem({...editItem,subcategory:e.target.value})} placeholder="Subcategoría"
+                  style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+                <input value=${editItem.provider||'ALTEN'} onInput=${e=>setEditItem({...editItem,provider:e.target.value})} placeholder="Proveedor"
+                  style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+              </div>`}
+            ${editItem._type==='skill' && html`
+              <select value=${editItem.sala||''} onChange=${e=>setEditItem({...editItem,sala:e.target.value})}
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+                <option value="">Proyecto...</option>
+                ${rooms.map(r=>html`<option key=${r.slug} value=${r.slug}>${r.name||r.slug}</option>`)}
+              </select>`}
+          </div>
+          <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:14}}>
+            <button onClick=${()=>setEditItem(null)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
+            <button onClick=${async()=>{
+              if(!editItem.name?.trim()) return;
+              if(editItem._type==='skill') { await sbSaveSkill({name:editItem.name,category:editItem.category||'técnica',icon:editItem.icon||'📘',sala:editItem.sala}); setSkills(prev=>[...prev,{...editItem}]); }
+              else { await sbSaveTraining({name:editItem.name,category:editItem.category,subcategory:editItem.subcategory,provider:editItem.provider}); setCatalog(prev=>[...prev,{...editItem}]); }
+              setEditItem(null);
+            }} style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
+          </div>
+        </div>
+      </div>`}
+  </div>`;
+}
+
 function GobiernoPanel({ rooms, allData, myActions, myRisks }) {
   const totalActions = Object.values(allData).flatMap(d=>d.actions||[]);
   const openActions = totalActions.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled');
@@ -1562,6 +1771,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
     {id:'dashboard',  label:'Inicio',         icon:'LayoutDashboard'},
     {id:'proyectos',  label:'Proyectos',      icon:'FolderOpen'},
     {id:'personas',   label:'Personas',       icon:'Users'},
+    {id:'maestros',   label:'Maestros',       icon:'BookOpen'},
     {id:'riesgos',    label:'Riesgos',        icon:'AlertTriangle'},
     {id:'gobierno',   label:'Gobierno',       icon:'BarChart3'},
     {id:'perfil',     label:'Mi perfil',      icon:'UserCircle'},
@@ -2015,6 +2225,9 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
               </div>`;
             })()}
           </div>`}
+
+          ${/* ═══ MAESTROS (SM only) ═══ */''} 
+          ${section==='maestros'&&isSM&&html`<${MaestrosPanel} rooms=${rooms} />`}
 
           ${/* ═══ GOBIERNO (SM only) ═══ */''} 
           ${section==='gobierno'&&isSM&&html`<div>
