@@ -4465,7 +4465,7 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
                 const hasLinked = (actions||[]).some(a=>a.riskId===r.id);
                 const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
                 const esc = r.escalation||{};
-                const canEdit = isSM || l.id==='equipo' || (levelMembers[l.id]||[]).includes(user?.name);
+                const canEdit = isSM || (levelMembers[l.id]||[]).includes(user?.name) || r.owner===user?.name;
                 return html`
                   <div key=${r.id}
                     onClick=${()=>onOpenDetail&&onOpenDetail(r)}
@@ -5412,7 +5412,6 @@ function PTrabajo({ actions, sA, risks, user }) {
           <option value="all">Todos</option>
           ${(teamMembers||[]).map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||''} ${m.name}</option>`)}
         </select>
-        </div>
         ${tags.length>0 && html`
           <div style=${{ display:'flex', gap:3, alignItems:'center' }}>
             ${tags.map(t=>html`
@@ -7417,8 +7416,10 @@ function RetroBoard({ user, onLogout }) {
     if (!state.risks && !state.actions) return;
     const today = new Date().toISOString().slice(0,10);
     (state.risks||[]).forEach(r => {
-      if (r.escalation?.status==='pendiente') {
-        if (r.escalation.memberName===user.name||r.escalation.memberId===user.id)
+      if (r.escalation) {
+        const _lmn = (() => { try{return JSON.parse(localStorage.getItem('rf-level-members-'+SALA)||'{}')}catch{return {}} })();
+        const isMyLevel = (_lmn[r.escalation.level]||[]).includes(user.name);
+        if (r.escalation.memberName===user.name||r.escalation.memberId===user.id||isMyLevel)
           addNotif('esc-'+r.id, '📈 Riesgo escalado a ti: '+r.text.slice(0,50), 'escalado');
       }
       if (r.owner===user.name&&r.status!=='mitigated'&&r.deadline&&r.deadline<today)
