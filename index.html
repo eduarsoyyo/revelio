@@ -6553,8 +6553,8 @@ const addItem = () => {
                       const hc = sc>=6?'#FF3B30':sc>=3?'#FF9500':'#34C759';
                       const cellRisks = allRisks.filter(r=>{
                         if(r.status==='mitigated') return false;
-                        const ri = voteMajority(r.impactVotes, r.impact||'medio')||'medio';
-                        const rp = voteMajority(r.probVotes, r.prob||'media')||'media';
+                        const ri = r.impact||'medio';
+                        const rp = r.prob||'media';
                         return ri===imp && rp===prob;
                       });
                       return html`<div key=${imp+prob} style=${{ background:hc+'18', border:'1.5px solid '+hc+'30', borderRadius:10, minHeight:90, padding:8, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start' }}>
