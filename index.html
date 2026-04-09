@@ -513,54 +513,70 @@ function useRealtime(user) {
   const stRef = useRef(state);
   const cursRef = useRef({});
   const supabaseSaveTimer = useRef(null);
+  const initialLoaded = useRef(false);
   stRef.current = state;
 
-  // ── SUPABASE FALLBACK: if any data is missing, load from snapshot ──
+  // ── SUPABASE FALLBACK: always recover missing data ──
   useEffect(() => {
     const hasActions = (state.actions||[]).length > 0;
     const hasRisks = (state.risks||[]).length > 0;
-    const hasNotes = (state.notes||[]).length > 0;
-    if (hasActions && hasRisks) return; // have both critical datasets
-    // Try loading from Supabase
+    if (hasActions && hasRisks) { initialLoaded.current = true; return; }
+    console.log('[revelio] Data missing — loading from Supabase...', {hasActions, hasRisks});
     (async () => {
       try {
-        const { data } = await supabase.from('retros')
+        // Try active first, then any snapshot
+        let { data } = await supabase.from('retros')
           .select('data')
           .eq('sala', SALA)
           .eq('status', 'active')
           .order('updated_at', { ascending: false })
           .limit(1);
-        if (data && data[0] && data[0].data) {
+        if (!data?.length) {
+          const res = await supabase.from('retros')
+            .select('data')
+            .eq('sala', SALA)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+          data = res.data;
+        }
+        if (data?.[0]?.data) {
           const snap = data[0].data;
-          console.log('[revelio] Recovered state from Supabase snapshot', Object.keys(snap));
+          console.log('[revelio] Recovered from Supabase:', {actions:snap.actions?.length||0, risks:snap.risks?.length||0});
           setState(prev => {
             const merged = { ...prev };
-            if (snap.actions?.length > 0) merged.actions = snap.actions;
-            if (snap.risks?.length > 0) merged.risks = snap.risks;
-            if (snap.notes?.length > 0) merged.notes = snap.notes;
+            if (snap.actions?.length > 0 && !prev.actions?.length) merged.actions = snap.actions;
+            if (snap.risks?.length > 0 && !prev.risks?.length) merged.risks = snap.risks;
+            if (snap.notes?.length > 0 && !prev.notes?.length) merged.notes = snap.notes;
             if (snap.tasks?.length > 0) merged.tasks = snap.tasks;
             if (snap.obj) merged.obj = snap.obj;
             saveRetroState(merged);
             if (merged.risks?.length > 0) saveRisks(merged.risks);
             return merged;
           });
-          // Notify UI
-          window.dispatchEvent(new CustomEvent('revelio-recovered', {
-            detail: { actions: snap.actions?.length||0, risks: snap.risks?.length||0, notes: snap.notes?.length||0 }
-          }));
+        } else {
+          console.warn('[revelio] No snapshot found for:', SALA);
         }
       } catch(e) { console.warn('[revelio] Supabase fallback failed:', e); }
+      initialLoaded.current = true;
     })();
   }, []);
 
   // ── DEBOUNCED AUTO-SAVE TO SUPABASE on every state change ──
+  const lastSavedActions = useRef(0);
   useEffect(() => {
-    if (!user) return;
+    if (!user || !initialLoaded.current) return;
     if (supabaseSaveTimer.current) clearTimeout(supabaseSaveTimer.current);
     supabaseSaveTimer.current = setTimeout(() => {
+      if (!initialLoaded.current) return;
       const s = stRef.current;
-      // Only save if there's meaningful data
-      if ((s.actions||[]).length > 0 || (s.risks||[]).length > 0 || (s.notes||[]).length > 0) {
+      const actLen = (s.actions||[]).length;
+      // Never overwrite if actions disappeared (guard against corruption)
+      if (actLen === 0 && lastSavedActions.current > 0) {
+        console.warn('[revelio] Auto-save blocked: actions empty but previously had', lastSavedActions.current);
+        return;
+      }
+      if (actLen > 0 || (s.risks||[]).length > 0 || (s.notes||[]).length > 0) {
+        lastSavedActions.current = Math.max(lastSavedActions.current, actLen);
         sbSaveRetroSnapshot(SALA, TIPO, s, user.id, 'active').catch(() => {});
       }
     }, 5000); // 5 second debounce
