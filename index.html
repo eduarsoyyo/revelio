@@ -362,7 +362,10 @@ async function sbLoadSkillActions(sala) {
   try { const {data}=await supabase.from('skill_actions').select('*').eq('sala',sala).order('created_at',{ascending:false}); return data||[]; } catch{return [];}
 }
 async function sbSaveSkillAction(a) {
-  try { const {data,error}=await supabase.from('skill_actions').upsert(a,{onConflict:'id'}).select(); if(error)console.warn('sbSaveSkillAction:',error.message); return data?.[0]; } catch{return null;}
+  try {
+    if(a.id) { const {data,error}=await supabase.from('skill_actions').update(a).eq('id',a.id).select(); if(error)console.warn('sbSaveSkillAction:',error.message); return data?.[0]; }
+    else { const {data,error}=await supabase.from('skill_actions').insert(a).select(); if(error)console.warn('sbSaveSkillAction:',error.message); return data?.[0]; }
+  } catch{return null;}
 }
 async function sbDeleteSkillAction(id) {
   try { await supabase.from('skill_actions').delete().eq('id',id); } catch{}
@@ -1360,6 +1363,7 @@ function PersonasPanel({ rooms }) {
 
 /* ═══ GOBIERNO PANEL (SM homepage) ═══ */
 function MaestrosPanel({ rooms }) {
+  const MSALA = '__maestro__';
   const [tab, setTab] = useState('perfiles');
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState([]);
@@ -1368,198 +1372,193 @@ function MaestrosPanel({ rooms }) {
   const [editItem, setEditItem] = useState(null);
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
-  const [filterSala, setFilterSala] = useState('__all__');
 
   useEffect(() => {
-    Promise.all([sbLoadTrainingCatalog()]).then(([cat]) => {
-      setCatalog(cat);
-      // Load profiles and skills from all salas
-      const slugs = rooms.map(r=>r.slug);
-      Promise.all(slugs.map(s=>Promise.all([sbLoadSkillProfiles(s),sbLoadSkills(s)]))).then(results => {
-        const allProf = results.flatMap(([p])=>p);
-        const allSk = results.flatMap(([,s])=>s);
-        // Deduplicate skills by name+category
-        const seen = new Set();
-        const uniq = allSk.filter(s => { const k=s.name+'|'+s.category; if(seen.has(k))return false; seen.add(k); return true; });
-        setProfiles(allProf); setSkills(uniq);
-        setLoading(false);
-      });
+    Promise.all([sbLoadSkillProfiles(MSALA),sbLoadSkills(MSALA),sbLoadTrainingCatalog()]).then(([p,s,c]) => {
+      setProfiles(p); setSkills(s); setCatalog(c); setLoading(false);
     });
   }, []);
 
-  const TABS = [{id:'perfiles',icon:'Target',label:'Perfiles'},{id:'habilidades',icon:'Zap',label:'Habilidades'},{id:'catalogo',icon:'BookOpen',label:'Catálogo formación'}];
-
   const categories = [...new Set(skills.map(s=>s.category))].sort();
   const catCategories = [...new Set(catalog.map(t=>t.category))].sort();
-  const filteredProfiles = filterSala==='__all__'?profiles:profiles.filter(p=>p.sala===filterSala);
-  const filteredSkills = filterSala==='__all__'?skills:skills.filter(s=>s.sala===filterSala);
 
-  // CSV Import for training catalog
+  const saveProf = async (p) => {
+    const saved = await sbSaveSkillProfile({...p, sala:MSALA});
+    if(saved) setProfiles(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+    return saved;
+  };
+  const delProf = async (id) => { await sbDeleteSkillProfile(id); setProfiles(prev=>prev.filter(x=>x.id!==id)); };
+  const saveSk = async (s) => {
+    const saved = await sbSaveSkill({...s, sala:MSALA});
+    if(saved) setSkills(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+  };
+  const delSk = async (id) => { await sbDeleteSkill(id); setSkills(prev=>prev.filter(x=>x.id!==id)); };
+  const saveCat = async (t) => {
+    const saved = await sbSaveTraining(t);
+    if(saved) setCatalog(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+  };
+  const delCat = async (id) => { await sbDeleteTraining(id); setCatalog(prev=>prev.filter(x=>x.id!==id)); };
+
   const doImport = async () => {
     if(!importText.trim()) return;
     const lines = importText.trim().split('\n');
-    const header = lines[0].split('\t');
-    const idxId = header.findIndex(h=>h.toLowerCase().includes('ident'));
-    const idxName = header.findIndex(h=>h.toLowerCase().includes('curso')||h.toLowerCase().includes('name'));
-    const idxCat = header.findIndex(h=>h.toLowerCase().includes('categoría')||h.toLowerCase().includes('category'));
-    const idxSub = header.findIndex(h=>h.toLowerCase().includes('sub'));
-    if(idxName<0||idxCat<0) { alert('CSV debe tener columnas: Curso/Name, Categoría/Category'); return; }
-    let count = 0;
-    for(let i=1;i<lines.length;i++) {
-      const cols = lines[i].split('\t');
-      if(!cols[idxName]?.trim()) continue;
-      const item = {
-        external_id: idxId>=0?cols[idxId]?.trim():'',
-        name: cols[idxName].trim(),
-        category: cols[idxCat]?.trim()||'General',
-        subcategory: idxSub>=0?cols[idxSub]?.trim():'',
-        provider: 'ALTEN',
-      };
-      const saved = await sbSaveTraining(item);
-      if(saved) { setCatalog(prev=>[...prev,saved]); count++; }
+    const hdr = lines[0].split('\t');
+    const iN = hdr.findIndex(h=>h.toLowerCase().includes('curso')||h.toLowerCase().includes('name'));
+    const iC = hdr.findIndex(h=>h.toLowerCase().includes('categoría')||h.toLowerCase().includes('category'));
+    const iS = hdr.findIndex(h=>h.toLowerCase().includes('sub'));
+    const iI = hdr.findIndex(h=>h.toLowerCase().includes('ident'));
+    if(iN<0||iC<0){alert('Columnas requeridas: Curso, Categoría');return;}
+    let n=0;
+    for(let i=1;i<lines.length;i++){
+      const c=lines[i].split('\t');
+      if(!c[iN]?.trim())continue;
+      const saved=await sbSaveTraining({external_id:iI>=0?c[iI]?.trim():'',name:c[iN].trim(),category:c[iC]?.trim()||'General',subcategory:iS>=0?c[iS]?.trim():'',provider:'ALTEN'});
+      if(saved){setCatalog(prev=>[...prev,saved]);n++;}
     }
-    alert('Importados '+count+' cursos');
-    setShowImport(false); setImportText('');
+    alert(n+' cursos importados');
+    setShowImport(false);setImportText('');
   };
 
-  if(loading) return html`<div style=${{textAlign:'center',padding:48,color:'#86868B'}}>Cargando maestros...</div>`;
+  const TABS=[{id:'perfiles',icon:'Target',label:'Perfiles tipo'},{id:'habilidades',icon:'Zap',label:'Categorías y habilidades'},{id:'catalogo',icon:'BookOpen',label:'Catálogo formación'}];
 
+  if(loading)return html`<div style=${{textAlign:'center',padding:48,color:'#86868B'}}>Cargando...</div>`;
   return html`<div>
     <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Maestros</h1>
-    <p style=${{fontSize:13,color:'#86868B',marginBottom:16}}>Perfiles, habilidades y catálogo de formación</p>
+    <p style=${{fontSize:13,color:'#86868B',marginBottom:16}}>Biblioteca global de perfiles, habilidades y formación. Los proyectos heredan de aquí.</p>
 
-    <div style=${{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-      <div style=${{display:'flex',gap:0,borderRadius:10,overflow:'hidden',border:'1.5px solid #E5E5EA'}}>
-        ${TABS.map(t=>html`
-          <button key=${t.id} onClick=${()=>setTab(t.id)}
-            style=${{padding:'7px 14px',fontSize:12,fontWeight:tab===t.id?700:500,background:tab===t.id?'#1D1D1F':'#FFF',color:tab===t.id?'#FFF':'#6E6E73',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-            <${Icon} name=${t.icon} size=${12} color=${tab===t.id?'#FFF':'#86868B'} /> ${t.label}
-          </button>`)}
-      </div>
-      ${tab!=='catalogo' && html`
-        <select value=${filterSala} onChange=${e=>setFilterSala(e.target.value)}
-          style=${{fontSize:11,border:'1.5px solid #E5E5EA',borderRadius:8,padding:'6px 10px',fontFamily:'inherit',outline:'none',background:'#FFF'}}>
-          <option value="__all__">Todos los proyectos</option>
-          ${rooms.map(r=>html`<option key=${r.slug} value=${r.slug}>${r.name||r.slug}</option>`)}
-        </select>`}
+    <div style=${{display:'flex',gap:0,borderRadius:10,overflow:'hidden',border:'1.5px solid #E5E5EA',width:'fit-content',marginBottom:16}}>
+      ${TABS.map(t=>html`<button key=${t.id} onClick=${()=>setTab(t.id)}
+        style=${{padding:'7px 14px',fontSize:12,fontWeight:tab===t.id?700:500,background:tab===t.id?'#1D1D1F':'#FFF',color:tab===t.id?'#FFF':'#6E6E73',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+        <${Icon} name=${t.icon} size=${12} color=${tab===t.id?'#FFF':'#86868B'} /> ${t.label}
+      </button>`)}
     </div>
 
     ${tab==='perfiles' && html`
-      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${filteredProfiles.length} perfiles</span>
+      <div style=${{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${profiles.length} perfiles tipo</span>
+        <button onClick=${()=>setEditItem({_t:'profile',name:'',description:'',fte:1.00,color:'#007AFF',icon:'🧑‍💻'})}
+          style=${{padding:'7px 14px',borderRadius:9,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Perfil tipo</button>
       </div>
-      ${filteredProfiles.length===0?html`<p style=${{color:'#C7C7CC',textAlign:'center',padding:32}}>Sin perfiles. Créalos desde cada proyecto en Equipo → Perfiles.</p>`:html`
-        <div style=${{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:10}}>
-          ${filteredProfiles.map(p=>html`
-            <div key=${p.id} style=${{background:'#FFF',borderRadius:12,border:'1.5px solid #E5E5EA',borderLeft:'4px solid '+(p.color||'#007AFF'),padding:'12px 14px'}}>
-              <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-                <span style=${{fontSize:18}}>${p.icon||'🧑‍💻'}</span>
-                <div style=${{flex:1}}>
-                  <div style=${{fontSize:13,fontWeight:700}}>${p.name}</div>
-                  <div style=${{fontSize:10,color:'#86868B'}}>${rooms.find(r=>r.slug===p.sala)?.name||p.sala} · ${p.fte} FTE</div>
-                </div>
+      <div style=${{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>
+        ${profiles.map(p=>html`
+          <div key=${p.id} style=${{background:'#FFF',borderRadius:12,border:'1.5px solid #E5E5EA',borderLeft:'4px solid '+(p.color||'#007AFF'),padding:'12px 14px'}}>
+            <div style=${{display:'flex',alignItems:'center',gap:8}}>
+              <span style=${{fontSize:20}}>${p.icon||'🧑‍💻'}</span>
+              <div style=${{flex:1}}>
+                <div style=${{fontSize:13,fontWeight:700}}>${p.name}</div>
+                <div style=${{fontSize:10,color:'#86868B'}}>${p.fte} FTE</div>
               </div>
-              ${p.description && html`<p style=${{fontSize:10,color:'#86868B',margin:0}}>${p.description}</p>`}
-            </div>`)}
-        </div>`}
+              <button onClick=${()=>setEditItem({_t:'profile',...p})} style=${{border:'none',background:'#F2F2F7',borderRadius:6,padding:'4px 8px',fontSize:10,cursor:'pointer'}}>Editar</button>
+              <button onClick=${async()=>{if(confirm('Eliminar '+p.name+'?'))await delProf(p.id)}} style=${{border:'none',background:'none',fontSize:10,cursor:'pointer',color:'#C7C7CC'}}>✕</button>
+            </div>
+            ${p.description&&html`<p style=${{fontSize:10,color:'#86868B',margin:'4px 0 0'}}>${p.description}</p>`}
+          </div>`)}
+      </div>
     `}
 
     ${tab==='habilidades' && html`
-      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${filteredSkills.length} habilidades en ${categories.length} categorías</span>
-        <button onClick=${()=>setEditItem({_type:'skill',name:'',category:categories[0]||'técnica',icon:'📘',sala:filterSala==='__all__'?rooms[0]?.slug||'':filterSala})}
+      <div style=${{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${skills.length} habilidades en ${categories.length} categorías</span>
+        <button onClick=${()=>setEditItem({_t:'skill',name:'',category:'',icon:'📘'})}
           style=${{padding:'7px 14px',borderRadius:9,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Habilidad</button>
       </div>
-      ${categories.map(cat => html`
-        <div key=${cat} style=${{marginBottom:12}}>
-          <div style=${{fontSize:12,fontWeight:700,color:'#6E6E73',marginBottom:6,textTransform:'capitalize',borderBottom:'1px solid #F2F2F7',paddingBottom:4}}>${cat}</div>
+      ${categories.length===0&&html`<p style=${{color:'#C7C7CC',textAlign:'center',padding:32}}>Crea la primera categoría añadiendo una habilidad.</p>`}
+      ${categories.map(cat=>html`
+        <div key=${cat} style=${{marginBottom:14,background:'#FFF',borderRadius:12,border:'1.5px solid #E5E5EA',padding:'12px 14px'}}>
+          <div style=${{fontSize:13,fontWeight:700,color:'#6E6E73',marginBottom:8,textTransform:'capitalize'}}>${cat}</div>
           <div style=${{display:'flex',flexWrap:'wrap',gap:5}}>
-            ${filteredSkills.filter(s=>s.category===cat).map(s=>html`
-              <div key=${s.id} style=${{fontSize:11,padding:'5px 10px',borderRadius:8,background:'#FFF',border:'1.5px solid #E5E5EA',display:'flex',alignItems:'center',gap:5}}>
-                ${s.icon||'📘'} ${s.name}
-                <span style=${{fontSize:8,color:'#C7C7CC'}}>${rooms.find(r=>r.slug===s.sala)?.name||s.sala}</span>
+            ${skills.filter(s=>s.category===cat).map(s=>html`
+              <div key=${s.id} style=${{display:'flex',alignItems:'center',gap:4,fontSize:11,padding:'5px 10px',borderRadius:8,background:'#FAFAFA',border:'1px solid #F2F2F7'}}>
+                ${s.icon||'📘'} <span style=${{fontWeight:600}}>${s.name}</span>
+                <button onClick=${async()=>{if(confirm('Eliminar?'))await delSk(s.id)}} style=${{border:'none',background:'none',fontSize:8,cursor:'pointer',color:'#C7C7CC'}}>✕</button>
               </div>`)}
+            <button onClick=${()=>setEditItem({_t:'skill',name:'',category:cat,icon:'📘'})}
+              style=${{fontSize:10,padding:'5px 10px',borderRadius:8,border:'1px dashed #E5E5EA',background:'#FFF',cursor:'pointer',color:'#86868B'}}>+ Añadir a ${cat}</button>
           </div>
         </div>`)}
     `}
 
     ${tab==='catalogo' && html`
-      <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${catalog.length} cursos en ${catCategories.length} categorías</span>
+      <div style=${{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+        <span style=${{fontSize:13,fontWeight:600,color:'#86868B'}}>${catalog.length} cursos</span>
         <div style=${{display:'flex',gap:6}}>
-          <button onClick=${()=>setShowImport(true)}
-            style=${{padding:'7px 14px',borderRadius:9,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73'}}>📥 Importar CSV</button>
-          <button onClick=${()=>setEditItem({_type:'training',name:'',category:'',subcategory:'',provider:'ALTEN',duration_hours:null})}
+          <button onClick=${()=>setShowImport(true)} style=${{padding:'7px 14px',borderRadius:9,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer',color:'#6E6E73'}}>📥 Importar CSV</button>
+          <button onClick=${()=>setEditItem({_t:'training',name:'',category:'',subcategory:'',provider:'ALTEN',duration_hours:null})}
             style=${{padding:'7px 14px',borderRadius:9,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Curso</button>
         </div>
       </div>
-      ${catCategories.map(cat => html`
-        <div key=${cat} style=${{marginBottom:12}}>
-          <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+      ${catCategories.map(cat=>html`
+        <div key=${cat} style=${{marginBottom:12,background:'#FFF',borderRadius:12,border:'1.5px solid #E5E5EA',padding:'12px 14px'}}>
+          <div style=${{display:'flex',justifyContent:'space-between',marginBottom:6}}>
             <span style=${{fontSize:12,fontWeight:700,color:'#6E6E73'}}>${cat}</span>
-            <span style=${{fontSize:10,color:'#C7C7CC'}}>${catalog.filter(t=>t.category===cat).length} cursos</span>
+            <span style=${{fontSize:10,color:'#C7C7CC'}}>${catalog.filter(t=>t.category===cat).length}</span>
           </div>
-          <div style=${{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:5}}>
+          <div style=${{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:4}}>
             ${catalog.filter(t=>t.category===cat).map(t=>html`
-              <div key=${t.id} style=${{fontSize:11,padding:'8px 10px',borderRadius:8,background:'#FFF',border:'1px solid #F2F2F7',display:'flex',alignItems:'center',gap:6}}>
-                <div style=${{flex:1,minWidth:0}}>
-                  <div style=${{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${t.name}</div>
-                  <div style=${{fontSize:9,color:'#86868B'}}>${t.subcategory||''} ${t.provider?'· '+t.provider:''} ${t.duration_hours?'· '+t.duration_hours+'h':''}</div>
-                </div>
-                <button onClick=${async()=>{if(confirm('Eliminar?'))await sbDeleteTraining(t.id);setCatalog(prev=>prev.filter(x=>x.id!==t.id))}}
-                  style=${{border:'none',background:'none',fontSize:10,cursor:'pointer',color:'#C7C7CC'}}>✕</button>
+              <div key=${t.id} style=${{display:'flex',alignItems:'center',gap:6,fontSize:10,padding:'6px 8px',borderRadius:6,background:'#FAFAFA',border:'1px solid #F2F2F7'}}>
+                <span style=${{flex:1,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${t.name}</span>
+                ${t.subcategory&&html`<span style=${{color:'#86868B',fontSize:9}}>${t.subcategory}</span>`}
+                <button onClick=${async()=>await delCat(t.id)} style=${{border:'none',background:'none',fontSize:8,cursor:'pointer',color:'#C7C7CC'}}>✕</button>
               </div>`)}
           </div>
         </div>`)}
     `}
 
-    ${showImport && html`
+    ${showImport&&html`
       <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
         <div onClick=${()=>setShowImport(false)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
         <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:560,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
-          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:6}}>Importar catálogo CSV</h3>
-          <p style=${{fontSize:11,color:'#86868B',marginBottom:12}}>Pega datos tabulados (TSV). Columnas esperadas: <b>Ident.</b> (opcional), <b>Curso</b>, <b>Categoría</b>, <b>Sub-Categoría</b> (opcional). Separador: tabulador.</p>
-          <textarea value=${importText} onInput=${e=>setImportText(e.target.value)} placeholder=${"Ident.\tCurso\tCategoría\tSub-Categoría\n496\tHEALTHY ALTEN\tB+Healthy\tHealthy ALTEN"}
-            style=${{width:'100%',height:200,border:'1.5px solid #E5E5EA',borderRadius:10,padding:12,fontSize:11,fontFamily:'monospace',outline:'none',resize:'vertical',boxSizing:'border-box'}} />
-          <p style=${{fontSize:10,color:'#86868B',marginTop:4}}>${importText.trim()?importText.trim().split('\n').length-1+' filas detectadas':'Pega los datos aquí'}</p>
-          <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:12}}>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:6}}>Importar catálogo (TSV)</h3>
+          <p style=${{fontSize:11,color:'#86868B',marginBottom:10}}>Pega datos con tabulador. Columnas: <b>Ident.</b>, <b>Curso</b>, <b>Categoría</b>, <b>Sub-Categoría</b></p>
+          <textarea value=${importText} onInput=${e=>setImportText(e.target.value)} placeholder=${"Ident.\tCurso\tCategoría\tSub-Categoría"}
+            style=${{width:'100%',height:180,border:'1.5px solid #E5E5EA',borderRadius:10,padding:10,fontSize:10,fontFamily:'monospace',outline:'none',resize:'vertical',boxSizing:'border-box'}} />
+          <p style=${{fontSize:10,color:'#86868B',marginTop:4}}>${importText.trim()?importText.trim().split('\n').length-1+' filas':'Pega aquí'}</p>
+          <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:10}}>
             <button onClick=${()=>setShowImport(false)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
-            <button onClick=${doImport}
-              style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#5856D6',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Importar</button>
+            <button onClick=${doImport} style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#5856D6',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Importar</button>
           </div>
         </div>
       </div>`}
 
-    ${editItem && html`
+    ${editItem&&html`
       <div style=${{position:'fixed',inset:0,zIndex:15000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
         <div onClick=${()=>setEditItem(null)} style=${{position:'absolute',inset:0,background:'rgba(0,0,0,.18)',backdropFilter:'blur(8px)'}}></div>
         <div onClick=${e=>e.stopPropagation()} style=${{position:'relative',background:'#FFF',borderRadius:20,width:'100%',maxWidth:420,boxShadow:'0 12px 48px rgba(0,0,0,.12)',padding:24}}>
-          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>${editItem._type==='skill'?'Nueva habilidad':'Nuevo curso'}</h3>
+          <h3 style=${{fontSize:16,fontWeight:700,marginBottom:14}}>${editItem._t==='profile'?(editItem.id?'Editar':'Nuevo')+' perfil tipo':editItem._t==='skill'?'Nueva habilidad':'Nuevo curso'}</h3>
           <div style=${{display:'flex',flexDirection:'column',gap:10}}>
             <input value=${editItem.name} onInput=${e=>setEditItem({...editItem,name:e.target.value})} placeholder="Nombre"
               style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:'inherit',outline:'none'}} />
-            <input value=${editItem.category||''} onInput=${e=>setEditItem({...editItem,category:e.target.value})} placeholder="Categoría"
-              style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 14px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
-            ${editItem._type==='training' && html`
+            ${editItem._t==='profile'&&html`
+              <input value=${editItem.description||''} onInput=${e=>setEditItem({...editItem,description:e.target.value})} placeholder="Descripción"
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 14px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+              <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                <input type="number" step="0.25" min="0.25" max="2" value=${editItem.fte} onInput=${e=>setEditItem({...editItem,fte:parseFloat(e.target.value)||1})} placeholder="FTE"
+                  style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
+                <input type="color" value=${editItem.color||'#007AFF'} onInput=${e=>setEditItem({...editItem,color:e.target.value})}
+                  style=${{height:36,border:'1.5px solid #E5E5EA',borderRadius:9,cursor:'pointer'}} />
+                <input value=${editItem.icon||'🧑‍💻'} onInput=${e=>setEditItem({...editItem,icon:e.target.value})} placeholder="Icono"
+                  style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:16,textAlign:'center'}} />
+              </div>`}
+            ${editItem._t==='skill'&&html`
+              <input value=${editItem.category||''} onInput=${e=>setEditItem({...editItem,category:e.target.value})} placeholder="Categoría (ej: técnica, soft skill, herramienta)"
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 14px',fontSize:12,fontFamily:'inherit',outline:'none'}} />`}
+            ${editItem._t==='training'&&html`
+              <input value=${editItem.category||''} onInput=${e=>setEditItem({...editItem,category:e.target.value})} placeholder="Categoría"
+                style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px 14px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
               <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                 <input value=${editItem.subcategory||''} onInput=${e=>setEditItem({...editItem,subcategory:e.target.value})} placeholder="Subcategoría"
                   style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
                 <input value=${editItem.provider||'ALTEN'} onInput=${e=>setEditItem({...editItem,provider:e.target.value})} placeholder="Proveedor"
                   style=${{border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}} />
               </div>`}
-            ${editItem._type==='skill' && html`
-              <select value=${editItem.sala||''} onChange=${e=>setEditItem({...editItem,sala:e.target.value})}
-                style=${{border:'1.5px solid #E5E5EA',borderRadius:10,padding:'8px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-                <option value="">Proyecto...</option>
-                ${rooms.map(r=>html`<option key=${r.slug} value=${r.slug}>${r.name||r.slug}</option>`)}
-              </select>`}
           </div>
           <div style=${{display:'flex',gap:8,justifyContent:'flex-end',marginTop:14}}>
             <button onClick=${()=>setEditItem(null)} style=${{padding:'8px 16px',borderRadius:10,border:'1.5px solid #E5E5EA',background:'#FFF',fontSize:12,cursor:'pointer',color:'#6E6E73'}}>Cancelar</button>
             <button onClick=${async()=>{
-              if(!editItem.name?.trim()) return;
-              if(editItem._type==='skill') { await sbSaveSkill({name:editItem.name,category:editItem.category||'técnica',icon:editItem.icon||'📘',sala:editItem.sala}); setSkills(prev=>[...prev,{...editItem}]); }
-              else { await sbSaveTraining({name:editItem.name,category:editItem.category,subcategory:editItem.subcategory,provider:editItem.provider}); setCatalog(prev=>[...prev,{...editItem}]); }
+              if(!editItem.name?.trim())return;
+              if(editItem._t==='profile')await saveProf(editItem);
+              else if(editItem._t==='skill')await saveSk(editItem);
+              else await saveCat(editItem);
               setEditItem(null);
             }} style=${{padding:'8px 20px',borderRadius:10,border:'none',background:'#1D1D1F',color:'#FFF',fontSize:12,fontWeight:600,cursor:'pointer'}}>Guardar</button>
           </div>
@@ -4515,19 +4514,25 @@ function PEquipo() {
       sbLoadTeamMembers(),
       sbLoadOrgChart(SALA),
       sbLoadSkillProfiles(SALA),
+      sbLoadSkillProfiles('__maestro__'),
       sbLoadSkills(SALA),
+      sbLoadSkills('__maestro__'),
       sbLoadAllProfileSkills(SALA),
       sbLoadMemberSkills(SALA),
       sbLoadMemberProfiles(SALA),
       sbLoadTrainingCatalog(),
       sbLoadSkillActions(SALA),
-    ]).then(([members, chart, profs, sks, ps, ms, mp, cat, acts]) => {
+    ]).then(([members, chart, profs, mProfs, sks, mSks, ps, ms, mp, cat, acts]) => {
       const salaM = members.filter(m=>(m.rooms||[]).includes(SALA));
       setTeam(salaM.length>0?salaM:members);
       const orgMap = {};
       chart.forEach(n => { orgMap[n.member_id] = n.manager_id||null; });
       setOrg(orgMap); setOrgData(chart);
-      setProfiles(profs); setSkills(sks); setProfSkills(ps); setMemSkills(ms); setMemProfiles(mp);
+      // Merge maestro + project profiles/skills (project overrides)
+      const allProfs = [...profs, ...mProfs.filter(mp=>!profs.some(p=>p.name===mp.name)).map(p=>({...p,_fromMaestro:true}))];
+      const seen = new Set(sks.map(s=>s.name+'|'+s.category));
+      const allSks = [...sks, ...mSks.filter(s=>!seen.has(s.name+'|'+s.category)).map(s=>({...s,_fromMaestro:true}))];
+      setProfiles(allProfs); setSkills(allSks); setProfSkills(ps); setMemSkills(ms); setMemProfiles(mp);
       setCatalog(cat); setActions(acts);
       setLoading(false);
     });
@@ -4566,7 +4571,10 @@ function PEquipo() {
   // ── CRUD actions ──
   const saveProfile = async (p) => {
     const saved = await sbSaveSkillProfile({...p, sala:SALA});
-    if(saved) setProfiles(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+    if(saved) { setProfiles(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+      // Feed back to maestro if new
+      if(!p.id) sbSaveSkillProfile({name:p.name,description:p.description,fte:p.fte,color:p.color,icon:p.icon,sala:'__maestro__'}).catch(()=>{});
+    }
     return saved;
   };
   const deleteProfile = async (id) => {
@@ -4577,7 +4585,10 @@ function PEquipo() {
   };
   const saveSkill = async (s) => {
     const saved = await sbSaveSkill({...s, sala:SALA});
-    if(saved) setSkills(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+    if(saved) { setSkills(prev=>prev.find(x=>x.id===saved.id)?prev.map(x=>x.id===saved.id?saved:x):[...prev,saved]);
+      // Feed back to maestro if new
+      if(!s.id) sbSaveSkill({name:s.name,category:s.category,icon:s.icon,sala:'__maestro__'}).catch(()=>{});
+    }
     return saved;
   };
   const deleteSkill = async (id) => {
@@ -4657,6 +4668,7 @@ function PEquipo() {
     {id:'matriz',    icon:'BarChart3',    label:'Matriz'},
     {id:'formacion', icon:'GraduationCap', label:'Formación'},
     {id:'ftes',      icon:'Calendar',     label:'FTEs'},
+    {id:'vacaciones',icon:'Sun',           label:'Vacaciones'},
     {id:'organigrama',icon:'GitBranch',   label:'Organigrama'},
   ];
 
@@ -4997,6 +5009,8 @@ function PEquipo() {
 
     ${subTab==='ftes' && html`<${PFTEs} team=${team} org=${org} orgData=${orgData} />`}
 
+    ${subTab==='vacaciones' && html`<${PVacaciones} embeddedTeam=${team} />`}
+
     ${subTab==='organigrama' && html`
       <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:16}}>
         <h4 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Organigrama del proyecto</h4>
@@ -5196,10 +5210,15 @@ function OrgNode({m, depth, team, org, setManager, orgSaving}) {
   return html`
     <div style=${{display:'flex',flexDirection:'column',alignItems:'center'}}>
       ${depth>0&&html`<div style=${{width:2,height:16,background:'#E5E5EA'}}></div>`}
-      <div style=${{background:'#FFF',borderRadius:12,border:'1.5px solid '+(depth===0?'#1D1D1F':'#E5E5EA'),padding:'10px 12px',minWidth:100,textAlign:'center',boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
-        <div style=${{fontSize:24,marginBottom:4}}>${m.avatar||'👤'}</div>
+      <div style=${{background:'#FFF',borderRadius:12,border:'1.5px solid '+(depth===0?'#1D1D1F':'#E5E5EA'),padding:'10px 14px',minWidth:120,textAlign:'center',boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
+        <div style=${{fontSize:26,marginBottom:4}}>${m.avatar||'👤'}</div>
         <div style=${{fontSize:11,fontWeight:700}}>${m.name}</div>
-        ${m.role_label&&html`<div style=${{fontSize:9,color:'#86868B'}}>${m.role_label}</div>`}
+        ${m.role_label&&html`<div style=${{fontSize:9,color:'#86868B',marginBottom:4}}>${m.role_label}</div>`}
+        <select value=${org[m.id]||''} onChange=${e=>setManager(m.id,e.target.value||null)} disabled=${orgSaving}
+          style=${{fontSize:9,border:'1px solid #E5E5EA',borderRadius:5,padding:'2px 4px',width:'100%',color:'#86868B',outline:'none',background:'#FAFAFA'}}>
+          <option value="">Raíz (sin manager)</option>
+          ${team.filter(t=>t.id!==m.id).map(t=>html`<option key=${t.id} value=${t.id}>↑ ${t.name}</option>`)}
+        </select>
       </div>
       ${children.length>0&&html`
         <div><div style=${{width:2,height:16,background:'#E5E5EA',margin:'0 auto'}}></div>
