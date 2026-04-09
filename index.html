@@ -6451,9 +6451,29 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory, user }) {
     return alerts;
   };
 
-  // Auto-escalation removed: calling upd() inside useEffect(allRisks) caused
-  // infinite update loops that corrupted the auto-save state.
-  // Escalation suggestions appear as badges on cards instead.
+  // ═══ AUTO-ESCALATION: safe batch — runs ONCE after initial load ═══
+  const autoEscalRan = useRef(false);
+  useEffect(() => {
+    if (autoEscalRan.current || allRisks.length === 0) return;
+    autoEscalRan.current = true;
+    const LEVELS = ['equipo','jp','sm','dt'];
+    const LABELS = {equipo:'Equipo',jp:'Jefe de Proyecto',sm:'Service Manager',dt:'Direccion Tecnica'};
+    let changed = false;
+    const updated = allRisks.map(r => {
+      if (r.status === 'mitigated') return r;
+      const sd = staledays(r);
+      const threshold = staleForRisk(r);
+      if (sd === null || sd < threshold) return r;
+      const curLevel = r.escalation?.level || 'equipo';
+      const idx = LEVELS.indexOf(curLevel);
+      if (idx >= LEVELS.length - 1) return r; // already at max
+      const next = LEVELS[idx + 1];
+      changed = true;
+      console.log(`[revelio] Auto-escalado: ${r.text?.slice(0,30)} → ${LABELS[next]} (${sd}d/${threshold}d)`);
+      return { ...r, escalation: { ...(r.escalation||{}), level: next, levelLabel: LABELS[next], escalatedAt: new Date().toISOString(), autoEscalated: true } };
+    });
+    if (changed) sR(updated); // single setState call
+  }, [allRisks.length]);
 
   // Suggested escalations: risks with alerts and not yet escalated
   const suggestedEscalations = allRisks.filter(r =>
