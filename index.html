@@ -6274,13 +6274,16 @@ function PRiesgos({ risks, sR, notes, actions, retroHistory }) {
   const [tags, setTags] = useState([]);
   const [tagAssignments, setTagAssignments] = useState([]);
   const [activeTagFilter, setActiveTagFilter] = useState(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   useEffect(() => {
-    sbLoadTeamMembers().then(data => {
-      const filtered = data.filter(m=>(m.rooms||[]).includes(SALA));
-      setTeamMembers(filtered.length > 0 ? filtered : data);
-    });
-    sbLoadTags(SALA).then(t => setTags(t||[]));
-    sbLoadTagAssignments(SALA).then(a => { setTagAssignments(a||[]); window.__riskTagAssignments = a||[]; });
+    Promise.all([
+      sbLoadTeamMembers().then(data => {
+        const filtered = data.filter(m=>(m.rooms||[]).includes(SALA));
+        setTeamMembers(filtered.length > 0 ? filtered : data);
+      }),
+      sbLoadTags(SALA).then(t => setTags(t||[])),
+      sbLoadTagAssignments(SALA).then(a => { setTagAssignments(a||[]); window.__riskTagAssignments = a||[]; })
+    ]).then(() => setProfileLoaded(true)).catch(() => setProfileLoaded(true));
   }, []);
   // Expose tag state and toggle for RiskDetailModal
   useEffect(() => { window.__riskTags = tags; window.__riskTagAssignments = tagAssignments; }, [tags, tagAssignments]);
@@ -6420,6 +6423,8 @@ const addItem = () => {
 
   const renderRisk = (r, fromHist) => RiskCard({r, fromHist, upd, del, setEId, setEF, eId, eF, saveE, teamMembers, getAlerts, tags, hasTag, entityTagList, quickToggleTag, IMPACT_BTNS, allRisks, riskNum, onOpenDetail:x=>setDetailRisk({...x})});
 
+  if (!profileLoaded) return html`<div style=${{textAlign:'center',padding:40,color:'#86868B'}}>Cargando…</div>`;
+
   return html`
     <div style=${{ maxWidth:'100%', margin:'0 auto' }}>
 
@@ -6465,102 +6470,45 @@ const addItem = () => {
         </div>`}
 
       ${subTab==='resumen' && html`
-          <div style=${{display:'flex',flexDirection:'column',gap:0}} data-section="resumen">
-          <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:18 }}>
-            ${[
-              ['AlertTriangle','Riesgos',      riesgos.length,      '#FF9500'],
-              ['AlertOctagon', 'Problemas',    problemas.length,    '#FF3B30'],
-              ['Star',         'Oportunidades',oportunidades.length,'#34C759'],
-              ['CheckCircle2', 'Mitigados',    mitigados.length,    '#007AFF'],
-            ].map(([ic,lb,val,col])=>html`
-              <div onClick=${()=>setSubTab(lb.toLowerCase())} style=${{ background:'#FFF', borderRadius:14, padding:'14px 16px', border:'1.5px solid #E5E5EA', textAlign:'center', cursor:'pointer', transition:'all .15s' }}
-                onMouseOver=${e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.boxShadow='0 4px 16px '+col+'20';}}
-                onMouseOut=${e=>{e.currentTarget.style.borderColor='#E5E5EA';e.currentTarget.style.boxShadow='none';}}>
-                <div style=${{ width:36,height:36,borderRadius:10,background:col+'15',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px' }}>
-                  <${Icon} name=${ic} size=${18} color=${col} />
-                </div>
-                <div style=${{ fontSize:28, fontWeight:800, color:col, lineHeight:1 }}>${val}</div>
-                <div style=${{ fontSize:11, color:'#86868B', marginTop:4 }}>${lb}</div>
+        <div data-section="resumen" style=${{display:'flex',flexDirection:'column',gap:16}}>
+          <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+            ${[[riesgos.length,'Riesgos','#FF9500'],[problemas.length,'Problemas','#FF3B30'],[oportunidades.length,'Oportunidades','#34C759'],[mitigados.length,'Mitigados','#007AFF']].map(([v,l,c])=>html`
+              <div key=${l} onClick=${()=>setSubTab(l.toLowerCase())} style=${{ background:'#FFF', borderRadius:14, padding:'16px', border:'1.5px solid #E5E5EA', textAlign:'center', cursor:'pointer' }}>
+                <div style=${{ fontSize:28, fontWeight:800, color:c }}>${v}</div>
+                <div style=${{ fontSize:11, color:'#86868B', marginTop:4 }}>${l}</div>
               </div>`)}
           </div>
-
-      
-      <div style=${{ background:'#FFF', borderRadius:16, border:'1.5px solid #E5E5EA', padding:'16px 18px', marginBottom:16 }}>
-        <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>🗺️ Mapa de calor de riesgos</h4>
-        <div style=${{ display:'flex', gap:16, alignItems:'flex-start' }}>
-          <div style=${{ flex:1 }}>
-            <div style=${{ display:'grid', gridTemplateColumns:'28px repeat(3,1fr)', gap:3 }}>
-              <div style=${{ gridColumn:1, gridRow:'1/5', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <span style=${{ fontSize:9, color:'#86868B', writingMode:'vertical-rl', transform:'rotate(180deg)', fontWeight:700 }}>IMPACTO ↑</span>
-              </div>
-              ${['Baja','Media','Alta'].map(p=>html`<div style=${{ textAlign:'center', fontSize:9, fontWeight:700, color:'#86868B', paddingBottom:4 }}>${p}</div>`)}
-              ${['alto','medio','bajo'].flatMap(imp =>
-                ['baja','media','alta'].map(prob => {
-                  const hc = (imp==='alto'&&(prob==='alta'||prob==='media'))||(imp==='medio'&&prob==='alta') ? '#FF3B30'
-                           : (imp==='alto'&&prob==='baja')||(imp==='medio'&&prob==='media')||(imp==='bajo'&&prob==='alta') ? '#FF9500'
-                           : '#34C759';
-                  const cellRisks = allRisks.filter(r=>
-                    r.status!=='mitigated' &&
-                    (r.type||'riesgo')!=='problema' &&
-                    (r.impact||'medio')===imp &&
-                    (r.prob||'media')===prob
-                  );
-                  return html`
-                    <div style=${{ background:hc+'18', border:'1.5px solid '+hc+'30', borderRadius:10,
-                      minHeight:64, padding:6, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start', position:'relative' }}>
-                      ${cellRisks.length===0 && html`<span style=${{ fontSize:10, color:hc+'50', alignSelf:'center', margin:'auto' }}>·</span>`}
-                      ${cellRisks.map(r => {
-                        const rn = riskNum(r);
-                        const prefix = (r.type||'riesgo')==='oportunidad' ? 'O' : 'R';
-                        const dotColor = (r.type||'riesgo')==='oportunidad' ? '#34C759' : hc;
-                        const targetTab = (r.type||'riesgo')==='oportunidad' ? 'oportunidades' : 'riesgos';
-                        return html`
-                          <div key=${r.id} style=${{ position:'relative' }}
-                            onMouseEnter=${e=>{ const t=e.currentTarget.querySelector('.rtip'); if(t) t.style.display='block'; }}
-                            onMouseLeave=${e=>{ const t=e.currentTarget.querySelector('.rtip'); if(t) t.style.display='none'; }}>
-                            <div style=${{ width:28, height:28, borderRadius:14, background:dotColor, color:'#FFF',
-                              fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center',
-                              border:'2px solid #FFF', boxShadow:'0 2px 6px '+dotColor+'50', cursor:'pointer' }}
-                              onClick=${()=>setSubTab(targetTab)}>
-                              ${prefix}${rn}
-                            </div>
-                            
-                            <div class="rtip" style=${{ display:'none', position:'absolute', bottom:34, left:'50%', transform:'translateX(-50%)',
-                              background:'#1D1D1F', color:'#FFF', borderRadius:10, padding:'8px 10px', fontSize:11,
-                              zIndex:9999, width:180, boxShadow:'0 4px 16px rgba(0,0,0,.25)', pointerEvents:'none',
-                              lineHeight:1.4 }}>
-                              <div style=${{ fontWeight:700, marginBottom:3, color:dotColor }}>${prefix}${rn} ${(r.type||'riesgo')==='oportunidad'?'🌟':'⚠️'}</div>
-                              <div style=${{ marginBottom:4 }}>${r.text}</div>
-                              ${r.owner && html`<div style=${{ fontSize:10, color:'#86868B' }}>👤 ${r.owner}</div>`}
-                              ${r.mitigation && html`<div style=${{ fontSize:10, color:'#86868B' }}>🛡️ ${r.mitigation}</div>`}
-                              
-                              <div style=${{ position:'absolute', bottom:-5, left:'50%', transform:'translateX(-50%)',
-                                width:0, height:0, borderLeft:'5px solid transparent', borderRight:'5px solid transparent', borderTop:'5px solid #1D1D1F' }}></div>
-                            </div>
-                          </div>`;
+          <div style=${{ background:'#FFF', borderRadius:14, border:'1.5px solid #E5E5EA', padding:16 }}>
+            <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:12 }}>Mapa de calor</h4>
+            <div style=${{ position:'relative', paddingLeft:28 }}>
+              <div style=${{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:3 }}>
+                ${['alta','media','baja'].flatMap(prob =>
+                  ['bajo','medio','alto'].map(imp => {
+                    const pI = prob==='alta'?2:prob==='media'?1:0;
+                    const iI = imp==='alto'?2:imp==='medio'?1:0;
+                    const sc = (pI+1)*(iI+1);
+                    const color = sc>=6?'#FF3B30':sc>=3?'#FF9500':'#34C759';
+                    const inCell = allRisks.filter(r=>r.status!=='mitigated'&&(r.impact||'medio')===imp&&(r.prob||'media')===prob);
+                    return html`<div key=${prob+imp} style=${{ background:color+'18', border:'1px solid '+color+'25', borderRadius:8, padding:6, minHeight:48, display:'flex', flexWrap:'wrap', gap:3, alignContent:'flex-start' }}>
+                      ${inCell.map(r => {
+                        const idx = allRisks.filter(x=>x.status!=='mitigated').indexOf(r)+1;
+                        const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+                        return html`<div key=${r.id} title=${r.text} style=${{ width:26, height:26, borderRadius:13, background:color, color:'#FFF', fontSize:8, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #FFF', boxShadow:'0 1px 4px '+color+'40' }}>${pf}${idx}</div>`;
                       })}
                     </div>`;
-                })
-              )}
-              <div style=${{ gridColumn:'2/5', textAlign:'center', paddingTop:4 }}>
-                <span style=${{ fontSize:9, color:'#86868B', fontWeight:700 }}>PROBABILIDAD →</span>
+                  })
+                )}
               </div>
-            </div>
-          </div>
-          
-          <div style=${{ display:'flex', flexDirection:'column', gap:6, minWidth:100 }}>
-            <p style=${{ fontSize:11, fontWeight:700, marginBottom:4 }}>Leyenda</p>
-            ${[['#FF3B30','Crítico'],['#FF9500','Moderado'],['#34C759','Bajo']].map(([c,l])=>html`
-              <div style=${{ display:'flex', alignItems:'center', gap:6, fontSize:11 }}>
-                <div style=${{ width:14, height:14, borderRadius:3, background:c+'25', border:'2px solid '+c }}></div>
-                <span style=${{ color:'#86868B' }}>${l}</span>
-              </div>`)}
-            <div style=${{ marginTop:8, paddingTop:8, borderTop:'1px solid #F2F2F7' }}>
-              <p style=${{ fontSize:9, color:'#C7C7CC', lineHeight:1.4 }}>Hover para ver detalle</p>
+              <div style=${{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:9, color:'#86868B', fontWeight:600 }}>
+                <span>Bajo</span><span>Medio</span><span>Alto</span>
+              </div>
+              <div style=${{ position:'absolute', left:0, top:0, bottom:20, display:'flex', flexDirection:'column', justifyContent:'space-between', fontSize:9, color:'#86868B', fontWeight:600 }}>
+                <span>A</span><span>M</span><span>B</span>
+              </div>
+              <div style=${{ textAlign:'center', fontSize:9, color:'#86868B', marginTop:2 }}>IMPACTO</div>
             </div>
           </div>
         </div>
-      </div>
       `}
 
       ${subTab!=='resumen' && html`
