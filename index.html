@@ -4483,10 +4483,11 @@ async function saveTeamSupabase(team, vacs) {
 }
 
 /* ═══ PHASE 7 — EQUIPO ═══ */
-function PEquipo() {
+function PEquipo({ user }) {
   const [team,    setTeam]   = useState([]);
   const [loading, setLoading]= useState(true);
-  const [subTab,  setSubTab] = useState('perfiles');
+  const isSM = user?._isAdmin || user?.isSuperuser;
+  const [subTab,  setSubTab] = useState(isSM ? 'perfiles' : 'vacaciones');
   const [org,     setOrg]    = useState({});
   const [orgData, setOrgData]= useState([]);
   const [orgSaving, setOrgSaving] = useState(false);
@@ -4662,15 +4663,16 @@ function PEquipo() {
   const [addTraining, setAddTraining] = useState(null);
   const [addAction, setAddAction] = useState(null);
 
-  const TABS = [
-    {id:'perfiles',  icon:'Target',       label:'Perfiles'},
-    {id:'personas',  icon:'Users',        label:'Personas'},
-    {id:'matriz',    icon:'BarChart3',    label:'Matriz'},
-    {id:'formacion', icon:'GraduationCap', label:'Formación'},
-    {id:'ftes',      icon:'Calendar',     label:'FTEs'},
-    {id:'vacaciones',icon:'Sun',           label:'Vacaciones'},
-    {id:'organigrama',icon:'GitBranch',   label:'Organigrama'},
+  const ALL_TABS = [
+    {id:'perfiles',  icon:'Target',       label:'Perfiles',    sm:true},
+    {id:'personas',  icon:'Users',        label:'Personas',    sm:true},
+    {id:'matriz',    icon:'BarChart3',    label:'Matriz',      sm:true},
+    {id:'formacion', icon:'GraduationCap', label:'Formación',  sm:true},
+    {id:'ftes',      icon:'Calendar',     label:'FTEs',        sm:true},
+    {id:'vacaciones',icon:'Sun',           label:'Vacaciones', sm:false},
+    {id:'organigrama',icon:'GitBranch',   label:'Organigrama', sm:false},
   ];
+  const TABS = isSM ? ALL_TABS : ALL_TABS.filter(t=>!t.sm);
 
   if(loading) return html`<div style=${{textAlign:'center',padding:48,color:'#86868B'}}>Cargando equipo...</div>`;
 
@@ -8588,7 +8590,7 @@ function RetroBoard({ user, onLogout }) {
             </div>
           </div>` : ''}
           ${mainTab==='retro' ? '' : ''}
-          ${mainTab==='equipo'     ? html`<${PEquipo} />`  : ''}
+          ${mainTab==='equipo'     ? html`<${PEquipo} user=${user} />`  : ''}
           ${mainTab==='trabajo' ? html`<${PTrabajo} actions=${state.actions} sA=${sA} risks=${state.risks} user=${user} />` : ''}
           ${mainTab==='riesgos'    ? html`<${PRiesgos} risks=${state.risks} sR=${sR} notes=${state.notes} actions=${state.actions} retroHistory=${sbRetroHistory} user=${user} />` : ''}
           ${mainTab==='tags'       ? html`<${PTags} teamMembers=${window.__teamLocal||[]} risks=${state.risks} actions=${state.actions} />` : ''}
