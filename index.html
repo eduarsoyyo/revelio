@@ -1193,8 +1193,12 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
         (a.owner===user.name||a.createdBy===user.id) &&
         a.status!=='done' && a.status!=='discarded' && a.date && a.date<today
       ).forEach(a => notifs.push({id:'adl-'+a.id,msg:'Tarea vencida: '+a.text.slice(0,50),room:roomName,type:'overdue',ts:Date.now()}));
-      // Escalated risks
-      (d.risks||[]).filter(r=>r.escalation&&(r.escalation.memberName===user.name||r.escalation.memberId===user.id||r.owner===user.name)).forEach(r =>
+      // Escalated risks — check if user is assigned to the escalation level
+      (d.risks||[]).filter(r=>{
+        if(!r.escalation) return false;
+        if(r.escalation.memberName===user.name||r.escalation.memberId===user.id||r.owner===user.name) return true;
+        try{const lm=JSON.parse(localStorage.getItem('rf-level-members-'+slug)||'{}');return (lm[r.escalation.level]||[]).includes(user.name)}catch{return false}
+      }).forEach(r =>
         notifs.push({id:'esc-'+r.id,msg:'Riesgo escalado: '+r.text.slice(0,50),room:roomName,type:'escalado',ts:Date.now()})
       );
     });
@@ -4321,7 +4325,7 @@ function SuggestedEscalations({ risks, allRisks, getAlerts, upd, setSubTab, setE
 
 
 /* ═══ ESCALADO PANEL ═══ */
-function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, actions }) {
+function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, actions, teamMembers }) {
   const LEVELS = [
     { id:'equipo', label:'Equipo', color:'#34C759', desc:'Se gestiona internamente' },
     { id:'jp',     label:'Jefe de Proyecto', color:'#FF9500', desc:'Escalar al JP' },
@@ -4336,6 +4340,16 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
   ];
   const [collapsed, setCollapsed] = useState({});
   const [typeFilter, setTypeFilter] = useState('all');
+  const [expandedLevel, setExpandedLevel] = useState(null);
+  const [levelMembers, setLevelMembers] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('rf-level-members-'+SALA)||'{}'); } catch { return {}; }
+  });
+  const saveLevelMembers = (lm) => { setLevelMembers(lm); try{localStorage.setItem('rf-level-members-'+SALA,JSON.stringify(lm))}catch{} };
+  const toggleLevelMember = (levelId, memberName) => {
+    const cur = levelMembers[levelId] || [];
+    const next = cur.includes(memberName) ? cur.filter(x=>x!==memberName) : [...cur, memberName];
+    saveLevelMembers({...levelMembers, [levelId]: next});
+  };
   const toggle = (id) => setCollapsed(prev => ({...prev, [id]: !prev[id]}));
 
   const openRisks = risks.filter(r => r.status !== 'mitigated');
@@ -4383,11 +4397,26 @@ function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, acti
       <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:12 }}>
         ${LEVELS.map(l => {
           const cnt = byLevel(l.id).length;
+          const members = levelMembers[l.id]||[];
+          const isExp = expandedLevel===l.id;
           return html`
-            <div key=${l.id} style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid #E5E5EA', padding:'12px 10px', textAlign:'center', borderTop:'3px solid '+l.color }}>
+            <div key=${l.id} style=${{ background:'#FFF', borderRadius:12, border:'1.5px solid '+(isExp?l.color:'#E5E5EA'), padding:'10px', textAlign:'center', borderTop:'3px solid '+l.color, position:'relative' }}>
               <div style=${{ fontSize:22, fontWeight:800, color:l.color }}>${cnt||'—'}</div>
               <div style=${{ fontSize:11, fontWeight:700, color:'#1D1D1F', marginTop:2 }}>${l.label}</div>
-              <div style=${{ fontSize:9, color:'#86868B', marginTop:2 }}>${l.desc}</div>
+              ${members.length>0 && html`<div style=${{ fontSize:9, color:'#86868B', marginTop:3 }}>${members.join(', ')}</div>`}
+              <button onClick=${e=>{e.stopPropagation();setExpandedLevel(isExp?null:l.id)}}
+                style=${{ marginTop:4, fontSize:9, padding:'2px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#F9F9FB', color:'#86868B', cursor:'pointer' }}>
+                ${isExp?'Cerrar':'Asignar'}
+              </button>
+              ${isExp && html`
+                <div style=${{ position:'absolute', top:'100%', left:0, right:0, zIndex:100, background:'#FFF', borderRadius:10, border:'1.5px solid '+l.color, boxShadow:'0 8px 24px rgba(0,0,0,.12)', padding:6, marginTop:4, maxHeight:200, overflowY:'auto' }}>
+                  ${(teamMembers||[]).map(m=>html`
+                    <label key=${m.id} onClick=${()=>toggleLevelMember(l.id,m.name)}
+                      style=${{ display:'flex', alignItems:'center', gap:6, padding:'5px 6px', borderRadius:6, cursor:'pointer', fontSize:11, background:members.includes(m.name)?l.color+'12':'transparent' }}>
+                      <div style=${{ width:16, height:16, borderRadius:4, border:'1.5px solid '+(members.includes(m.name)?l.color:'#E5E5EA'), background:members.includes(m.name)?l.color:'#FFF', display:'flex', alignItems:'center', justifyContent:'center', color:'#FFF', fontSize:10, flexShrink:0 }}>${members.includes(m.name)?'✓':''}</div>
+                      <span>${m.avatar||''} ${m.name}</span>
+                    </label>`)}
+                </div>`}
             </div>`;
         })}
       </div>
@@ -6137,6 +6166,28 @@ function RiskDetailModal({ risk, onSave, onClose, onDelete, teamMembers, onGoToT
               <input type="date" value=${f.deadline||''} onInput=${e=>setF({...f,deadline:e.target.value})}
                 style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
             </div>
+            <div style=${{borderTop:'1px solid #E5E5EA',paddingTop:10}}>
+              ${fieldLabel('Escalado')}
+              <select value=${f.escalation?.level||'equipo'} onChange=${e=>{
+                const lvl=e.target.value;
+                const labels={equipo:'Equipo',jp:'Jefe de Proyecto',sm:'Service Manager',dt:'Direccion Tecnica'};
+                setF({...f,escalation:{...(f.escalation||{}),level:lvl,levelLabel:labels[lvl],escalatedAt:lvl!=='equipo'?(f.escalation?.escalatedAt||new Date().toISOString()):null}});
+              }} style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#FFF'}}>
+                ${[['equipo','Equipo'],['jp','Jefe de Proyecto'],['sm','Service Manager'],['dt','Direccion Tecnica']].map(([id,lb])=>html`<option key=${id} value=${id}>${lb}</option>`)}
+              </select>
+              ${f.escalation?.level&&f.escalation.level!=='equipo'&&html`
+                <div style=${{marginTop:6}}>
+                  ${fieldLabel('Fecha escalado')}
+                  <input type="date" value=${(f.escalation?.escalatedAt||'').slice(0,10)} onInput=${e=>setF({...f,escalation:{...(f.escalation||{}),escalatedAt:e.target.value}})}
+                    style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+                </div>
+                <div style=${{marginTop:6}}>
+                  ${fieldLabel('Fecha objetivo')}
+                  <input type="date" value=${f.escalation?.targetDate||''} onInput=${e=>setF({...f,escalation:{...(f.escalation||{}),targetDate:e.target.value}})}
+                    style=${{width:'100%',border:'1.5px solid #E5E5EA',borderRadius:9,padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
+                </div>
+              `}
+            </div>
           </div>
         </div>
 
@@ -6509,7 +6560,7 @@ const addItem = () => {
         
         <div style=${{ display:'flex', flexDirection:'column', gap:8 }}>
           ${subTab==='escalado' ? html`
-            <${EscaladoPanel} risks=${allRisks} upd=${upd} escalForm=${escalForm} setEscalForm=${setEscalForm} onOpenDetail=${x=>setDetailRisk({...x})} actions=${actions} />
+            <${EscaladoPanel} risks=${allRisks} upd=${upd} escalForm=${escalForm} setEscalForm=${setEscalForm} onOpenDetail=${x=>setDetailRisk({...x})} actions=${actions} teamMembers=${teamMembers} />
           ` : subTab==='sugeridos' ? html`
             <${SuggestedEscalations} risks=${suggestedEscalations} allRisks=${allRisks} getAlerts=${getAlerts} upd=${upd} setSubTab=${setSubTab} setEscalForm=${setEscalForm} />
           ` : subTab==='historial' ? html`
@@ -7008,14 +7059,17 @@ function UserProfileModal({ user, onClose, state, sA, sR }) {
 
   const today = new Date().toISOString().slice(0,10);
   const myActions = (state.actions||[]).filter(a => a.owner === user.name || a.createdBy === user.id);
+  const _lm = (() => { try{return JSON.parse(localStorage.getItem('rf-level-members-'+SALA)||'{}')}catch{return {}} })();
+  const _isMyLevel = (r) => r.escalation && (_lm[r.escalation.level]||[]).includes(user.name);
   const myRisks   = (state.risks||[]).filter(r =>
     r.owner === user.name ||
     (r.escalation?.memberId === user.id) ||
-    (r.escalation?.memberName === user.name)
+    (r.escalation?.memberName === user.name) ||
+    _isMyLevel(r)
   );
   const pendingActions = myActions.filter(a => a.status !== 'done' && a.status !== 'discarded');
   const overdueActions = myActions.filter(a => a.status !== 'done' && a.status !== 'discarded' && a.date && a.date < today);
-  const escalatedToMe  = myRisks.filter(r => r.escalation?.memberId === user.id || r.escalation?.memberName === user.name);
+  const escalatedToMe  = myRisks.filter(r => r.escalation?.memberId === user.id || r.escalation?.memberName === user.name || _isMyLevel(r));
 
   const PRIS_MAP = {high:'#FF3B30', medium:'#FF9500', low:'#34C759'};
 
