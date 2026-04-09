@@ -6546,7 +6546,12 @@ const addItem = () => {
                       const iI = imp==='alto'?2:imp==='medio'?1:0;
                       const sc = (pI+1)*(iI+1);
                       const hc = sc>=6?'#FF3B30':sc>=3?'#FF9500':'#34C759';
-                      const cellRisks = allRisks.filter(r=>r.status!=='mitigated'&&voteMajority(r.impactVotes,r.impact||'medio')===imp&&voteMajority(r.probVotes,r.prob||'media')===prob);
+                      const cellRisks = allRisks.filter(r=>{
+                        if(r.status==='mitigated') return false;
+                        const ri = voteMajority(r.impactVotes, r.impact||'medio')||'medio';
+                        const rp = (r.type||'riesgo')==='problema'?'alta':(voteMajority(r.probVotes, r.prob||'media')||'media');
+                        return ri===imp && rp===prob;
+                      });
                       return html`<div key=${imp+prob} style=${{ background:hc+'18', border:'1.5px solid '+hc+'30', borderRadius:10, minHeight:64, padding:6, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start' }}>
                         ${cellRisks.map(r => {
                           const rn = riskNum(r);
@@ -6557,8 +6562,8 @@ const addItem = () => {
                           return html`<div key=${r.id} style=${{ position:'relative' }}
                             onMouseEnter=${e=>{const t=e.currentTarget.lastElementChild;if(t)t.style.display='block'}}
                             onMouseLeave=${e=>{const t=e.currentTarget.lastElementChild;if(t)t.style.display='none'}}>
-                            <div onClick=${()=>setDetailRisk({...r})}
-                              style=${{ width:28, height:28, borderRadius:14, background:dc, color:'#FFF', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #FFF', boxShadow:'0 2px 6px '+dc+'50', cursor:'pointer' }}>${pf}${rn}</div>
+                            ${(()=>{const ec = r.escalation?.level&&r.escalation.level!=='equipo'?{jp:'#FF9500',sm:'#FF3B30',dt:'#5856D6'}[r.escalation.level]:null;return html`<div onClick=${()=>setDetailRisk({...r})}
+                              style=${{ width:ec?34:28, height:ec?34:28, borderRadius:ec?17:14, background:dc, color:'#FFF', fontSize:ec?9:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:ec?'3px solid '+ec:'2px solid #FFF', boxShadow:ec?'0 0 0 2px #FFF, 0 2px 8px '+ec+'60':'0 2px 6px '+dc+'50', cursor:'pointer', animation:ec?'none':'none' }}>${pf}${rn}</div>`;})()}
                             <div style=${{ display:'none', position:'absolute', bottom:34, left:'50%', transform:'translateX(-50%)', background:'#1D1D1F', color:'#FFF', borderRadius:10, padding:'8px 10px', fontSize:11, zIndex:9999, width:200, boxShadow:'0 4px 16px rgba(0,0,0,.25)', pointerEvents:'none', lineHeight:1.4 }}>
                               <div style=${{ fontWeight:700, marginBottom:3, color:dc }}>${pf}${rn} ${(r.type||'riesgo')==='oportunidad'?'Oportunidad':(r.type||'riesgo')==='problema'?'Problema':'Riesgo'}</div>
                               <div style=${{ marginBottom:4 }}>${r.text}</div>
@@ -8758,13 +8763,18 @@ function P5Risks({ risks, sR, notes, user }) {
                   const iIdx = imp==='alto'?2:imp==='medio'?1:0;
                   const score = (pIdx+1)*(iIdx+1);
                   const color = score>=6?'#FF3B30':score>=3?'#FF9500':'#34C759';
-                  const inCell = openRisks.filter(r => (voteMajority(r.impactVotes,r.impact||'medio'))===imp && (voteMajority(r.probVotes,r.prob||'media'))===prob);
+                  const inCell = openRisks.filter(r => {
+                    const ri = voteMajority(r.impactVotes, r.impact||'medio')||'medio';
+                    const rp = (r.type||'riesgo')==='problema'?'alta':(voteMajority(r.probVotes, r.prob||'media')||'media');
+                    return ri===imp && rp===prob;
+                  });
                   return html`<div key=${prob+imp} style=${{ background:color+'18', border:'1px solid '+color+'25', borderRadius:8, padding:6, minHeight:56, display:'flex', flexWrap:'wrap', gap:4, alignContent:'flex-start' }}>
                     ${inCell.map(r => {
                       const rn = openRisks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')).indexOf(r)+1;
                       const pf = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+                      const _ec = r.escalation?.level&&r.escalation.level!=='equipo'?{jp:'#FF9500',sm:'#FF3B30',dt:'#5856D6'}[r.escalation.level]:null;
                       return html`<div key=${r.id} title=${r.text} onClick=${()=>setDetailRisk({...r})}
-                        style=${{ width:28, height:28, borderRadius:14, background:color, color:'#FFF', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'2px solid #FFF', boxShadow:'0 1px 4px '+color+'40' }}>${pf}${rn}</div>`;
+                        style=${{ width:_ec?32:28, height:_ec?32:28, borderRadius:_ec?16:14, background:color, color:'#FFF', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:_ec?'3px solid '+_ec:'2px solid #FFF', boxShadow:_ec?'0 0 0 2px #FFF, 0 2px 6px '+_ec+'60':'0 1px 4px '+color+'40' }}>${pf}${rn}</div>`;
                     })}
                   </div>`;
                 })
