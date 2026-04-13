@@ -1016,8 +1016,8 @@ function App() {
         onLogout=${()=>{ clearUser(); setUser(null); }}
         onSelectProject=${(sala,tipo)=>{ window.location.href=window.location.pathname+'?sala='+encodeURIComponent(sala)+'&tipo='+(tipo||'agile'); }} />`;
     }
-    // Not logged in — show login
-    return html`<${Login} onJoin=${handleJoin} />`;
+    // Not logged in — show landing
+    return html`<${NeedLink} onLogin=${()=>setShowLogin(true)} showLogin=${showLogin} onJoin=${handleJoin} onCloseLogin=${()=>setShowLogin(false)} />`;
   }
 
   // Validate sala + auto-login admin via Supabase session
