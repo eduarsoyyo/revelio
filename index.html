@@ -6903,22 +6903,7 @@ function P5Risks({ risks, sR, notes, user }) {
                       ${teamMembers.map(m=>html`<option key=${m.id} value=${m.name}>${m.avatar||'👤'} ${m.name}</option>`)}
                     </select>
                   </div>
-                  <!-- Tag badges on risk card -->
-                  ${!fromHist && tags.length>0 && html`
-                    <div style=${{display:'flex',gap:3,flexWrap:'wrap',marginTop:6}}>
-                      ${entityTagList('risk',r.id).map(t=>html`
-                        <span key=${t.id} onClick=${()=>!fromHist&&quickToggleTag(t.id,'risk',r.id)}
-                          style=${{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10,background:t.color,color:'#FFF',cursor:'pointer'}}>
-                          ${t.name} ✕
-                        </span>`)}
-                      ${tags.filter(t=>!hasTag(t.id,'risk',r.id)).map(t=>html`
-                        <span key=${t.id} onClick=${()=>quickToggleTag(t.id,'risk',r.id)}
-                          style=${{fontSize:9,padding:'1px 6px',borderRadius:10,border:'1px dashed '+t.color+'70',color:t.color,cursor:'pointer'}}>
-                          + ${t.name}
-                        </span>`)}
-                    </div>`}
-                  <!-- Voting -->  <!-- Voting -->
-                  <div style=${{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
+                  
                     <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
                       <span style=${{ fontSize:10, color:'#86868B', fontWeight:600, minWidth:50 }}>Impacto:</span>
                       ${RISK_LEVELS.map(l => {
@@ -6951,18 +6936,6 @@ function P5Risks({ risks, sR, notes, user }) {
               <h4 style=${{ fontSize:12, fontWeight:700, color:'#34C759', marginBottom:8 }}>✅ Mitigados (${mitigatedRisks.length})</h4>
               <div style=${{ display:'flex', flexDirection:'column', gap:4 }}>
                 ${mitigatedRisks.map((r, i) => html`
-                  <div key=${r.id} style=${{ padding:'8px 10px', borderRadius:8, background:'#F0FFF4', border:'1px solid #34C75920', fontSize:11, display:'flex', alignItems:'center', gap:8 }}>
-                    <span style=${{ color:'#34C759', fontWeight:700, minWidth:24 }}>R${risks.indexOf(r)+1}</span>
-                    <span style=${{ flex:1, color:'#86868B', textDecoration:'line-through' }}>${r.title||r.text}</span>
-                    ${r.mitigation && html`<span style=${{ fontSize:10, color:'#86868B' }}>🛡️ ${r.mitigation}</span>`}
-                    <button onClick=${()=>updateStatus(r.id,'open')} style=${{ border:'none', background:'#FF950015', color:'#FF9500', fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:5, cursor:'pointer' }} title="Reabrir">↩ Reabrir</button>
-                  </div>
-                `)}
-              </div>
-            </div>
-          `}
-        </div>
-        <!-- Sidebar: Bad/Stop notes to convert -->
         <div style=${{ ...cS, padding:'18px' }}>
           <h4 style=${{ fontSize:13, fontWeight:700, marginBottom:4 }}>🔥 Notas Bad / Stop / Start</h4>
           <p style=${{ fontSize:10, color:'#86868B', marginBottom:10 }}>Clic para convertir en riesgo</p>
