@@ -7140,6 +7140,115 @@ ${(()=>{const tgs=entityTagList('risk',r.id); return tgs.length>0?html`
       </div>`;
   }
 
+function EscaladoPanel({ risks, upd, escalForm, setEscalForm, onOpenDetail, actions, teamMembers, user, suggestions, getAlerts }) {
+  const LEVELS = [
+    { id:'equipo', label:'Equipo', color:'#34C759', desc:'Se gestiona internamente' },
+    { id:'jp',     label:'Jefe de Proyecto', color:'#FF9500', desc:'Escalar al JP' },
+    { id:'sm',     label:'Service Manager', color:'#FF3B30', desc:'Requiere SM' },
+    { id:'dt',     label:'Direccion Tecnica', color:'#5856D6', desc:'Elevar a DT' },
+  ];
+  const isSM = user?._isAdmin || user?.isSuperuser;
+  const [levelMembers, setLevelMembers] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('rf-level-members-'+SALA)||'{}'); } catch { return {}; }
+  });
+  const [collapsed, setCollapsed] = useState({});
+  useEffect(() => {
+    supabase.from('rooms').select('metadata').eq('slug',SALA).limit(1).then(({data})=>{
+      if(data?.[0]?.metadata?.levelMembers) { setLevelMembers(data[0].metadata.levelMembers); localStorage.setItem('rf-level-members-'+SALA,JSON.stringify(data[0].metadata.levelMembers)); }
+    });
+  }, []);
+  const saveLevelMembers = (lm) => {
+    setLevelMembers(lm);
+    try{localStorage.setItem('rf-level-members-'+SALA,JSON.stringify(lm))}catch{}
+    supabase.from('rooms').select('metadata').eq('slug',SALA).limit(1).then(({data})=>{
+      const meta = {...(data?.[0]?.metadata||{}), levelMembers:lm};
+      supabase.from('rooms').update({metadata:meta}).eq('slug',SALA);
+    });
+  };
+
+  const escalateNext = (r) => {
+    const cur = r.escalation?.level||'equipo';
+    const idx = LEVELS.findIndex(l=>l.id===cur);
+    if(idx<LEVELS.length-1){
+      const next=LEVELS[idx+1];
+      upd(r.id,{escalation:{...(r.escalation||{}),level:next.id,levelLabel:next.label,escalatedAt:new Date().toISOString()}});
+    }
+  };
+  const deescalate = (r) => {
+    const cur = r.escalation?.level||'equipo';
+    const idx = LEVELS.findIndex(l=>l.id===cur);
+    if(idx>0){
+      const prev=LEVELS[idx-1];
+      upd(r.id,{escalation:{...(r.escalation||{}),level:prev.id,levelLabel:prev.label}});
+    } else { upd(r.id,{escalation:null}); }
+  };
+  const resolveRisk = (r) => {
+    window.__confirm({icon:'✅',title:'Resolver riesgo',message:'Se marcará como mitigado.',onConfirm:()=>upd(r.id,{status:'mitigated'})});
+  };
+
+  const fd = (iso) => iso ? new Date(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'short'}) : '';
+
+  return html`
+    <div data-esc="1">
+      ${LEVELS.map(l => {
+        const items = risks.filter(r=>r.status!=='mitigated'&&(r.escalation?.level||'equipo')===l.id);
+        const isCollapsed = collapsed[l.id];
+        return html`
+          <div key=${l.id} style=${{marginBottom:12}}>
+            <div onClick=${()=>setCollapsed(prev=>({...prev,[l.id]:!prev[l.id]}))}
+              style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 0',cursor:'pointer',borderBottom:'2px solid '+l.color+'30'}}>
+              <div style=${{width:10,height:10,borderRadius:5,background:l.color}}></div>
+              <span style=${{fontSize:13,fontWeight:700,color:l.color,flex:1}}>${l.label}</span>
+              <span style=${{fontSize:11,color:'#86868B'}}>${items.length}</span>
+              <span style=${{fontSize:10,color:'#C7C7CC'}}>${isCollapsed?'▶':'▼'}</span>
+            </div>
+            ${!isCollapsed && html`<div style=${{paddingTop:6}}>
+              ${items.length===0 && html`<p style=${{fontSize:11,color:'#C7C7CC',padding:'8px 0',fontStyle:'italic'}}>Sin elementos</p>`}
+              ${items.map(r => {
+                const rn = risks.filter(x=>(x.type||'riesgo')===(r.type||'riesgo')&&x.status!=='mitigated').findIndex(x=>x.id===r.id)+1;
+                const px = (r.type||'riesgo')==='problema'?'P':(r.type||'riesgo')==='oportunidad'?'O':'R';
+                const hasMit = !!(r.mitigation?.trim());
+                const hasLinked = (actions||[]).some(a=>a.riskId===r.id);
+                const nextLvl = LEVELS[LEVELS.findIndex(x=>x.id===l.id)+1];
+                const esc = r.escalation||{};
+                const canEdit = isSM || l.id==='equipo' || (levelMembers[l.id]||[]).length===0 || (levelMembers[l.id]||[]).includes(user?.name);
+                const alerts = getAlerts?getAlerts(r):[];
+                return html`
+                  <div key=${r.id}
+                    onClick=${()=>onOpenDetail&&onOpenDetail({...r,_readOnly:!canEdit})}
+                    style=${{ background:alerts.length>0?'#FFFBF5':'#FFF', borderRadius:12, border:'1.5px solid '+(alerts.length>0?'#FF950030':'#E5E5EA'), borderLeft:'4px solid '+l.color, padding:'10px 14px', marginBottom:5, cursor:'pointer' }}>
+                    <div style=${{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                      <span style=${{ fontSize:13, fontWeight:800, color:l.color }}>${px}${rn}</span>
+                      <span style=${{ fontSize:13, flex:1, fontWeight:600 }}>${r.title||r.text}</span>
+                      ${hasMit && html`<span title="Mitigacion" style=${{ fontSize:9, background:'#34C75915', color:'#34C759', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>🛡️</span>`}
+                      ${hasLinked && html`<span title="Tareas vinculadas" style=${{ fontSize:9, background:'#007AFF15', color:'#007AFF', padding:'2px 6px', borderRadius:6, fontWeight:700 }}>🔗</span>`}
+                      ${l.id!=='equipo' && html`<span style=${{ fontSize:9, background:l.color+'15', color:l.color, padding:'2px 6px', borderRadius:6, fontWeight:700 }}>Escalado</span>`}
+                    </div>
+                    ${alerts.length>0 && html`<div style=${{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:4 }}>
+                      ${alerts.map(a => html`<span key=${a.type} style=${{ fontSize:9, fontWeight:700, color:'#FFF', background:a.color, padding:'2px 7px', borderRadius:10 }}>${a.label}</span>`)}
+                      ${nextLvl && canEdit && html`<span style=${{ fontSize:9, fontWeight:600, color:'#FF9500', fontStyle:'italic' }}>Se sugiere escalar</span>`}
+                    </div>`}
+                    <div style=${{ display:'flex', gap:4, alignItems:'center', fontSize:10 }}>
+                      ${esc.escalatedAt && html`<span style=${{ color:'#86868B' }}>Escalado ${fd(esc.escalatedAt)}</span>`}
+                      ${r.owner && r.owner!=='Sin asignar' && html`<span style=${{ color:'#007AFF', fontWeight:600 }}>${r.owner}</span>`}
+                      ${canEdit && html`<div style=${{ marginLeft:'auto', display:'flex', gap:4 }}>
+                        <button onClick=${e=>{e.stopPropagation();resolveRisk(r)}}
+                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #34C75930', background:'#34C75910', color:'#34C759', cursor:'pointer' }}>Resolver</button>
+                        ${nextLvl && html`<button onClick=${e=>{e.stopPropagation();escalateNext(r)}}
+                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid '+nextLvl.color+'30', background:nextLvl.color+'10', color:nextLvl.color, cursor:'pointer' }}>↑ ${nextLvl.label}</button>`}
+                        ${l.id!=='equipo' && html`<button onClick=${e=>{e.stopPropagation();deescalate(r)}}
+                          style=${{ fontSize:10, fontWeight:600, padding:'3px 8px', borderRadius:6, border:'1px solid #E5E5EA', background:'#F9F9FB', color:'#86868B', cursor:'pointer' }}>↓</button>`}
+                      </div>`}
+                      ${!canEdit && html`<span style=${{ marginLeft:'auto', fontSize:9, color:'#C7C7CC', fontStyle:'italic' }}>Solo lectura</span>`}
+                    </div>
+                  </div>`;
+              })}
+            </div>`}
+          </div>`;
+      })}
+    </div>`;
+}
+
 function PRiesgos({ risks, sR, notes, actions, retroHistory, user }) {
   const [teamMembers, setTeamMembers] = useState([]);
   const [tags, setTags] = useState([]);
