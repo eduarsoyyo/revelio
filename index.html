@@ -1656,7 +1656,6 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
   const [showNotifs,   setShowNotifs]   = useState(false);
   const [homeNotifs,   setHomeNotifs]   = useState([]);
   const [rolesList,    setRolesList]    = useState(getAllRoles);
-  const [skillData,    setSkillData]    = useState({profiles:[],skills:[],profSkills:[],memSkills:[],memProfiles:[],actions:[]});
   const today    = new Date().toISOString().slice(0,10);
   const thisYear = new Date().getFullYear();
 
@@ -1679,32 +1678,6 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
       setProfile(me||null); setEditProfile(me?{...me}:null); setProfileLoaded(true);
     }).catch(()=>setProfileLoaded(true));
   }, []);
-  // Load skill matrix data across all projects
-  useEffect(() => {
-    if(!roomsLoaded) return;
-    const slugs = rooms.map(r=>r.slug);
-    Promise.all([
-      ...slugs.map(s=>sbLoadSkillProfiles(s)),
-      ...slugs.map(s=>sbLoadSkills(s)),
-      ...slugs.map(s=>sbLoadMemberProfiles(s)),
-      sbLoadMemberSkills(),
-      ...slugs.map(s=>sbLoadSkillActions(s)),
-    ]).then(results => {
-      const n = slugs.length;
-      const profiles = results.slice(0,n).flat();
-      const skills = results.slice(n,2*n).flat();
-      const memProfiles = results.slice(2*n,3*n).flat();
-      const memSkills = results[3*n]||[];
-      const actions = results.slice(3*n+1).flat();
-      // Load profile_skills for all profiles
-      const pids = profiles.map(p=>p.id);
-      if(pids.length) {
-        supabase.from('profile_skills').select('*').in('profile_id',pids).then(({data})=>{
-          setSkillData({profiles,skills,profSkills:data||[],memSkills,memProfiles,actions});
-        });
-      } else { setSkillData({profiles,skills,profSkills:[],memSkills,memProfiles,actions}); }
-    }).catch(()=>{});
-  }, [roomsLoaded, rooms.length]);
   useEffect(() => {
     if (!roomsLoaded) return;
     // Load from localStorage first (fast path)
@@ -1884,321 +1857,114 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
 
         <main style=${{flex:1,padding:'28px 24px',overflowY:'auto'}}>
 
-          ${section==='dashboard'&&html`<div>
+          ${section==='dashboard'&&html`<div style=${{maxWidth:720}}>
 
             <h1 style=${{fontSize:24,fontWeight:700,marginBottom:2,color:'#1D1D1F'}}>
               ${new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]}
             </h1>
             <p style=${{fontSize:13,color:'#86868B',marginBottom:20}}>${fd(new Date())} · ${myRooms.length} proyecto${myRooms.length!==1?'s':''}</p>
 
-            ${(()=>{
-              // ── KPI CALCULATIONS ──
-              const members = window.__allMembers||[];
-              const totalAct = Object.values(allData).flatMap(d=>d.actions||[]);
-              const totalRisks = Object.values(allData).flatMap(d=>d.risks||[]);
-              const actDone = totalAct.filter(a=>a.status==='done').length;
-              const actOverdue = totalAct.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled'&&a.date&&a.date<today).length;
-              const actOnTrack = totalAct.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled'&&(!a.date||a.date>=today)).length;
-              const actTotal = totalAct.filter(a=>a.status!=='discarded'&&a.status!=='cancelled').length;
-              const rOpen = totalRisks.filter(r=>r.status!=='mitigated');
-              const rMitigated = totalRisks.filter(r=>r.status==='mitigated').length;
-              const rEscalated = rOpen.filter(r=>r.escalation&&r.escalation.level&&r.escalation.level!=='equipo').length;
-              const rCritical = rOpen.filter(r=>{const c=calculateCriticality(r.prob||'media',r.impact||'medio');return c==='critical'}).length;
-              const rModerate = rOpen.filter(r=>{const c=calculateCriticality(r.prob||'media',r.impact||'medio');return c==='moderate'}).length;
-              const rLow = rOpen.filter(r=>{const c=calculateCriticality(r.prob||'media',r.impact||'medio');return c==='low'}).length;
-              const rRiesgos = rOpen.filter(r=>(r.type||'riesgo')==='riesgo').length;
-              const rProblemas = rOpen.filter(r=>(r.type||'riesgo')==='problema').length;
+            ${!hasUrgent && thisWeekAct.length===0 && pendingAct.length===0 && html`
+              <div style=${{background:'#F0FFF4',borderRadius:18,border:'1.5px solid #34C75920',padding:'40px 24px',textAlign:'center',marginBottom:16}}>
+                <div style=${{fontSize:36,marginBottom:10}}>✅</div>
+                <h2 style=${{fontSize:18,fontWeight:700,color:'#34C759',margin:'0 0 6px'}}>Todo al día</h2>
+                <p style=${{fontSize:13,color:'#6E6E73',margin:0}}>No tienes tareas pendientes ni riesgos que requieran atención.</p>
+              </div>`}
 
-              // Skill matrix KPIs
-              const {profiles:skProfiles,profSkills:skPS,memSkills:skMS,memProfiles:skMP,actions:skActions} = skillData;
-              const membersWithProfile = members.filter(m=>skMP.some(mp=>mp.member_id===m.id));
-              const coveragePct = members.length>0?Math.round(membersWithProfile.length/members.length*100):0;
-              const fits = membersWithProfile.map(m=>{
-                const mp=skMP.find(x=>x.member_id===m.id);
-                if(!mp) return null;
-                const reqs=skPS.filter(x=>x.profile_id===mp.profile_id);
-                if(!reqs.length) return null;
-                const totalReq=reqs.reduce((s,r)=>s+r.required_level,0);
-                const totalAct2=reqs.reduce((s,r)=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return s+Math.min(ms?.current_level||0,r.required_level)},0);
-                return Math.round(totalAct2/totalReq*100);
-              }).filter(Boolean);
-              const avgFit = fits.length>0?Math.round(fits.reduce((s,f)=>s+f,0)/fits.length):0;
-              const criticalGaps = membersWithProfile.reduce((cnt,m)=>{
-                const mp=skMP.find(x=>x.member_id===m.id);if(!mp)return cnt;
-                const reqs=skPS.filter(x=>x.profile_id===mp.profile_id);
-                return cnt+reqs.filter(r=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return r.required_level-(ms?.current_level||0)>=2}).length;
-              },0);
-
-              // Vacaciones
-              const yr=new Date().getFullYear();
-              const todayVac = members.filter(m=>(Array.isArray(m.vacations)?m.vacations:[]).some(v=>v.from<=today&&(!v.to||v.to>=today)));
-              const nextVac = members.filter(m=>(Array.isArray(m.vacations)?m.vacations:[]).some(v=>v.from>today)).map(m=>{
-                const next=(Array.isArray(m.vacations)?m.vacations:[]).filter(v=>v.from>today).sort((a,b)=>a.from>b.from?1:-1)[0];
-                return {...m,nextVac:next};
-              }).sort((a,b)=>a.nextVac.from>b.nextVac.from?1:-1);
-
-              // FTEs
-              const totalFte = skProfiles.reduce((s,p)=>s+(parseFloat(p.fte)||1),0);
-
-              // Health score
-              const tareasAlDia = actTotal>0 ? (actDone+actOnTrack)/actTotal : 1;
-              const riesgosCtrl = (rMitigated+rOpen.length)>0 ? rMitigated/(rMitigated+rOpen.length) : 1;
-              const escalResueltos = totalRisks.length>0 ? 1-(rEscalated/totalRisks.length) : 1;
-              const encajeEquipo = avgFit/100;
-              const coberturaEq = coveragePct/100;
-              const salud = Math.round((tareasAlDia*30+riesgosCtrl*25+escalResueltos*15+encajeEquipo*20+coberturaEq*10));
-              const saludColor = salud>=80?'#34C759':salud>=60?'#FF9500':'#FF3B30';
-
-              // Per-project task completion
-              const projTaskPct = myRooms.map(r=>{
-                const d=allData[r.slug]||{};
-                const acts=(d.actions||[]).filter(a=>a.status!=='discarded'&&a.status!=='cancelled');
-                const done=acts.filter(a=>a.status==='done').length;
-                return {name:r.name,slug:r.slug,pct:acts.length>0?Math.round(done/acts.length*100):0,total:acts.length};
-              });
-              const actCompletedPct = actTotal>0?Math.round(actDone/actTotal*100):0;
-
-              // Profile fit bars
-              const profileFits = skProfiles.filter(p=>p.sala!=='__maestro__').map(p=>{
-                const assigned=skMP.filter(mp=>mp.profile_id===p.id).map(mp=>members.find(m=>m.id===mp.member_id)).filter(Boolean);
-                const fitVals=assigned.map(m=>{
-                  const reqs=skPS.filter(x=>x.profile_id===p.id);if(!reqs.length)return null;
-                  const tR=reqs.reduce((s,r)=>s+r.required_level,0);
-                  const tA=reqs.reduce((s,r)=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return s+Math.min(ms?.current_level||0,r.required_level)},0);
-                  return Math.round(tA/tR*100);
-                }).filter(Boolean);
-                return {name:p.name,icon:p.icon,fit:fitVals.length?Math.round(fitVals.reduce((s,f)=>s+f,0)/fitVals.length):0,count:assigned.length};
-              });
-
-              // Urgent items
-              const urgentItems = [];
-              totalAct.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled'&&a.date&&a.date<today).slice(0,3).forEach(a=>{
-                const room=rooms.find(r=>{const d=allData[r.slug];return d&&(d.actions||[]).some(x=>x.id===a.id)});
-                urgentItems.push({type:'overdue',text:a.text,sub:(room?.name||'')+(a.date?' · Venció '+fd(a.date):''),color:'#FF3B30'});
-              });
-              rOpen.filter(r=>r.escalation&&r.escalation.level&&r.escalation.level!=='equipo').slice(0,3).forEach(r=>{
-                const room=rooms.find(rm=>{const d=allData[rm.slug];return d&&(d.risks||[]).some(x=>x.id===r.id)});
-                urgentItems.push({type:'escalated',text:(r.title||r.text),sub:(room?.name||'')+' · Escalado: '+(r.escalation?.levelLabel||''),color:'#FF9500'});
-              });
-              if(criticalGaps>0) urgentItems.push({type:'gap',text:criticalGaps+' gap'+(criticalGaps>1?'s':'')+' críticos de formación',sub:'Skill Matrix · Sin acción asignada',color:'#FF9500'});
-
-              // Tooltip component
-              const TT = ({children,tip}) => html`
-                <div style=${{position:'relative',cursor:'default'}} class="kpi-tip">
-                  ${children}
-                  <div class="kpi-tooltip" style=${{position:'absolute',bottom:'calc(100% + 8px)',left:'50%',transform:'translateX(-50%)',background:'#1D1D1F',color:'#FFF',padding:'10px 14px',borderRadius:12,fontSize:11,lineHeight:1.6,whiteSpace:'pre-line',minWidth:220,maxWidth:300,zIndex:100,pointerEvents:'none',opacity:0,transition:'opacity .15s',boxShadow:'0 8px 32px rgba(0,0,0,.25)'}}>
-                    ${tip}
-                  </div>
-                </div>`;
-
-              return html`
-                <style>
-                  .kpi-tip:hover .kpi-tooltip{opacity:1 !important}
-                </style>
-
-                <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
-                  <${TT} tip=${'Tareas al día: '+Math.round(tareasAlDia*100)+'% ('+actOnTrack+'/'+actTotal+')\nRiesgos controlados: '+Math.round(riesgosCtrl*100)+'% ('+rMitigated+'/'+(rMitigated+rOpen.length)+')\nEscalados resueltos: '+Math.round(escalResueltos*100)+'%\nEncaje equipo: '+avgFit+'%\nCobertura: '+coveragePct+'%\n────────────\nSalud global: '+salud+'%'}>
-                    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
-                      <div style=${{fontSize:28,fontWeight:800,color:saludColor}}>${salud}%</div>
-                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Salud global</div>
-                    </div>
-                  <//>
-                  <${TT} tip=${rooms.length+' proyectos totales\n'+myRooms.length+' asignados a ti'}>
-                    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
-                      <div style=${{fontSize:28,fontWeight:800,color:'#007AFF'}}>${rooms.length}</div>
-                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Proyectos</div>
-                    </div>
-                  <//>
-                  <${TT} tip=${members.length+' personas registradas\n'+todayVac.length+' de vacaciones hoy\n'+membersWithProfile.length+' con perfil evaluado'}>
-                    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
-                      <div style=${{fontSize:28,fontWeight:800,color:'#1D1D1F'}}>${members.length}</div>
-                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Personas</div>
-                    </div>
-                  <//>
-                  <${TT} tip=${rEscalated+' riesgos escalados\nen '+(new Set(rOpen.filter(r=>r.escalation?.level&&r.escalation.level!=='equipo').map(r=>{const rm=rooms.find(x=>{const d=allData[x.slug];return d&&(d.risks||[]).some(y=>y.id===r.id)});return rm?.name||'?'}))).size+' proyectos'}>
-                    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
-                      <div style=${{fontSize:28,fontWeight:800,color:rEscalated>0?'#FF3B30':'#34C759'}}>${rEscalated}</div>
-                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Escalados</div>
-                    </div>
-                  <//>
+            ${hasUrgent && html`
+              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #FF3B3015',padding:'18px 20px',marginBottom:14}}>
+                <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                  <div style=${{width:8,height:8,borderRadius:4,background:'#FF3B30'}}></div>
+                  <h2 style=${{fontSize:15,fontWeight:700,color:'#FF3B30',margin:0}}>Requiere tu atención</h2>
+                  <span style=${{fontSize:11,color:'#86868B',marginLeft:'auto'}}>${overdueAct.length+risksNeedingAction.length}</span>
                 </div>
-
-                <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
-                  <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
-                    <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Riesgos y problemas</h3>
-                    <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-                      <${TT} tip=${rRiesgos+' riesgos abiertos\n'+rCritical+' en sector crítico'}>
-                        <div style=${{background:'#FFF9E6',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:22,fontWeight:800,color:'#FF9500'}}>${rRiesgos}</div>
-                          <div style=${{fontSize:10,color:'#86868B'}}>Riesgos</div>
-                        </div>
-                      <//>
-                      <${TT} tip=${rProblemas+' problemas activos'}>
-                        <div style=${{background:'#FFF5F5',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:22,fontWeight:800,color:'#FF3B30'}}>${rProblemas}</div>
-                          <div style=${{fontSize:10,color:'#86868B'}}>Problemas</div>
-                        </div>
-                      <//>
-                      <${TT} tip=${rMitigated+' registros cerrados\nTasa: '+Math.round(riesgosCtrl*100)+'%'}>
-                        <div style=${{background:'#F0FFF4',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:22,fontWeight:800,color:'#34C759'}}>${rMitigated}</div>
-                          <div style=${{fontSize:10,color:'#86868B'}}>Mitigados</div>
-                        </div>
-                      <//>
-                    </div>
-                    <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>POR CRITICIDAD</div>
-                    ${[[rCritical,'Crítico','#FF3B30'],[rModerate,'Moderado','#FF9500'],[rLow,'Bajo','#34C759']].map(([v,l,c])=>html`
-                      <div key=${l} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
-                        <span style=${{fontSize:11,width:70,color:'#6E6E73'}}>${l}</span>
-                        <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}>
-                          <div style=${{width:((rOpen.length>0?v/rOpen.length*100:0))+'%',height:'100%',background:c,borderRadius:3}}></div>
-                        </div>
-                        <span style=${{fontSize:11,fontWeight:700,color:c,minWidth:20,textAlign:'right'}}>${v}</span>
-                      </div>`)}
-                  </div>
-
-                  <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
-                    <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Seguimiento de tareas</h3>
-                    <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-                      <${TT} tip=${actTotal+' tareas totales\n'+actDone+' completadas'}>
-                        <div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:22,fontWeight:800,color:'#1D1D1F'}}>${actTotal}</div>
-                          <div style=${{fontSize:10,color:'#86868B'}}>Total</div>
-                        </div>
-                      <//>
-                      <${TT} tip=${actOverdue+' tareas vencidas\nRepartidas en '+new Set(totalAct.filter(a=>a.date&&a.date<today&&a.status!=='done').map(()=>'x')).size+' proyectos'}>
-                        <div style=${{background:actOverdue>0?'#FFF5F5':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:22,fontWeight:800,color:actOverdue>0?'#FF3B30':'#6E6E73'}}>${actOverdue}</div>
-                          <div style=${{fontSize:10,color:'#86868B'}}>Vencidas</div>
-                        </div>
-                      <//>
-                      <${TT} tip=${actDone+'/'+actTotal+' completadas'}>
-                        <div style=${{background:'#F0FFF4',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:22,fontWeight:800,color:'#34C759'}}>${actCompletedPct}%</div>
-                          <div style=${{fontSize:10,color:'#86868B'}}>Completadas</div>
-                        </div>
-                      <//>
-                    </div>
-                    <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>POR PROYECTO</div>
-                    ${projTaskPct.filter(p=>p.total>0).slice(0,5).map(p=>html`
-                      <div key=${p.slug} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
-                        <span style=${{fontSize:11,width:80,color:'#6E6E73',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${p.name}</span>
-                        <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}>
-                          <div style=${{width:p.pct+'%',height:'100%',background:'#007AFF',borderRadius:3}}></div>
-                        </div>
-                        <span style=${{fontSize:11,fontWeight:700,color:'#007AFF',minWidth:30,textAlign:'right'}}>${p.pct}%</span>
-                      </div>`)}
-                  </div>
-                </div>
-
-                <div style=${{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12,marginBottom:14}}>
-                  <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
-                    <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Equipo y capacidad</h3>
-                    <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}}>
-                      <${TT} tip=${totalFte.toFixed(1)+' FTEs definidos\nen '+skProfiles.filter(p=>p.sala!=='__maestro__').length+' perfiles'}>
-                        <div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:18,fontWeight:800,color:'#1D1D1F'}}>${totalFte.toFixed(1)}</div>
-                          <div style=${{fontSize:9,color:'#86868B'}}>FTEs</div>
-                        </div>
-                      <//>
-                      <${TT} tip=${todayVac.length>0?todayVac.map(m=>m.name).join(', '):'Nadie de vacaciones hoy'}>
-                        <div style=${{background:todayVac.length>0?'#FFF9E6':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:18,fontWeight:800,color:todayVac.length>0?'#FF9500':'#6E6E73'}}>${todayVac.length}</div>
-                          <div style=${{fontSize:9,color:'#86868B'}}>Vacaciones</div>
-                        </div>
-                      <//>
-                      <${TT} tip=${'Media de encaje: '+avgFit+'%\nSobre '+fits.length+' personas evaluadas'}>
-                        <div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:18,fontWeight:800,color:avgFit>=80?'#34C759':avgFit>=60?'#FF9500':'#FF3B30'}}>${avgFit}%</div>
-                          <div style=${{fontSize:9,color:'#86868B'}}>Encaje</div>
-                        </div>
-                      <//>
-                      <${TT} tip=${criticalGaps+' gaps de nivel ≥2\nSin formación asignada'}>
-                        <div style=${{background:criticalGaps>0?'#FFF5F5':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
-                          <div style=${{fontSize:18,fontWeight:800,color:criticalGaps>0?'#FF3B30':'#6E6E73'}}>${criticalGaps}</div>
-                          <div style=${{fontSize:9,color:'#86868B'}}>Gaps</div>
-                        </div>
-                      <//>
-                    </div>
-                    ${profileFits.length>0&&html`
-                      <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>ENCAJE POR PERFIL</div>
-                      ${profileFits.map(p=>html`
-                        <div key=${p.name} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
-                          <span style=${{fontSize:11,width:100,color:'#6E6E73',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${p.icon||''} ${p.name}</span>
-                          <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}>
-                            <div style=${{width:p.fit+'%',height:'100%',background:p.fit>=90?'#34C759':p.fit>=70?'#FF9500':'#FF3B30',borderRadius:3}}></div>
-                          </div>
-                          <span style=${{fontSize:11,fontWeight:700,color:p.fit>=90?'#34C759':p.fit>=70?'#FF9500':'#FF3B30',minWidth:30,textAlign:'right'}}>${p.fit}%</span>
-                        </div>`)}
-                    `}
-                  </div>
-
-                  <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
-                    <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Vacaciones</h3>
-                    ${todayVac.map(m=>html`
-                      <div key=${m.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #F2F2F7'}}>
-                        <div style=${{width:28,height:28,borderRadius:8,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>${m.avatar||'👤'}</div>
-                        <div style=${{flex:1,fontSize:12}}>${m.name.split(' ')[0]}</div>
-                        <span style=${{fontSize:10,fontWeight:700,color:'#FF9500',background:'#FFF9E6',padding:'2px 8px',borderRadius:6}}>Ausente</span>
-                      </div>`)}
-                    ${nextVac.slice(0,3).map(m=>html`
-                      <div key=${m.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #F2F2F7'}}>
-                        <div style=${{width:28,height:28,borderRadius:8,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>${m.avatar||'👤'}</div>
-                        <div style=${{flex:1}}><div style=${{fontSize:12}}>${m.name.split(' ')[0]}</div><div style=${{fontSize:9,color:'#86868B'}}>Desde ${fd(m.nextVac?.from)}</div></div>
-                        <span style=${{fontSize:10,fontWeight:600,color:'#007AFF',background:'#EEF5FF',padding:'2px 8px',borderRadius:6}}>Planif.</span>
-                      </div>`)}
-                    ${todayVac.length===0&&nextVac.length===0&&html`<p style=${{fontSize:11,color:'#C7C7CC',textAlign:'center',padding:12}}>Sin ausencias</p>`}
-                  </div>
-                </div>
-
-                ${urgentItems.length>0&&html`
-                  <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
-                    <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #FF3B3015',padding:'16px 18px'}}>
-                      <h3 style=${{fontSize:14,fontWeight:700,marginBottom:10,color:'#FF3B30'}}>Requiere atención</h3>
-                      ${urgentItems.map((it,i)=>html`
-                        <div key=${i} style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:i<urgentItems.length-1?'1px solid #F2F2F7':'none'}}>
-                          <div style=${{width:8,height:8,borderRadius:4,background:it.color,flexShrink:0}}></div>
-                          <div style=${{flex:1,minWidth:0}}>
-                            <div style=${{fontSize:12,fontWeight:600}}>${it.text}</div>
-                            <div style=${{fontSize:10,color:'#86868B'}}>${it.sub}</div>
-                          </div>
-                          <span style=${{fontSize:9,fontWeight:700,color:it.color,background:it.color+'12',padding:'2px 8px',borderRadius:6}}>${it.type==='overdue'?'Vencida':it.type==='escalated'?'Escalado':'Gap'}</span>
-                        </div>`)}
-                    </div>
-                    <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
-                      <h3 style=${{fontSize:14,fontWeight:700,marginBottom:10}}>Mi trabajo</h3>
-                      ${pendingAct.slice(0,5).map(a=>html`
-                        <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #F2F2F7'}}>
-                          <div style=${{width:8,height:8,borderRadius:4,background:a.date&&a.date<today?'#FF3B30':a.date&&a.date<=endOfWeek?'#007AFF':'#C7C7CC',flexShrink:0}}></div>
-                          <div style=${{flex:1,minWidth:0}}>
-                            <div style=${{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
-                            <div style=${{fontSize:10,color:'#86868B'}}>${a._room||''}</div>
-                          </div>
-                          ${a.date&&html`<span style=${{fontSize:10,color:a.date<today?'#FF3B30':'#86868B',flexShrink:0}}>${fd(a.date)}</span>`}
-                        </div>`)}
-                      ${pendingAct.length===0&&html`<p style=${{fontSize:11,color:'#C7C7CC',textAlign:'center',padding:12}}>Sin tareas pendientes</p>`}
-                    </div>
-                  </div>`}
-
-                <div style=${{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
-                  ${[
-                    {s:'gobierno',ic:'BarChart3',l:'Gobierno',d:'KPIs y reporting'},
-                    {s:'riesgos',ic:'AlertTriangle',l:'Escalado global',d:rEscalated+' activos'},
-                    {s:'personas',ic:'Users',l:'Plan de formación',d:criticalGaps+' gaps · '+skActions.filter(a=>a.status==='en_curso').length+' en curso'},
-                  ].map(x=>html`
-                    <div key=${x.s} onClick=${()=>setSection(x.s)}
-                      style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px',textAlign:'center',cursor:'pointer',transition:'all .15s'}}
-                      onMouseOver=${e=>{e.currentTarget.style.borderColor='#007AFF';e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,.06)';}}
-                      onMouseOut=${e=>{e.currentTarget.style.borderColor='#E5E5EA';e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none';}}>
-                      <${Icon} name=${x.ic} size=${22} color="#5856D6" />
-                      <div style=${{fontSize:13,fontWeight:700,marginTop:6}}>${x.l}</div>
-                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>${x.d}</div>
+                <div style=${{display:'flex',flexDirection:'column',gap:6}}>
+                  ${overdueAct.slice(0,5).map(a=>html`
+                    <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,background:'#FFF5F5',borderLeft:'3px solid #FF3B30'}}>
+                      <${Icon} name="AlertCircle" size=${14} color="#FF3B30" />
+                      <div style=${{flex:1,minWidth:0}}>
+                        <div style=${{fontSize:12,fontWeight:600}}>${a.text}</div>
+                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${a._room||''} · Venció ${fd(a.date)}</div>
+                      </div>
+                    </div>`)}
+                  ${risksNeedingAction.slice(0,5).map(r=>html`
+                    <div key=${r.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,background:'#FFF9E6',borderLeft:'3px solid #FF9500'}}>
+                      <${Icon} name="AlertTriangle" size=${14} color="#FF9500" />
+                      <div style=${{flex:1,minWidth:0}}>
+                        <div style=${{fontSize:12,fontWeight:600}}>${r.title||r.text}</div>
+                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${r._room||''}${r.escalation?' · Escalado: '+r.escalation.levelLabel:''}</div>
+                      </div>
                     </div>`)}
                 </div>
-              `;
-            })()}
+              </div>`}
+
+            ${thisWeekAct.length>0 && html`
+              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px 20px',marginBottom:14}}>
+                <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                  <div style=${{width:8,height:8,borderRadius:4,background:'#007AFF'}}></div>
+                  <h2 style=${{fontSize:15,fontWeight:700,color:'#1D1D1F',margin:0}}>Esta semana</h2>
+                  <span style=${{fontSize:11,color:'#86868B',marginLeft:'auto'}}>${thisWeekAct.length}</span>
+                </div>
+                <div style=${{display:'flex',flexDirection:'column',gap:5}}>
+                  ${[...thisWeekAct].sort((a,b)=>a.date>b.date?1:-1).map(a=>html`
+                    <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:11,background:'#F9F9FB'}}>
+                      <${Icon} name="Clock" size=${14} color="#007AFF" />
+                      <div style=${{flex:1,minWidth:0}}>
+                        <div style=${{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
+                        <div style=${{fontSize:10,color:'#86868B'}}>${a._room||''}</div>
+                      </div>
+                      <span style=${{fontSize:10,color:'#007AFF',fontWeight:600}}>${fd(a.date)}</span>
+                    </div>`)}
+                </div>
+              </div>`}
+
+            <div style=${{display:'flex',gap:10,marginBottom:14}}>
+              ${[
+                {v:myRooms.length,l:'Proyectos',c:'#007AFF',i:'FolderOpen'},
+                {v:pendingAct.length,l:'Pendientes',c:'#6E6E73',i:'ClipboardList'},
+                {v:myRisks.length,l:'Riesgos',c:myRisks.length>0?'#FF9500':'#6E6E73',i:'AlertTriangle'},
+              ].map((k,i)=>html`
+                <div key=${i} style=${{flex:1,display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA'}}>
+                  <${Icon} name=${k.i} size=${16} color=${k.c} />
+                  <div>
+                    <span style=${{fontSize:18,fontWeight:800,color:k.c}}>${k.v}</span>
+                    <span style=${{fontSize:11,color:'#86868B',marginLeft:5}}>${k.l}</span>
+                  </div>
+                </div>`)}
+            </div>
+
+            <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px 18px',marginBottom:14}}>
+              <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                <span style=${{fontSize:13,fontWeight:700}}>Mi equipo</span>
+                <button onClick=${()=>setSection(isSM?'personas':'equipo')} style=${{border:'none',background:'none',color:'#007AFF',fontSize:11,cursor:'pointer',fontWeight:600}}>Ver todos →</button>
+              </div>
+              ${(()=>{
+                const allM=window.__allMembers||[];
+                const members=allM.length>0?allM.filter(m=>myRooms.length===0||myRooms.some(r=>(m.rooms||[]).includes(r.slug))):[];
+                const todayVac=members.filter(m=>(Array.isArray(m.vacations)?m.vacations:[]).some(v=>v.from<=today&&(!v.to||v.to>=today)));
+                const available=members.filter(m=>!todayVac.some(v=>v.id===m.id));
+                return html`
+                  <div style=${{display:'flex',gap:12,alignItems:'center'}}>
+                    <div style=${{display:'flex',flexWrap:'wrap',gap:4,flex:1}}>
+                      ${available.slice(0,8).map(m=>html`
+                        <div key=${m.id} title=${m.name+(m.role_label?' · '+m.role_label:'')}
+                          style=${{width:32,height:32,borderRadius:10,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,border:'2px solid #FFF',boxShadow:'0 1px 3px rgba(0,0,0,.08)'}}>${m.avatar||'👤'}</div>`)}
+                      ${available.length>8&&html`<span style=${{fontSize:10,color:'#86868B',alignSelf:'center'}}>+${available.length-8}</span>`}
+                    </div>
+                    ${todayVac.length>0&&html`
+                      <div style=${{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',borderRadius:10,background:'#FFF9E6',border:'1px solid #FF950015',flexShrink:0}}>
+                        <${Icon} name="Sun" size=${14} color="#FF9500" />
+                        <div>
+                          <div style=${{fontSize:10,fontWeight:600,color:'#FF9500'}}>De vacaciones</div>
+                          <div style=${{fontSize:10,color:'#86868B'}}>${todayVac.map(m=>m.name.split(' ')[0]).join(', ')}</div>
+                        </div>
+                      </div>`}
+                  </div>`;
+              })()}
+            </div>
 
           </div>`}
+
 
 
 
@@ -3215,6 +2981,242 @@ function EscalThresholdsWidget() {
     </div>`;
 }
 
+function AdminDashboard({ rooms, filterProject, setFilterProject }) {
+  const [loading, setLoading] = useState(true);
+  const [allData, setAllData] = useState({});
+  const [members, setMembers] = useState([]);
+  const [skData, setSkData] = useState({profiles:[],skills:[],profSkills:[],memSkills:[],memProfiles:[],actions:[]});
+  const today = new Date().toISOString().slice(0,10);
+  const yr = new Date().getFullYear();
+  const fd2 = (iso) => iso?new Date(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'short'}):'';
+
+  useEffect(()=>{
+    Promise.all([sbLoadTeamMembers(),sbLoadRetros()]).then(([mbrs,snaps])=>{
+      setMembers(mbrs||[]);
+      window.__allMembers=mbrs||[];
+      const bySala={};
+      (snaps||[]).forEach(s=>{if(!bySala[s.sala]||s.created_at>bySala[s.sala].created_at)bySala[s.sala]=s;});
+      const data={};
+      Object.entries(bySala).forEach(([sala,snap])=>{if(snap.data)data[sala]=snap.data;});
+      setAllData(data);
+      // Load skill data
+      const slugs=rooms.map(r=>r.slug);
+      Promise.all([
+        ...slugs.map(s=>sbLoadSkillProfiles(s)),
+        ...slugs.map(s=>sbLoadMemberProfiles(s)),
+        sbLoadMemberSkills(),
+        ...slugs.map(s=>sbLoadSkillActions(s)),
+      ]).then(res=>{
+        const n=slugs.length;
+        const profiles=res.slice(0,n).flat();
+        const memProfiles=res.slice(n,2*n).flat();
+        const memSkills=res[2*n]||[];
+        const actions=res.slice(2*n+1).flat();
+        const pids=profiles.map(p=>p.id);
+        if(pids.length){
+          supabase.from('profile_skills').select('*').in('profile_id',pids).then(({data:ps})=>{
+            setSkData({profiles,profSkills:ps||[],memSkills,memProfiles,actions});
+            setLoading(false);
+          });
+        } else { setSkData({profiles,profSkills:[],memSkills,memProfiles,actions}); setLoading(false); }
+      }).catch(()=>setLoading(false));
+    }).catch(()=>setLoading(false));
+  },[]);
+
+  if(loading) return html`<div style=${{textAlign:'center',padding:48,color:'#86868B'}}>Cargando dashboard...</div>`;
+
+  // Filter by project
+  const fRooms = filterProject.length===0?rooms:rooms.filter(r=>filterProject.includes(r.slug));
+  const fSlugs = fRooms.map(r=>r.slug);
+  const fData = {};
+  Object.entries(allData).forEach(([k,v])=>{if(fSlugs.includes(k)||filterProject.length===0)fData[k]=v;});
+
+  // KPIs
+  const totalAct = Object.values(fData).flatMap(d=>d.actions||[]).filter(a=>a.status!=='discarded'&&a.status!=='cancelled');
+  const totalRisks = Object.values(fData).flatMap(d=>d.risks||[]);
+  const actDone = totalAct.filter(a=>a.status==='done').length;
+  const actOverdue = totalAct.filter(a=>a.status!=='done'&&a.date&&a.date<today).length;
+  const actOnTrack = totalAct.filter(a=>a.status!=='done'&&(!a.date||a.date>=today)).length;
+  const actTotal = totalAct.length;
+  const rOpen = totalRisks.filter(r=>r.status!=='mitigated');
+  const rMitigated = totalRisks.filter(r=>r.status==='mitigated').length;
+  const rEscalated = rOpen.filter(r=>r.escalation?.level&&r.escalation.level!=='equipo').length;
+  const rCritical = rOpen.filter(r=>calculateCriticality(r.prob||'media',r.impact||'medio')==='critical').length;
+  const rModerate = rOpen.filter(r=>calculateCriticality(r.prob||'media',r.impact||'medio')==='moderate').length;
+  const rLow = rOpen.filter(r=>calculateCriticality(r.prob||'media',r.impact||'medio')==='low').length;
+  const rRiesgos = rOpen.filter(r=>(r.type||'riesgo')==='riesgo').length;
+  const rProblemas = rOpen.filter(r=>(r.type||'riesgo')==='problema').length;
+
+  // Skills
+  const {profiles:skP,profSkills:skPS,memSkills:skMS,memProfiles:skMP,actions:skAct}=skData;
+  const fMembers = filterProject.length===0?members:members.filter(m=>(m.rooms||[]).some(r=>fSlugs.includes(r)));
+  const withProfile = fMembers.filter(m=>skMP.some(mp=>mp.member_id===m.id));
+  const coveragePct = fMembers.length>0?Math.round(withProfile.length/fMembers.length*100):0;
+  const fits = withProfile.map(m=>{
+    const mp=skMP.find(x=>x.member_id===m.id);if(!mp)return null;
+    const reqs=skPS.filter(x=>x.profile_id===mp.profile_id);if(!reqs.length)return null;
+    const tR=reqs.reduce((s,r)=>s+r.required_level,0);
+    const tA=reqs.reduce((s,r)=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return s+Math.min(ms?.current_level||0,r.required_level)},0);
+    return Math.round(tA/tR*100);
+  }).filter(Boolean);
+  const avgFit = fits.length>0?Math.round(fits.reduce((s,f)=>s+f,0)/fits.length):0;
+  const critGaps = withProfile.reduce((cnt,m)=>{
+    const mp=skMP.find(x=>x.member_id===m.id);if(!mp)return cnt;
+    return cnt+skPS.filter(x=>x.profile_id===mp.profile_id).filter(r=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return r.required_level-(ms?.current_level||0)>=2}).length;
+  },0);
+  const totalFte = skP.filter(p=>p.sala!=='__maestro__'&&(filterProject.length===0||fSlugs.includes(p.sala))).reduce((s,p)=>s+(parseFloat(p.fte)||1),0);
+  const profileFits = skP.filter(p=>p.sala!=='__maestro__'&&(filterProject.length===0||fSlugs.includes(p.sala))).map(p=>{
+    const assigned=skMP.filter(mp=>mp.profile_id===p.id).map(mp=>fMembers.find(m=>m.id===mp.member_id)).filter(Boolean);
+    const fv=assigned.map(m=>{const reqs=skPS.filter(x=>x.profile_id===p.id);if(!reqs.length)return null;const tR=reqs.reduce((s,r)=>s+r.required_level,0);const tA=reqs.reduce((s,r)=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return s+Math.min(ms?.current_level||0,r.required_level)},0);return Math.round(tA/tR*100);}).filter(Boolean);
+    return{name:p.name,icon:p.icon,fit:fv.length?Math.round(fv.reduce((s,f)=>s+f,0)/fv.length):0};
+  });
+
+  // Vacaciones
+  const todayVac=fMembers.filter(m=>(Array.isArray(m.vacations)?m.vacations:[]).some(v=>v.from<=today&&(!v.to||v.to>=today)));
+  const memberVacPct=fMembers.map(m=>{
+    const vacs=(Array.isArray(m.vacations)?m.vacations:[]).filter(v=>(v.type==='vacaciones'||!v.type)&&v.from&&v.from.startsWith(String(yr)));
+    const used=vacs.reduce((s,v)=>{const f=new Date(v.from),t=new Date(v.to||v.from);return s+Math.max(1,Math.round((t-f)/86400000)+1)},0);
+    const total=m.annual_vac_days||22;
+    return{...m,used,total,pct:Math.min(100,Math.round(used/total*100))};
+  }).sort((a,b)=>a.pct-b.pct);
+
+  // Health
+  const tareasAlDia=actTotal>0?(actDone+actOnTrack)/actTotal:1;
+  const riesgosCtrl=(rMitigated+rOpen.length)>0?rMitigated/(rMitigated+rOpen.length):1;
+  const escalRes=totalRisks.length>0?1-(rEscalated/totalRisks.length):1;
+  const salud=Math.round(tareasAlDia*30+riesgosCtrl*25+escalRes*15+(avgFit/100)*20+(coveragePct/100)*10);
+  const saludC=salud>=80?'#34C759':salud>=60?'#FF9500':'#FF3B30';
+  const actPct=actTotal>0?Math.round(actDone/actTotal*100):0;
+
+  // Per-project tasks
+  const projPct=fRooms.map(r=>{const d=fData[r.slug]||{};const a=(d.actions||[]).filter(x=>x.status!=='discarded'&&x.status!=='cancelled');const dn=a.filter(x=>x.status==='done').length;return{name:r.name,pct:a.length>0?Math.round(dn/a.length*100):0,total:a.length}}).filter(p=>p.total>0);
+
+  // Urgents
+  const urgents=[];
+  totalAct.filter(a=>a.status!=='done'&&a.date&&a.date<today).slice(0,4).forEach(a=>{const rm=rooms.find(r=>{const d=fData[r.slug];return d&&(d.actions||[]).some(x=>x.id===a.id)});urgents.push({t:'overdue',text:a.text,sub:(rm?.name||'')+(a.date?' · Venció '+fd2(a.date):''),c:'#FF3B30'})});
+  rOpen.filter(r=>r.escalation?.level&&r.escalation.level!=='equipo').slice(0,3).forEach(r=>{const rm=rooms.find(x=>{const d=fData[x.slug];return d&&(d.risks||[]).some(y=>y.id===r.id)});urgents.push({t:'escalated',text:(r.title||r.text),sub:(rm?.name||'')+' · '+(r.escalation?.levelLabel||''),c:'#FF9500'})});
+  if(critGaps>0) urgents.push({t:'gap',text:critGaps+' gaps críticos',sub:'Skill Matrix',c:'#FF9500'});
+
+  // Tooltip
+  const TT=({children,tip})=>html`
+    <div style=${{position:'relative',cursor:'default'}} class="adm-tt">
+      ${children}
+      <div class="adm-tip" style=${{position:'absolute',bottom:'calc(100% + 8px)',left:'50%',transform:'translateX(-50%)',background:'#FFF',color:'#1D1D1F',padding:'10px 14px',borderRadius:12,fontSize:11,lineHeight:1.6,whiteSpace:'pre-line',minWidth:200,maxWidth:300,zIndex:100,pointerEvents:'none',opacity:0,transition:'opacity .15s',boxShadow:'0 4px 24px rgba(0,0,0,.12)',border:'1.5px solid #E5E5EA'}}>${tip}</div>
+    </div>`;
+
+  return html`
+    <style>.adm-tt:hover .adm-tip{opacity:1 !important}</style>
+
+    <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+      <${TT} tip=${'Tareas al día: '+Math.round(tareasAlDia*100)+'%\nRiesgos controlados: '+Math.round(riesgosCtrl*100)+'%\nEscalados resueltos: '+Math.round(escalRes*100)+'%\nEncaje equipo: '+avgFit+'%\nCobertura: '+coveragePct+'%\n────────────\nSalud global: '+salud+'%'}>
+        <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
+          <div style=${{fontSize:28,fontWeight:800,color:saludC}}>${salud}%</div>
+          <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Salud global</div>
+        </div>
+      <//>
+      <${TT} tip=${fRooms.length+' proyectos'+(filterProject.length>0?' (filtrado)':' totales')}>
+        <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
+          <div style=${{fontSize:28,fontWeight:800,color:'#007AFF'}}>${fRooms.length}</div>
+          <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Proyectos</div>
+        </div>
+      <//>
+      <${TT} tip=${fMembers.length+' personas\n'+todayVac.length+' de vacaciones\n'+withProfile.length+' con perfil'}>
+        <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
+          <div style=${{fontSize:28,fontWeight:800,color:'#1D1D1F'}}>${fMembers.length}</div>
+          <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Personas</div>
+        </div>
+      <//>
+      <${TT} tip=${rEscalated+' riesgos escalados'}>
+        <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
+          <div style=${{fontSize:28,fontWeight:800,color:rEscalated>0?'#FF3B30':'#34C759'}}>${rEscalated}</div>
+          <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Escalados</div>
+        </div>
+      <//>
+    </div>
+
+    <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+      <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
+        <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Riesgos y problemas</h3>
+        <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+          <${TT} tip=${rRiesgos+' riesgos abiertos'}><div style=${{background:'#FFF9E6',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:22,fontWeight:800,color:'#FF9500'}}>${rRiesgos}</div><div style=${{fontSize:10,color:'#86868B'}}>Riesgos</div></div><//>
+          <${TT} tip=${rProblemas+' problemas activos'}><div style=${{background:'#FFF5F5',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:22,fontWeight:800,color:'#FF3B30'}}>${rProblemas}</div><div style=${{fontSize:10,color:'#86868B'}}>Problemas</div></div><//>
+          <${TT} tip=${rMitigated+' cerrados · Tasa: '+Math.round(riesgosCtrl*100)+'%'}><div style=${{background:'#F0FFF4',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:22,fontWeight:800,color:'#34C759'}}>${rMitigated}</div><div style=${{fontSize:10,color:'#86868B'}}>Mitigados</div></div><//>
+        </div>
+        <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>POR CRITICIDAD</div>
+        ${[[rCritical,'Crítico','#FF3B30'],[rModerate,'Moderado','#FF9500'],[rLow,'Bajo','#34C759']].map(([v,l,c])=>html`
+          <div key=${l} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
+            <span style=${{fontSize:11,width:70,color:'#6E6E73'}}>${l}</span>
+            <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}><div style=${{width:(rOpen.length>0?v/rOpen.length*100:0)+'%',height:'100%',background:c,borderRadius:3}}></div></div>
+            <span style=${{fontSize:11,fontWeight:700,color:c,minWidth:20,textAlign:'right'}}>${v}</span>
+          </div>`)}
+      </div>
+      <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
+        <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Seguimiento de tareas</h3>
+        <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+          <${TT} tip=${actTotal+' tareas totales'}><div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:22,fontWeight:800,color:'#1D1D1F'}}>${actTotal}</div><div style=${{fontSize:10,color:'#86868B'}}>Total</div></div><//>
+          <${TT} tip=${actOverdue+' vencidas'}><div style=${{background:actOverdue>0?'#FFF5F5':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:22,fontWeight:800,color:actOverdue>0?'#FF3B30':'#6E6E73'}}>${actOverdue}</div><div style=${{fontSize:10,color:'#86868B'}}>Vencidas</div></div><//>
+          <${TT} tip=${actDone+'/'+actTotal+' completadas'}><div style=${{background:'#F0FFF4',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:22,fontWeight:800,color:'#34C759'}}>${actPct}%</div><div style=${{fontSize:10,color:'#86868B'}}>Completadas</div></div><//>
+        </div>
+        <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>POR PROYECTO</div>
+        ${projPct.slice(0,6).map(p=>html`
+          <div key=${p.name} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
+            <span style=${{fontSize:11,width:80,color:'#6E6E73',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${p.name}</span>
+            <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}><div style=${{width:p.pct+'%',height:'100%',background:'#007AFF',borderRadius:3}}></div></div>
+            <span style=${{fontSize:11,fontWeight:700,color:'#007AFF',minWidth:30,textAlign:'right'}}>${p.pct}%</span>
+          </div>`)}
+      </div>
+    </div>
+
+    <div style=${{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12,marginBottom:14}}>
+      <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
+        <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Equipo y capacidad</h3>
+        <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}}>
+          <${TT} tip=${totalFte.toFixed(1)+' FTEs'}><div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:18,fontWeight:800}}>${totalFte.toFixed(1)}</div><div style=${{fontSize:9,color:'#86868B'}}>FTEs</div></div><//>
+          <${TT} tip=${todayVac.length>0?todayVac.map(m=>m.name).join(', '):'Nadie'}><div style=${{background:todayVac.length?'#FFF9E6':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:18,fontWeight:800,color:todayVac.length?'#FF9500':'#6E6E73'}}>${todayVac.length}</div><div style=${{fontSize:9,color:'#86868B'}}>Vacaciones</div></div><//>
+          <${TT} tip=${'Media: '+avgFit+'% sobre '+fits.length+' personas'}><div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:18,fontWeight:800,color:avgFit>=80?'#34C759':avgFit>=60?'#FF9500':'#FF3B30'}}>${avgFit}%</div><div style=${{fontSize:9,color:'#86868B'}}>Encaje</div></div><//>
+          <${TT} tip=${critGaps+' gaps nivel ≥2'}><div style=${{background:critGaps?'#FFF5F5':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}><div style=${{fontSize:18,fontWeight:800,color:critGaps?'#FF3B30':'#6E6E73'}}>${critGaps}</div><div style=${{fontSize:9,color:'#86868B'}}>Gaps</div></div><//>
+        </div>
+        ${profileFits.length>0&&html`
+          <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>ENCAJE POR PERFIL</div>
+          ${profileFits.map(p=>html`
+            <div key=${p.name} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
+              <span style=${{fontSize:11,width:100,color:'#6E6E73',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${p.icon||''} ${p.name}</span>
+              <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}><div style=${{width:p.fit+'%',height:'100%',background:p.fit>=90?'#34C759':p.fit>=70?'#FF9500':'#FF3B30',borderRadius:3}}></div></div>
+              <span style=${{fontSize:11,fontWeight:700,color:p.fit>=90?'#34C759':p.fit>=70?'#FF9500':'#FF3B30',minWidth:30,textAlign:'right'}}>${p.fit}%</span>
+            </div>`)}
+        `}
+      </div>
+      <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px',maxHeight:360,display:'flex',flexDirection:'column'}}>
+        <h3 style=${{fontSize:14,fontWeight:700,marginBottom:10,flexShrink:0}}>Vacaciones</h3>
+        <div style=${{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:0}}>
+          ${memberVacPct.map(m=>{
+            const c=m.pct>=80?'#34C759':m.pct>=40?'#FF9500':'#FF3B30';
+            const isAway=todayVac.some(v=>v.id===m.id);
+            return html`
+              <div key=${m.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid #F2F2F7'}}>
+                <div style=${{width:24,height:24,borderRadius:7,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,flexShrink:0}}>${m.avatar||'👤'}</div>
+                <div style=${{flex:1,fontSize:11,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${m.name.split(' ')[0]}</div>
+                ${isAway&&html`<span style=${{fontSize:8,fontWeight:700,color:'#FF9500',background:'#FFF9E6',padding:'1px 5px',borderRadius:4}}>HOY</span>`}
+                <div style=${{width:40,height:4,borderRadius:2,background:'#F2F2F7',overflow:'hidden',flexShrink:0}}><div style=${{width:m.pct+'%',height:'100%',background:c,borderRadius:2}}></div></div>
+                <span style=${{fontSize:10,fontWeight:700,color:c,minWidth:28,textAlign:'right'}}>${m.pct}%</span>
+              </div>`})}
+        </div>
+      </div>
+    </div>
+
+    ${urgents.length>0&&html`
+      <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #FF3B3015',padding:'16px 18px',marginBottom:14}}>
+        <h3 style=${{fontSize:14,fontWeight:700,marginBottom:10,color:'#FF3B30'}}>Requiere atención</h3>
+        ${urgents.map((it,i)=>html`
+          <div key=${i} style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:i<urgents.length-1?'1px solid #F2F2F7':'none'}}>
+            <div style=${{width:8,height:8,borderRadius:4,background:it.c,flexShrink:0}}></div>
+            <div style=${{flex:1,minWidth:0}}><div style=${{fontSize:12,fontWeight:600}}>${it.text}</div><div style=${{fontSize:10,color:'#86868B'}}>${it.sub}</div></div>
+            <span style=${{fontSize:9,fontWeight:700,color:it.c,background:it.c+'12',padding:'2px 8px',borderRadius:6}}>${it.t==='overdue'?'Vencida':it.t==='escalated'?'Escalado':'Gap'}</span>
+          </div>`)}
+      </div>`}
+  `;
+}
+
 function AdminEscaladoGlobal({ rooms }) {
   const [members,   setMembers]   = useState([]);
   const [globalOrg, setGlobalOrg] = useState({});
@@ -4080,266 +4082,7 @@ function RoomPicker() {
               <button key=${r.slug} onClick=${()=>setFilterProject(prev=>active?prev.filter(s=>s!==r.slug):[...prev,r.slug])} style=${{ padding:'5px 12px', borderRadius:8, border:active?'none':'1.5px solid #E5E5EA', background:active?'#007AFF':'#FFF', color:active?'#FFF':'#6E6E73', fontSize:11, fontWeight:600 }}>${r.name}</button>`;
             })}
           </div>
-
-          ${loadingSb ? html`<div style=${{ textAlign:'center', padding:40, color:'#86868B' }}>⏳ Cargando datos de Supabase…</div>` :
-          totalRetros === 0 ? html`
-            <div style=${{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
-              ${[{l:'Proyectos',i:'📂'},{l:'Retros',i:'📊'},{l:'Notas',i:'📝'},{l:'Votos',i:'👍'},
-                 {l:'Tareas',i:'🎯'},{l:'Completados',i:'✅'},{l:'Riesgos',i:'⚠️'},{l:'Personas',i:'👥'}].map((k,i) => html`
-                <div key=${i} title=${TOOLTIP_MAP[k.l]||''} style=${{ ...cS, cursor:'help', padding:'14px 8px', textAlign:'center', opacity:0.5 }}>
-                  <div style=${{ fontSize:18, marginBottom:4 }}>${k.i}</div>
-                  <div style=${{ fontSize:22, fontWeight:800, color:'#C7C7CC' }}>—</div>
-                  <div style=${{ fontSize:9, color:'#C7C7CC', marginTop:2 }}>${k.l}</div>
-                </div>
-              `)}
-            </div>
-            <div style=${{ ...cS, padding:22, textAlign:'center', color:'#C7C7CC' }}>
-              <p style=${{ fontSize:14, marginBottom:8 }}>📊 Sin datos aún</p>
-              <p style=${{ fontSize:12 }}>Guarda retros con "🆕 Nueva retro" para ver métricas</p>
-            </div>
-          ` : html`
-
-            ${(() => {
-              const allMembers = window.__allMembers || [];
-              const salaMembers = filterProject.length===0 ? allMembers : allMembers.filter(m=>(m.rooms||[]).some(r=>filterProject.includes(r)));
-              const today = new Date().toISOString().slice(0,10);
-              const onVacToday = salaMembers.filter(m=>(m.vacations||[]).some(v=>v.from<=today&&(!v.to||v.to>=today))).length;
-              const totalRisksFromRetros = filteredStats.reduce((s,x)=>s+x.risksOpen,0);
-              const totalProblemas = filteredStats.flatMap(s=>s.entries.flatMap(rt=>(rt.data?.risks||[]).filter(r=>(r.type||'riesgo')==='problema'&&r.status!=='mitigated'))).length;
-
-              return html`
-
-                <p style=${{ fontSize:10, fontWeight:700, color:'#86868B', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Resumen del servicio</p>
-                <div style=${{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:14 }}>
-                  ${[
-                    {l:'Proyectos',  v:rooms.length,    lu:'FolderOpen',    c:'#5856D6', tip:'Total de proyectos registrados'},
-                    {l:'Retros',     v:totalRetros,     lu:'RotateCcw',     c:'#007AFF', tip:'Sesiones de retrospectiva guardadas'},
-                    {l:'Notas',      v:totalNotes,      lu:'StickyNote',    c:'#FF9500', tip:'Tarjetas creadas durante retros (acumulado)'},
-                    {l:'Tareas',     v:totalActions,    lu:'CheckSquare',   c:'#34C759', tip:'Tareas en el último snapshot de cada proyecto'},
-                    {l:'Completado', v:Math.round(actionRate)+'%', lu:'CheckCircle2', c:actionRate>=75?'#34C759':actionRate>=40?'#FF9500':'#FF3B30', tip:'% de tareas completadas vs total'},
-                    {l:'Personas',   v:allParticipants.length, lu:'Users',  c:'#AF52DE', tip:'Personas únicas que han participado en retros'},
-                  ].map((k,i) => html`
-                    <div key=${i} title=${k.tip} style=${{ ...cS, padding:'12px 10px', textAlign:'center', cursor:'help' }}>
-                      <div style=${{ width:28, height:28, borderRadius:8, background:k.c+'12', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 6px' }}>
-                        <${Icon} name=${k.lu} size=${14} color=${k.c} />
-                      </div>
-                      <div style=${{ fontSize:20, fontWeight:800, color:k.c, lineHeight:1.1 }}>${k.v}</div>
-                      <div style=${{ fontSize:9, color:'#86868B', marginTop:2 }}>${k.l}</div>
-                    </div>`)}
-                </div>
-
-                <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14 }}>
-
-                  <div style=${{ ...cS, padding:'14px 16px' }}>
-                    <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><${Icon} name="Users" size=${14} color="#5856D6" /> Equipo</h4>
-                    <div style=${{ display:'flex', gap:8, marginBottom:8 }}>
-                      <div style=${{ flex:1, textAlign:'center' }}>
-                        <div style=${{ fontSize:22, fontWeight:800, color:'#5856D6' }}>${salaMembers.length}</div>
-                        <div style=${{ fontSize:9, color:'#86868B' }}>miembros</div>
-                      </div>
-                      <div style=${{ flex:1, textAlign:'center' }}>
-                        <div style=${{ fontSize:22, fontWeight:800, color:onVacToday>0?'#FF9500':'#34C759' }}>${onVacToday}</div>
-                        <div style=${{ fontSize:9, color:'#86868B' }}>de vacaciones hoy</div>
-                      </div>
-                    </div>
-                    <div style=${{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                      ${salaMembers.slice(0,8).map(m=>html`
-                        <div title=${m.name} style=${{ width:28, height:28, borderRadius:8, background:m.color||'#E5E5EA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15 }}>${m.avatar||'👤'}</div>`)}
-                      ${salaMembers.length>8&&html`<div style=${{ width:28, height:28, borderRadius:8, background:'#F2F2F7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#86868B', fontWeight:700 }}>+${salaMembers.length-8}</div>`}
-                    </div>
-                  </div>
-
-                  <div style=${{ ...cS, padding:'14px 16px' }}>
-                    <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><${Icon} name="AlertTriangle" size=${14} color="#FF9500" /> Riesgos</h4>
-                    <div style=${{ display:'flex', gap:6 }}>
-                      ${[
-                        {l:'Riesgos',     v:totalRisksFromRetros, c:'#FF9500', i:'⚠️'},
-                        {l:'Problemas',   v:totalProblemas,       c:'#FF3B30', i:'🔴'},
-                        {l:'Mitigados',   v:filteredStats.flatMap(s=>s.entries.flatMap(rt=>(rt.data?.risks||[]).filter(r=>r.status==='mitigated'))).length, c:'#34C759', i:'✅'},
-                      ].map(k=>html`
-                        <div style=${{ flex:1, textAlign:'center', padding:'6px 4px', borderRadius:8, background:k.c+'10' }}>
-                          <div style=${{ fontSize:9, marginBottom:2 }}>${k.i}</div>
-                          <div style=${{ fontSize:18, fontWeight:800, color:k.c }}>${k.v}</div>
-                          <div style=${{ fontSize:8, color:'#86868B' }}>${k.l}</div>
-                        </div>`)}
-                    </div>
-                  </div>
-
-                  <div style=${{ ...cS, padding:'14px 16px' }}>
-                    <h4 style=${{ fontSize:12, fontWeight:700, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><${Icon} name="CalendarDays" size=${14} color="#007AFF" /> Vacaciones</h4>
-                    ${(() => {
-                      const thisYr = new Date().getFullYear();
-                      const HOLS = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
-                      const cntD = (vList, memberId, yr) => (Array.isArray(vList)?vList:(() => { try { return JSON.parse(vList)||[]; } catch { return []; } })()).filter(v=>(v.type==='vacaciones'||!v.type)&&new Date(v.from||'').getFullYear()===yr).reduce((sum,v)=>{
-                        if(!v.from) return sum;
-                        let d=new Date(v.from),to=new Date(v.to||v.from),cnt=0;
-                        while(d<=to){const dow=d.getDay(),mm=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(d.getFullYear()===yr&&dow!==0&&dow!==6&&!HOLS.includes(mm+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
-                        return sum+cnt;
-                      },0);
-                      const totalCapacity = salaMembers.reduce((s,m)=>s+(m.annual_vac_days??ANNUAL_VAC_DAYS)+(m.prev_year_pending??0),0);
-                      const totalConsumed = salaMembers.reduce((s,m)=>s+cntD(m.vacations||[],m.id,thisYr),0);
-                      const pct = totalCapacity>0?Math.round((totalConsumed/totalCapacity)*100):0;
-                      const vacToday = salaMembers.filter(m=>(m.vacations||[]).some(v=>v.from<=today&&(!v.to||v.to>=today)));
-                      const nextMonth = new Date(); nextMonth.setMonth(nextMonth.getMonth()+1);
-                      const vacSoon = salaMembers.filter(m=>(m.vacations||[]).some(v=>{ const d=new Date(v.from); return d>new Date()&&d<=nextMonth; }));
-                      return html`
-
-                        <div style=${{ marginBottom:10 }}>
-                          <div style=${{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#86868B', marginBottom:4 }}>
-                            <span>Días consumidos del equipo</span>
-                            <span style=${{ fontWeight:700, color:pct>80?'#FF3B30':pct>60?'#FF9500':'#34C759' }}>${pct}%</span>
-                          </div>
-                          <div style=${{ background:'#F2F2F7', borderRadius:5, height:7, overflow:'hidden' }}>
-                            <div style=${{ width:pct+'%', height:'100%', background:pct>80?'#FF3B30':pct>60?'#FF9500':'#34C759', borderRadius:5 }}></div>
-                          </div>
-                          <div style=${{ display:'flex', justifyContent:'space-between', fontSize:9, color:'#C7C7CC', marginTop:3 }}>
-                            <span>${totalConsumed}d consumidos</span>
-                            <span>${totalCapacity}d totales</span>
-                          </div>
-                        </div>
-
-                        <${VacPaginated} members=${salaMembers} cntD=${cntD} thisYr=${thisYr} />
-                        ${vacToday.length>0&&html`<div style=${{ fontSize:10, color:'#FF9500', fontWeight:700 }}>Hoy: ${vacToday.map(m=>m.name).join(', ')}</div>`}
-                        ${vacSoon.length>0&&html`<div style=${{ fontSize:10, color:'#86868B', marginTop:4 }}>Próx. mes: ${vacSoon.slice(0,2).map(m=>m.name).join(', ')}${vacSoon.length>2?' +'+vacSoon.length-2:''}</div>`}
-                      `;
-                    })()}
-                  </div>
-                </div>
-              `;
-            })()}
-
-            <div style=${{ display:'grid', gridTemplateColumns:'200px 1fr', gap:12, marginBottom:12 }}>
-
-              <div style=${{ ...cS, padding:'20px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center' }}>
-                <h3 style=${{ fontSize:12, fontWeight:700, marginBottom:12 }}>Tareas</h3>
-                ${(() => {
-                  const r=46, circ=2*Math.PI*r;
-                  const dash = (actionRate/100)*circ;
-                  const col = actionRate>=75?'#34C759':actionRate>=40?'#FF9500':'#FF3B30';
-                  return html`
-                    <svg width="110" height="110" viewBox="0 0 110 110" style=${{ display:'block', margin:'0 auto' }}>
-                      <circle cx="55" cy="55" r=${r} fill="none" stroke="#F2F2F7" stroke-width="12"/>
-                      <circle cx="55" cy="55" r=${r} fill="none" stroke=${col} stroke-width="12"
-                        stroke-dasharray="${dash} ${circ}" stroke-dashoffset=${circ/4} stroke-linecap="round"/>
-                      <text x="55" y="50" text-anchor="middle" dominant-baseline="middle" font-size="18" font-weight="800" fill="#1D1D1F">${Math.round(actionRate)}%</text>
-                      <text x="55" y="66" text-anchor="middle" font-size="9" fill="#86868B">completado</text>
-                    </svg>
-                    <div style=${{ fontSize:12, color:'#86868B', marginTop:10, lineHeight:1.8 }}>
-                      <div><span style=${{ color:'#34C759', fontWeight:700 }}>${totalActionsDone}</span> completados</div>
-                      <div><span style=${{ color:col, fontWeight:700 }}>${totalActions - totalActionsDone}</span> pendientes</div>
-                    </div>`;
-                })()}
-              </div>
-
-              <div style=${{ ...cS, padding:'20px' }}>
-                <h3 style=${{ fontSize:13, fontWeight:700, marginBottom:16 }}>Notas por proyecto</h3>
-                ${(() => {
-                  const mx = Math.max(...salaStats.map(s=>s.notes), 1);
-                  return salaStats.map((s,i) => html`
-                    <div key=${s.slug} style=${{ marginBottom:12 }}>
-                      <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:4, alignItems:'center' }}>
-                        <div style=${{ display:'flex', alignItems:'center', gap:7 }}>
-                          <button onClick=${()=>go(s.slug,s.tipo)} style=${{ background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:'#007AFF',padding:0 }}>${s.name}</button>
-                          <span style=${{ fontSize:9, color:s.rTipo.color, background:s.rTipo.color+'15', padding:'1px 5px', borderRadius:4, fontWeight:700 }}>${s.rTipo.icon}</span>
-                        </div>
-                        <span style=${{ fontSize:11, fontWeight:700, color:bc(i) }}>${s.notes}</span>
-                      </div>
-                      <div style=${{ height:7, background:'#F2F2F7', borderRadius:4, overflow:'hidden' }}>
-                        <div style=${{ height:'100%', width:(s.notes/mx)*100+'%', background:bc(i), borderRadius:4, transition:'width .5s' }} />
-                      </div>
-                    </div>`);
-                })()}
-              </div>
-            </div>
-
-            <div style=${{ ...cS }}>
-              <div style=${{ padding:'16px 18px', borderBottom:'1px solid #E5E5EA', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <h3 style=${{ fontSize:14, fontWeight:700 }}>Portfolio de proyectos</h3>
-                <span style=${{ fontSize:11, color:'#86868B' }}>${salaStats.length} proyectos</span>
-              </div>
-              <div style=${{ overflowX:'auto' }}>
-                <table style=${{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
-                  <thead>
-                    <tr style=${{ borderBottom:'1.5px solid #E5E5EA', background:'#F9F9FB' }}>
-                      ${['Proyecto','Tipo','Retros','Última','Usuarios','Tareas','Riesgos','% Vacas','% Rotación'].map(h=>html`
-                        <th key=${h} style=${{ padding:'8px 12px', textAlign:'left', fontWeight:700, color:'#86868B', fontSize:9, textTransform:'uppercase', whiteSpace:'nowrap' }}>${h}</th>
-                      `)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${salaStats.map((s,i) => {
-                      const cr  = s.actions>0 ? Math.round((s.done/s.actions)*100) : 0;
-                      const cc  = cr>=75?'#34C759':cr>=40?'#FF9500':'#FF3B30';
-                      const avgP = s.retros>0 ? (s.parts.length/s.retros).toFixed(1) : 0;
-                      const lastDate = s.last ? (s.last.created_at || s.last.date) : null;
-                      // Vacation %: days consumed / total available for sala members
-                      const allMbrs = window.__allMembers||[];
-                      const slaMbrs = allMbrs.filter(m=>(m.rooms||[]).includes(s.slug));
-                      const HOLS2 = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
-                      const thisYr2 = new Date().getFullYear();
-                      const cntVD = (vList,mId,mn) => (Array.isArray(vList)?vList:(() => { try { return JSON.parse(vList)||[]; } catch { return []; } })()).filter(v=>(v.type==='vacaciones'||!v.type)&&new Date(v.from||'').getFullYear()===thisYr2).reduce((sum,v)=>{
-                        if(!v.from) return sum;
-                        let d=new Date(v.from),to=new Date(v.to||v.from),cnt=0;
-                        while(d<=to){const dow=d.getDay(),mm2=String(d.getMonth()+1).padStart(2,'0'),dd2=String(d.getDate()).padStart(2,'0');if(d.getFullYear()===thisYr2&&dow!==0&&dow!==6&&!HOLS2.includes(mm2+'-'+dd2))cnt++;d.setDate(d.getDate()+1);}
-                        return sum+cnt;
-                      },0);
-                      const totalCap = slaMbrs.reduce((sum,m)=>sum+(m.annual_vac_days??22)+(m.prev_year_pending??0),0);
-                      const totalUsed = slaMbrs.reduce((sum,m)=>sum+cntVD(m.vacations,m.id,m.name),0);
-                      const vacPct = totalCap>0?Math.min(100,Math.round((totalUsed/totalCap)*100)):null;
-                      const vacColor = vacPct===null?'#C7C7CC':vacPct>90?'#FF3B30':vacPct>70?'#FF9500':'#34C759';
-                      // Rotation %: members who have left (end_date < today) / total historical
-                      const orgRows = orgData.filter(r=>r.sala===s.slug);
-                      const todayStr2 = new Date().toISOString().slice(0,10);
-                      const leftCount = orgRows.filter(r=>r.end_date&&r.end_date<todayStr2).length;
-                      const totalCount = orgRows.length;
-                      const rotPct = totalCount>0?Math.round((leftCount/totalCount)*100):null;
-                      const rotColor = rotPct===null?'#C7C7CC':rotPct>40?'#FF3B30':rotPct>20?'#FF9500':'#34C759';
-                      return html`
-                        <tr key=${s.slug} style=${{ borderBottom:'1px solid #F2F2F7' }}
-                          onMouseOver=${e=>e.currentTarget.style.background='#F9F9FB'}
-                          onMouseOut=${e=>e.currentTarget.style.background='transparent'}>
-                          <td style=${{ padding:'10px 12px' }}>
-                            <button onClick=${()=>go(s.slug,s.tipo)} style=${{ background:'none',border:'none',cursor:'pointer',fontWeight:700,color:'#007AFF',fontSize:12,padding:0 }}>${s.name}</button>
-                          </td>
-                          <td style=${{ padding:'10px 12px' }}>
-                            <span style=${{ fontSize:9, fontWeight:700, color:s.rTipo.color, background:s.rTipo.color+'12', padding:'2px 7px', borderRadius:5, whiteSpace:'nowrap' }}>${s.rTipo.icon} ${s.rTipo.label}</span>
-                          </td>
-                          <td style=${{ padding:'10px 12px', fontWeight:700, color:'#007AFF' }}>${s.retros}</td>
-                          <td style=${{ padding:'10px 12px', color:'#86868B', fontSize:10 }}>${lastDate ? fd(lastDate) : '—'}</td>
-                          <td style=${{ padding:'10px 12px', fontWeight:600 }}>${slaMbrs.length}</td>
-                          <td style=${{ padding:'10px 12px' }}>${s.done}/${s.actions}</td>
-                          <td style=${{ padding:'10px 12px' }}>
-                            ${s.risksOpen > 0
-                              ? html`<span style=${{ color:'#FF3B30', fontWeight:700 }}>${s.risksOpen}/${s.risksTotal}</span>`
-                              : html`<span style=${{ color:'#86868B' }}>—</span>`}
-                          </td>
-                          <td style=${{ padding:'8px 12px', minWidth:80 }}>
-                            ${vacPct===null ? html`<span style=${{ color:'#C7C7CC', fontSize:10 }}>—</span>` : html`
-                              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                                <div style=${{ flex:1, height:5, background:'#F2F2F7', borderRadius:3, overflow:'hidden' }}>
-                                  <div style=${{ height:'100%', width:vacPct+'%', background:vacColor, borderRadius:3 }}></div>
-                                </div>
-                                <span style=${{ fontSize:10, fontWeight:700, color:vacColor, minWidth:28 }}>${vacPct}%</span>
-                              </div>`}
-                          </td>
-                          <td style=${{ padding:'8px 12px', minWidth:80 }}>
-                            ${rotPct===null ? html`<span style=${{ color:'#C7C7CC', fontSize:10 }}>—</span>` : html`
-                              <div style=${{ display:'flex', alignItems:'center', gap:4 }}>
-                                <div style=${{ flex:1, height:5, background:'#F2F2F7', borderRadius:3, overflow:'hidden' }}>
-                                  <div style=${{ height:'100%', width:rotPct+'%', background:rotColor, borderRadius:3 }}></div>
-                                </div>
-                                <span style=${{ fontSize:10, fontWeight:700, color:rotColor, minWidth:28 }}>${rotPct}%</span>
-                              </div>`}
-                          </td>
-                        </tr>`;
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          `}
-
+          <${AdminDashboard} rooms=${rooms} filterProject=${filterProject} setFilterProject=${setFilterProject} />
         ` : html`
 
           <div style=${{ ...cS, padding:'20px', marginBottom:12 }}>
