@@ -1656,6 +1656,7 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
   const [showNotifs,   setShowNotifs]   = useState(false);
   const [homeNotifs,   setHomeNotifs]   = useState([]);
   const [rolesList,    setRolesList]    = useState(getAllRoles);
+  const [skillData,    setSkillData]    = useState({profiles:[],skills:[],profSkills:[],memSkills:[],memProfiles:[],actions:[]});
   const today    = new Date().toISOString().slice(0,10);
   const thisYear = new Date().getFullYear();
 
@@ -1678,6 +1679,32 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
       setProfile(me||null); setEditProfile(me?{...me}:null); setProfileLoaded(true);
     }).catch(()=>setProfileLoaded(true));
   }, []);
+  // Load skill matrix data across all projects
+  useEffect(() => {
+    if(!roomsLoaded) return;
+    const slugs = rooms.map(r=>r.slug);
+    Promise.all([
+      ...slugs.map(s=>sbLoadSkillProfiles(s)),
+      ...slugs.map(s=>sbLoadSkills(s)),
+      ...slugs.map(s=>sbLoadMemberProfiles(s)),
+      sbLoadMemberSkills(),
+      ...slugs.map(s=>sbLoadSkillActions(s)),
+    ]).then(results => {
+      const n = slugs.length;
+      const profiles = results.slice(0,n).flat();
+      const skills = results.slice(n,2*n).flat();
+      const memProfiles = results.slice(2*n,3*n).flat();
+      const memSkills = results[3*n]||[];
+      const actions = results.slice(3*n+1).flat();
+      // Load profile_skills for all profiles
+      const pids = profiles.map(p=>p.id);
+      if(pids.length) {
+        supabase.from('profile_skills').select('*').in('profile_id',pids).then(({data})=>{
+          setSkillData({profiles,skills,profSkills:data||[],memSkills,memProfiles,actions});
+        });
+      } else { setSkillData({profiles,skills,profSkills:[],memSkills,memProfiles,actions}); }
+    }).catch(()=>{});
+  }, [roomsLoaded, rooms.length]);
   useEffect(() => {
     if (!roomsLoaded) return;
     // Load from localStorage first (fast path)
@@ -1857,191 +1884,323 @@ function UserHomePage({ user, onLogout, onSelectProject }) {
 
         <main style=${{flex:1,padding:'28px 24px',overflowY:'auto'}}>
 
-          ${section==='dashboard'&&html`<div style=${{maxWidth:720}}>
+          ${section==='dashboard'&&html`<div>
 
             <h1 style=${{fontSize:24,fontWeight:700,marginBottom:2,color:'#1D1D1F'}}>
               ${new Date().getHours()<12?'Buenos días':'Buenas tardes'}, ${user.name.split(' ')[0]}
             </h1>
             <p style=${{fontSize:13,color:'#86868B',marginBottom:20}}>${fd(new Date())} · ${myRooms.length} proyecto${myRooms.length!==1?'s':''}</p>
 
-            ${!hasUrgent && thisWeekAct.length===0 && pendingAct.length===0 && html`
-              <div style=${{background:'#F0FFF4',borderRadius:18,border:'1.5px solid #34C75920',padding:'40px 24px',textAlign:'center',marginBottom:16}}>
-                <div style=${{fontSize:36,marginBottom:10}}>✅</div>
-                <h2 style=${{fontSize:18,fontWeight:700,color:'#34C759',margin:'0 0 6px'}}>Todo al día</h2>
-                <p style=${{fontSize:13,color:'#6E6E73',margin:0}}>No tienes tareas pendientes ni riesgos que requieran atención.</p>
-                <p style=${{fontSize:12,color:'#86868B',marginTop:8}}>Buen momento para revisar tu backlog o planificar la semana.</p>
-              </div>`}
+            ${(()=>{
+              // ── KPI CALCULATIONS ──
+              const members = window.__allMembers||[];
+              const totalAct = Object.values(allData).flatMap(d=>d.actions||[]);
+              const totalRisks = Object.values(allData).flatMap(d=>d.risks||[]);
+              const actDone = totalAct.filter(a=>a.status==='done').length;
+              const actOverdue = totalAct.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled'&&a.date&&a.date<today).length;
+              const actOnTrack = totalAct.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled'&&(!a.date||a.date>=today)).length;
+              const actTotal = totalAct.filter(a=>a.status!=='discarded'&&a.status!=='cancelled').length;
+              const rOpen = totalRisks.filter(r=>r.status!=='mitigated');
+              const rMitigated = totalRisks.filter(r=>r.status==='mitigated').length;
+              const rEscalated = rOpen.filter(r=>r.escalation&&r.escalation.level&&r.escalation.level!=='equipo').length;
+              const rCritical = rOpen.filter(r=>{const c=calculateCriticality(r.prob||'media',r.impact||'medio');return c==='critical'}).length;
+              const rModerate = rOpen.filter(r=>{const c=calculateCriticality(r.prob||'media',r.impact||'medio');return c==='moderate'}).length;
+              const rLow = rOpen.filter(r=>{const c=calculateCriticality(r.prob||'media',r.impact||'medio');return c==='low'}).length;
+              const rRiesgos = rOpen.filter(r=>(r.type||'riesgo')==='riesgo').length;
+              const rProblemas = rOpen.filter(r=>(r.type||'riesgo')==='problema').length;
 
-            ${hasUrgent && html`
-              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #FF3B3015',padding:'18px 20px',marginBottom:14}}>
-                <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-                  <div style=${{width:8,height:8,borderRadius:4,background:'#FF3B30'}}></div>
-                  <h2 style=${{fontSize:15,fontWeight:700,color:'#FF3B30',margin:0}}>Requiere tu atención</h2>
-                  <span style=${{fontSize:11,color:'#86868B',marginLeft:'auto'}}>${overdueAct.length+risksNeedingAction.length} elemento${(overdueAct.length+risksNeedingAction.length)!==1?'s':''}</span>
+              // Skill matrix KPIs
+              const {profiles:skProfiles,profSkills:skPS,memSkills:skMS,memProfiles:skMP,actions:skActions} = skillData;
+              const membersWithProfile = members.filter(m=>skMP.some(mp=>mp.member_id===m.id));
+              const coveragePct = members.length>0?Math.round(membersWithProfile.length/members.length*100):0;
+              const fits = membersWithProfile.map(m=>{
+                const mp=skMP.find(x=>x.member_id===m.id);
+                if(!mp) return null;
+                const reqs=skPS.filter(x=>x.profile_id===mp.profile_id);
+                if(!reqs.length) return null;
+                const totalReq=reqs.reduce((s,r)=>s+r.required_level,0);
+                const totalAct2=reqs.reduce((s,r)=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return s+Math.min(ms?.current_level||0,r.required_level)},0);
+                return Math.round(totalAct2/totalReq*100);
+              }).filter(Boolean);
+              const avgFit = fits.length>0?Math.round(fits.reduce((s,f)=>s+f,0)/fits.length):0;
+              const criticalGaps = membersWithProfile.reduce((cnt,m)=>{
+                const mp=skMP.find(x=>x.member_id===m.id);if(!mp)return cnt;
+                const reqs=skPS.filter(x=>x.profile_id===mp.profile_id);
+                return cnt+reqs.filter(r=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return r.required_level-(ms?.current_level||0)>=2}).length;
+              },0);
+
+              // Vacaciones
+              const yr=new Date().getFullYear();
+              const todayVac = members.filter(m=>(Array.isArray(m.vacations)?m.vacations:[]).some(v=>v.from<=today&&(!v.to||v.to>=today)));
+              const nextVac = members.filter(m=>(Array.isArray(m.vacations)?m.vacations:[]).some(v=>v.from>today)).map(m=>{
+                const next=(Array.isArray(m.vacations)?m.vacations:[]).filter(v=>v.from>today).sort((a,b)=>a.from>b.from?1:-1)[0];
+                return {...m,nextVac:next};
+              }).sort((a,b)=>a.nextVac.from>b.nextVac.from?1:-1);
+
+              // FTEs
+              const totalFte = skProfiles.reduce((s,p)=>s+(parseFloat(p.fte)||1),0);
+
+              // Health score
+              const tareasAlDia = actTotal>0 ? (actDone+actOnTrack)/actTotal : 1;
+              const riesgosCtrl = (rMitigated+rOpen.length)>0 ? rMitigated/(rMitigated+rOpen.length) : 1;
+              const escalResueltos = totalRisks.length>0 ? 1-(rEscalated/totalRisks.length) : 1;
+              const encajeEquipo = avgFit/100;
+              const coberturaEq = coveragePct/100;
+              const salud = Math.round((tareasAlDia*30+riesgosCtrl*25+escalResueltos*15+encajeEquipo*20+coberturaEq*10));
+              const saludColor = salud>=80?'#34C759':salud>=60?'#FF9500':'#FF3B30';
+
+              // Per-project task completion
+              const projTaskPct = myRooms.map(r=>{
+                const d=allData[r.slug]||{};
+                const acts=(d.actions||[]).filter(a=>a.status!=='discarded'&&a.status!=='cancelled');
+                const done=acts.filter(a=>a.status==='done').length;
+                return {name:r.name,slug:r.slug,pct:acts.length>0?Math.round(done/acts.length*100):0,total:acts.length};
+              });
+              const actCompletedPct = actTotal>0?Math.round(actDone/actTotal*100):0;
+
+              // Profile fit bars
+              const profileFits = skProfiles.filter(p=>p.sala!=='__maestro__').map(p=>{
+                const assigned=skMP.filter(mp=>mp.profile_id===p.id).map(mp=>members.find(m=>m.id===mp.member_id)).filter(Boolean);
+                const fitVals=assigned.map(m=>{
+                  const reqs=skPS.filter(x=>x.profile_id===p.id);if(!reqs.length)return null;
+                  const tR=reqs.reduce((s,r)=>s+r.required_level,0);
+                  const tA=reqs.reduce((s,r)=>{const ms=skMS.find(x=>x.member_id===m.id&&x.skill_id===r.skill_id);return s+Math.min(ms?.current_level||0,r.required_level)},0);
+                  return Math.round(tA/tR*100);
+                }).filter(Boolean);
+                return {name:p.name,icon:p.icon,fit:fitVals.length?Math.round(fitVals.reduce((s,f)=>s+f,0)/fitVals.length):0,count:assigned.length};
+              });
+
+              // Urgent items
+              const urgentItems = [];
+              totalAct.filter(a=>a.status!=='done'&&a.status!=='discarded'&&a.status!=='cancelled'&&a.date&&a.date<today).slice(0,3).forEach(a=>{
+                const room=rooms.find(r=>{const d=allData[r.slug];return d&&(d.actions||[]).some(x=>x.id===a.id)});
+                urgentItems.push({type:'overdue',text:a.text,sub:(room?.name||'')+(a.date?' · Venció '+fd(a.date):''),color:'#FF3B30'});
+              });
+              rOpen.filter(r=>r.escalation&&r.escalation.level&&r.escalation.level!=='equipo').slice(0,3).forEach(r=>{
+                const room=rooms.find(rm=>{const d=allData[rm.slug];return d&&(d.risks||[]).some(x=>x.id===r.id)});
+                urgentItems.push({type:'escalated',text:(r.title||r.text),sub:(room?.name||'')+' · Escalado: '+(r.escalation?.levelLabel||''),color:'#FF9500'});
+              });
+              if(criticalGaps>0) urgentItems.push({type:'gap',text:criticalGaps+' gap'+(criticalGaps>1?'s':'')+' críticos de formación',sub:'Skill Matrix · Sin acción asignada',color:'#FF9500'});
+
+              // Tooltip component
+              const TT = ({children,tip}) => html`
+                <div style=${{position:'relative',cursor:'default'}} class="kpi-tip">
+                  ${children}
+                  <div class="kpi-tooltip" style=${{position:'absolute',bottom:'calc(100% + 8px)',left:'50%',transform:'translateX(-50%)',background:'#1D1D1F',color:'#FFF',padding:'10px 14px',borderRadius:12,fontSize:11,lineHeight:1.6,whiteSpace:'pre-line',minWidth:220,maxWidth:300,zIndex:100,pointerEvents:'none',opacity:0,transition:'opacity .15s',boxShadow:'0 8px 32px rgba(0,0,0,.25)'}}>
+                    ${tip}
+                  </div>
+                </div>`;
+
+              return html`
+                <style>
+                  .kpi-tip:hover .kpi-tooltip{opacity:1 !important}
+                </style>
+
+                <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+                  <${TT} tip=${'Tareas al día: '+Math.round(tareasAlDia*100)+'% ('+actOnTrack+'/'+actTotal+')\nRiesgos controlados: '+Math.round(riesgosCtrl*100)+'% ('+rMitigated+'/'+(rMitigated+rOpen.length)+')\nEscalados resueltos: '+Math.round(escalResueltos*100)+'%\nEncaje equipo: '+avgFit+'%\nCobertura: '+coveragePct+'%\n────────────\nSalud global: '+salud+'%'}>
+                    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
+                      <div style=${{fontSize:28,fontWeight:800,color:saludColor}}>${salud}%</div>
+                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Salud global</div>
+                    </div>
+                  <//>
+                  <${TT} tip=${rooms.length+' proyectos totales\n'+myRooms.length+' asignados a ti'}>
+                    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
+                      <div style=${{fontSize:28,fontWeight:800,color:'#007AFF'}}>${rooms.length}</div>
+                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Proyectos</div>
+                    </div>
+                  <//>
+                  <${TT} tip=${members.length+' personas registradas\n'+todayVac.length+' de vacaciones hoy\n'+membersWithProfile.length+' con perfil evaluado'}>
+                    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
+                      <div style=${{fontSize:28,fontWeight:800,color:'#1D1D1F'}}>${members.length}</div>
+                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Personas</div>
+                    </div>
+                  <//>
+                  <${TT} tip=${rEscalated+' riesgos escalados\nen '+(new Set(rOpen.filter(r=>r.escalation?.level&&r.escalation.level!=='equipo').map(r=>{const rm=rooms.find(x=>{const d=allData[x.slug];return d&&(d.risks||[]).some(y=>y.id===r.id)});return rm?.name||'?'}))).size+' proyectos'}>
+                    <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px',textAlign:'center'}}>
+                      <div style=${{fontSize:28,fontWeight:800,color:rEscalated>0?'#FF3B30':'#34C759'}}>${rEscalated}</div>
+                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>Escalados</div>
+                    </div>
+                  <//>
                 </div>
-                <div style=${{display:'flex',flexDirection:'column',gap:6}}>
-                  ${overdueAct.map(a=>html`
-                    <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,background:'#FFF5F5',borderLeft:'3px solid #FF3B30'}}>
-                      <${Icon} name="AlertCircle" size=${14} color="#FF3B30" />
-                      <div style=${{flex:1,minWidth:0}}>
-                        <div style=${{fontSize:12,fontWeight:600}}>${a.text}</div>
-                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${a._room||''} · Venció ${fd(a.date)}</div>
-                      </div>
-                    </div>`)}
-                  ${risksNeedingAction.map(r=>html`
-                    <div key=${r.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,background:'#FFF9E6',borderLeft:'3px solid #FF9500'}}>
-                      <${Icon} name="AlertTriangle" size=${14} color="#FF9500" />
-                      <div style=${{flex:1,minWidth:0}}>
-                        <div style=${{fontSize:12,fontWeight:600}}>${r.title||r.text}</div>
-                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>
-                          ${r._room||''}${r.escalation?' · Escalado: '+r.escalation.levelLabel:''}
+
+                <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+                  <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
+                    <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Riesgos y problemas</h3>
+                    <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+                      <${TT} tip=${rRiesgos+' riesgos abiertos\n'+rCritical+' en sector crítico'}>
+                        <div style=${{background:'#FFF9E6',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:22,fontWeight:800,color:'#FF9500'}}>${rRiesgos}</div>
+                          <div style=${{fontSize:10,color:'#86868B'}}>Riesgos</div>
                         </div>
-                      </div>
-                    </div>`)}
-                </div>
-              </div>`}
-
-            ${thisWeekAct.length>0 && html`
-              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px 20px',marginBottom:14}}>
-                <div style=${{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-                  <div style=${{width:8,height:8,borderRadius:4,background:'#007AFF'}}></div>
-                  <h2 style=${{fontSize:15,fontWeight:700,color:'#1D1D1F',margin:0}}>Esta semana</h2>
-                  <span style=${{fontSize:11,color:'#86868B',marginLeft:'auto'}}>${thisWeekAct.length} tarea${thisWeekAct.length!==1?'s':''}</span>
-                </div>
-                <div style=${{display:'flex',flexDirection:'column',gap:5}}>
-                  ${[...thisWeekAct].sort((a,b)=>a.date>b.date?1:-1).map(a=>html`
-                    <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:11,background:'#F9F9FB'}}>
-                      <${Icon} name="Clock" size=${14} color="#007AFF" />
-                      <div style=${{flex:1,minWidth:0}}>
-                        <div style=${{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
-                        <div style=${{fontSize:10,color:'#86868B',marginTop:1}}>${a._room||''}</div>
-                      </div>
-                      <span style=${{fontSize:10,color:'#007AFF',fontWeight:600,flexShrink:0}}>${fd(a.date)}</span>
-                    </div>`)}
-                </div>
-              </div>`}
-
-            ${laterAct.length>0 && html`
-              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:showLater?'18px 20px':'14px 20px',marginBottom:14}}>
-                <button onClick=${()=>setShowLater(v=>!v)}
-                  style=${{display:'flex',alignItems:'center',gap:8,width:'100%',border:'none',background:'none',cursor:'pointer',padding:0}}>
-                  <div style=${{width:8,height:8,borderRadius:4,background:'#86868B'}}></div>
-                  <span style=${{fontSize:14,fontWeight:600,color:'#6E6E73',flex:1,textAlign:'left'}}>Más adelante</span>
-                  <span style=${{fontSize:11,color:'#C7C7CC'}}>${laterAct.length} tarea${laterAct.length!==1?'s':''}</span>
-                  <${Icon} name=${showLater?'ChevronUp':'ChevronDown'} size=${14} color="#C7C7CC" />
-                </button>
-                ${showLater && html`
-                  <div style=${{display:'flex',flexDirection:'column',gap:5,marginTop:12}}>
-                    ${[...laterAct].sort((a,b)=>(a.date||'9999')>(b.date||'9999')?1:-1).slice(0,10).map(a=>html`
-                      <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderRadius:10,background:'#F9F9FB'}}>
-                        <${Icon} name="Circle" size=${10} color="#C7C7CC" />
-                        <div style=${{flex:1,minWidth:0}}>
-                          <div style=${{fontSize:12,fontWeight:500,color:'#6E6E73',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
-                          <div style=${{fontSize:10,color:'#C7C7CC',marginTop:1}}>${a._room||''}</div>
+                      <//>
+                      <${TT} tip=${rProblemas+' problemas activos'}>
+                        <div style=${{background:'#FFF5F5',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:22,fontWeight:800,color:'#FF3B30'}}>${rProblemas}</div>
+                          <div style=${{fontSize:10,color:'#86868B'}}>Problemas</div>
                         </div>
-                        ${a.date&&html`<span style=${{fontSize:10,color:'#C7C7CC',flexShrink:0}}>${fd(a.date)}</span>`}
+                      <//>
+                      <${TT} tip=${rMitigated+' registros cerrados\nTasa: '+Math.round(riesgosCtrl*100)+'%'}>
+                        <div style=${{background:'#F0FFF4',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:22,fontWeight:800,color:'#34C759'}}>${rMitigated}</div>
+                          <div style=${{fontSize:10,color:'#86868B'}}>Mitigados</div>
+                        </div>
+                      <//>
+                    </div>
+                    <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>POR CRITICIDAD</div>
+                    ${[[rCritical,'Crítico','#FF3B30'],[rModerate,'Moderado','#FF9500'],[rLow,'Bajo','#34C759']].map(([v,l,c])=>html`
+                      <div key=${l} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
+                        <span style=${{fontSize:11,width:70,color:'#6E6E73'}}>${l}</span>
+                        <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}>
+                          <div style=${{width:((rOpen.length>0?v/rOpen.length*100:0))+'%',height:'100%',background:c,borderRadius:3}}></div>
+                        </div>
+                        <span style=${{fontSize:11,fontWeight:700,color:c,minWidth:20,textAlign:'right'}}>${v}</span>
                       </div>`)}
-                    ${laterAct.length>10&&html`<p style=${{fontSize:11,color:'#C7C7CC',textAlign:'center',marginTop:4}}>+ ${laterAct.length-10} más</p>`}
-                  </div>`}
-              </div>`}
-
-            <div style=${{display:'flex',gap:10,marginBottom:14}}>
-              ${[
-                {v:myRooms.length,    l:'Proyectos',   c:'#007AFF', i:'FolderOpen'},
-                {v:pendingAct.length, l:'Pendientes',  c:'#6E6E73', i:'ClipboardList'},
-                {v:myRisks.length,    l:'Riesgos',     c:myRisks.length>0?'#FF9500':'#6E6E73', i:'AlertTriangle'},
-              ].map((k,i)=>html`
-                <div key=${i} style=${{flex:1,display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA'}}>
-                  <${Icon} name=${k.i} size=${16} color=${k.c} />
-                  <div>
-                    <span style=${{fontSize:18,fontWeight:800,color:k.c}}>${k.v}</span>
-                    <span style=${{fontSize:11,color:'#86868B',marginLeft:5}}>${k.l}</span>
                   </div>
-                </div>`)}
-            </div>
 
-            ${html`
-              <div style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'14px 18px',marginBottom:14}}>
-                <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                  <span style=${{fontSize:13,fontWeight:700,color:'#1D1D1F'}}>Mi equipo</span>
-                  <button onClick=${()=>setSection(isSM?'personas':'equipo')} style=${{border:'none',background:'none',color:'#007AFF',fontSize:11,cursor:'pointer',fontWeight:600}}>Ver todos →</button>
+                  <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
+                    <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Seguimiento de tareas</h3>
+                    <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+                      <${TT} tip=${actTotal+' tareas totales\n'+actDone+' completadas'}>
+                        <div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:22,fontWeight:800,color:'#1D1D1F'}}>${actTotal}</div>
+                          <div style=${{fontSize:10,color:'#86868B'}}>Total</div>
+                        </div>
+                      <//>
+                      <${TT} tip=${actOverdue+' tareas vencidas\nRepartidas en '+new Set(totalAct.filter(a=>a.date&&a.date<today&&a.status!=='done').map(()=>'x')).size+' proyectos'}>
+                        <div style=${{background:actOverdue>0?'#FFF5F5':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:22,fontWeight:800,color:actOverdue>0?'#FF3B30':'#6E6E73'}}>${actOverdue}</div>
+                          <div style=${{fontSize:10,color:'#86868B'}}>Vencidas</div>
+                        </div>
+                      <//>
+                      <${TT} tip=${actDone+'/'+actTotal+' completadas'}>
+                        <div style=${{background:'#F0FFF4',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:22,fontWeight:800,color:'#34C759'}}>${actCompletedPct}%</div>
+                          <div style=${{fontSize:10,color:'#86868B'}}>Completadas</div>
+                        </div>
+                      <//>
+                    </div>
+                    <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>POR PROYECTO</div>
+                    ${projTaskPct.filter(p=>p.total>0).slice(0,5).map(p=>html`
+                      <div key=${p.slug} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
+                        <span style=${{fontSize:11,width:80,color:'#6E6E73',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${p.name}</span>
+                        <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}>
+                          <div style=${{width:p.pct+'%',height:'100%',background:'#007AFF',borderRadius:3}}></div>
+                        </div>
+                        <span style=${{fontSize:11,fontWeight:700,color:'#007AFF',minWidth:30,textAlign:'right'}}>${p.pct}%</span>
+                      </div>`)}
+                  </div>
                 </div>
-                ${(()=>{
-                  const allM = window.__allMembers||[];
-                  const members = allM.length>0 ? allM.filter(m=>myRooms.length===0||myRooms.some(r=>(m.rooms||[]).includes(r.slug))) : [];
-                  if(members.length===0) return html`<div style=${{padding:'12px 0',textAlign:'center'}}>
-                    <p style=${{fontSize:12,color:'#86868B'}}>Cargando equipo...</p>
-                  </div>`;
-                  const todayVac = members.filter(m=>(Array.isArray(m.vacations)?m.vacations:[]).some(v=>v.from<=today&&(!v.to||v.to>=today)));
-                  const available = members.filter(m=>!todayVac.some(v=>v.id===m.id));
-                  return html`
-                    <div style=${{display:'flex',gap:12,alignItems:'center'}}>
-                      <div style=${{display:'flex',flexWrap:'wrap',gap:4,flex:1}}>
-                        ${available.slice(0,8).map(m=>html`
-                          <div key=${m.id} title=${m.name+(m.role_label?' · '+m.role_label:'')}
-                            style=${{width:32,height:32,borderRadius:10,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,border:'2px solid #FFF',boxShadow:'0 1px 3px rgba(0,0,0,.08)'}}>${m.avatar||'👤'}</div>`)}
-                        ${available.length>8&&html`<span style=${{fontSize:10,color:'#86868B',alignSelf:'center'}}>+${available.length-8}</span>`}
-                      </div>
-                      ${todayVac.length>0&&html`
-                        <div style=${{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',borderRadius:10,background:'#FFF9E6',border:'1px solid #FF950015',flexShrink:0}}>
-                          <${Icon} name="PalmTree" size=${14} color="#FF9500" />
-                          <div>
-                            <div style=${{fontSize:10,fontWeight:600,color:'#FF9500'}}>De vacaciones</div>
-                            <div style=${{fontSize:10,color:'#86868B'}}>${todayVac.map(m=>m.name.split(' ')[0]).join(', ')}</div>
+
+                <div style=${{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12,marginBottom:14}}>
+                  <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
+                    <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Equipo y capacidad</h3>
+                    <div style=${{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}}>
+                      <${TT} tip=${totalFte.toFixed(1)+' FTEs definidos\nen '+skProfiles.filter(p=>p.sala!=='__maestro__').length+' perfiles'}>
+                        <div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:18,fontWeight:800,color:'#1D1D1F'}}>${totalFte.toFixed(1)}</div>
+                          <div style=${{fontSize:9,color:'#86868B'}}>FTEs</div>
+                        </div>
+                      <//>
+                      <${TT} tip=${todayVac.length>0?todayVac.map(m=>m.name).join(', '):'Nadie de vacaciones hoy'}>
+                        <div style=${{background:todayVac.length>0?'#FFF9E6':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:18,fontWeight:800,color:todayVac.length>0?'#FF9500':'#6E6E73'}}>${todayVac.length}</div>
+                          <div style=${{fontSize:9,color:'#86868B'}}>Vacaciones</div>
+                        </div>
+                      <//>
+                      <${TT} tip=${'Media de encaje: '+avgFit+'%\nSobre '+fits.length+' personas evaluadas'}>
+                        <div style=${{background:'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:18,fontWeight:800,color:avgFit>=80?'#34C759':avgFit>=60?'#FF9500':'#FF3B30'}}>${avgFit}%</div>
+                          <div style=${{fontSize:9,color:'#86868B'}}>Encaje</div>
+                        </div>
+                      <//>
+                      <${TT} tip=${criticalGaps+' gaps de nivel ≥2\nSin formación asignada'}>
+                        <div style=${{background:criticalGaps>0?'#FFF5F5':'#F2F2F7',borderRadius:10,padding:'10px',textAlign:'center'}}>
+                          <div style=${{fontSize:18,fontWeight:800,color:criticalGaps>0?'#FF3B30':'#6E6E73'}}>${criticalGaps}</div>
+                          <div style=${{fontSize:9,color:'#86868B'}}>Gaps</div>
+                        </div>
+                      <//>
+                    </div>
+                    ${profileFits.length>0&&html`
+                      <div style=${{fontSize:11,fontWeight:700,color:'#86868B',marginBottom:6}}>ENCAJE POR PERFIL</div>
+                      ${profileFits.map(p=>html`
+                        <div key=${p.name} style=${{display:'flex',alignItems:'center',gap:8,padding:'5px 0'}}>
+                          <span style=${{fontSize:11,width:100,color:'#6E6E73',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${p.icon||''} ${p.name}</span>
+                          <div style=${{flex:1,height:6,background:'#F2F2F7',borderRadius:3,overflow:'hidden'}}>
+                            <div style=${{width:p.fit+'%',height:'100%',background:p.fit>=90?'#34C759':p.fit>=70?'#FF9500':'#FF3B30',borderRadius:3}}></div>
                           </div>
-                        </div>`}
-                    </div>`;
-                })()}
-              </div>`}
+                          <span style=${{fontSize:11,fontWeight:700,color:p.fit>=90?'#34C759':p.fit>=70?'#FF9500':'#FF3B30',minWidth:30,textAlign:'right'}}>${p.fit}%</span>
+                        </div>`)}
+                    `}
+                  </div>
 
-            ${pendingAct.length>0 && html`
-              <div style=${{background:'#FFF',borderRadius:18,border:'1.5px solid #E5E5EA',padding:'18px 20px',marginTop:14}}>
-                <div style=${{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-                  <h2 style=${{fontSize:15,fontWeight:700,color:'#1D1D1F',margin:0}}>Mi trabajo</h2>
-                  <div style=${{display:'flex',gap:4}}>
-                    ${[
-                      {id:'hoy',label:'Hoy',count:overdueAct.length},
-                      {id:'semana',label:'Semana',count:thisWeekAct.length},
-                      {id:'todo',label:'Todas',count:pendingAct.length},
-                    ].map(t=>html`
-                      <button key=${t.id} onClick=${()=>setMiTrabajoTab(t.id)}
-                        style=${{padding:'4px 10px',borderRadius:16,border:'none',fontSize:11,fontWeight:miTrabajoTab===t.id?700:500,cursor:'pointer',
-                          background:miTrabajoTab===t.id?'#1D1D1F':'#F2F2F7',color:miTrabajoTab===t.id?'#FFF':'#6E6E73'}}>
-                        ${t.label}${t.count>0?' '+t.count:''}
-                      </button>`)}
+                  <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
+                    <h3 style=${{fontSize:14,fontWeight:700,marginBottom:12}}>Vacaciones</h3>
+                    ${todayVac.map(m=>html`
+                      <div key=${m.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #F2F2F7'}}>
+                        <div style=${{width:28,height:28,borderRadius:8,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>${m.avatar||'👤'}</div>
+                        <div style=${{flex:1,fontSize:12}}>${m.name.split(' ')[0]}</div>
+                        <span style=${{fontSize:10,fontWeight:700,color:'#FF9500',background:'#FFF9E6',padding:'2px 8px',borderRadius:6}}>Ausente</span>
+                      </div>`)}
+                    ${nextVac.slice(0,3).map(m=>html`
+                      <div key=${m.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #F2F2F7'}}>
+                        <div style=${{width:28,height:28,borderRadius:8,background:m.color||'#E5E5EA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>${m.avatar||'👤'}</div>
+                        <div style=${{flex:1}}><div style=${{fontSize:12}}>${m.name.split(' ')[0]}</div><div style=${{fontSize:9,color:'#86868B'}}>Desde ${fd(m.nextVac?.from)}</div></div>
+                        <span style=${{fontSize:10,fontWeight:600,color:'#007AFF',background:'#EEF5FF',padding:'2px 8px',borderRadius:6}}>Planif.</span>
+                      </div>`)}
+                    ${todayVac.length===0&&nextVac.length===0&&html`<p style=${{fontSize:11,color:'#C7C7CC',textAlign:'center',padding:12}}>Sin ausencias</p>`}
                   </div>
                 </div>
-                <div style=${{maxHeight:300,overflowY:'auto'}}>
-                  ${(()=>{
-                    const items = miTrabajoTab==='hoy' ? overdueAct
-                      : miTrabajoTab==='semana' ? thisWeekAct
-                      : pendingAct;
-                    if(items.length===0) return html`<div style=${{padding:'20px',textAlign:'center',color:'#86868B',fontSize:12}}>
-                      ${miTrabajoTab==='hoy'?'Nada urgente para hoy':'Sin tareas en este periodo'}
-                    </div>`;
-                    // Group by project
-                    const byProj={};
-                    items.forEach(a=>{const p=a._room||'Sin proyecto';if(!byProj[p])byProj[p]=[];byProj[p].push(a);});
-                    return Object.entries(byProj).map(([proj,acts])=>html`
-                      <div key=${proj} style=${{marginBottom:8}}>
-                        <div style=${{fontSize:10,fontWeight:700,color:'#86868B',textTransform:'uppercase',letterSpacing:.3,padding:'4px 0'}}>${proj}</div>
-                        ${acts.map(a=>{
-                          const tp=ITEM_TYPE_MAP[a.type||'tarea']||ITEM_TYPES[0];
-                          const ov=a.date&&a.date<today;
-                          return html`<div key=${a.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:'#F9F9FB',marginBottom:4,borderLeft:'3px solid '+(ov?'#FF3B30':tp.color)}}>
-                            <${Icon} name=${tp.lucide} size=${12} color=${tp.color} />
-                            <div style=${{flex:1,minWidth:0}}>
-                              <div style=${{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
-                              <div style=${{fontSize:10,color:'#86868B'}}>${a.owner||''}${a.date?' · '+fd(a.date):''}</div>
-                            </div>
-                            ${ov&&html`<span style=${{fontSize:8,fontWeight:700,color:'#FF3B30',background:'#FF3B3010',padding:'2px 5px',borderRadius:4,flexShrink:0}}>VENCIDA</span>`}
-                          </div>`;
-                        })}
-                      </div>`);
-                  })()}
+
+                ${urgentItems.length>0&&html`
+                  <div style=${{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+                    <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #FF3B3015',padding:'16px 18px'}}>
+                      <h3 style=${{fontSize:14,fontWeight:700,marginBottom:10,color:'#FF3B30'}}>Requiere atención</h3>
+                      ${urgentItems.map((it,i)=>html`
+                        <div key=${i} style=${{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:i<urgentItems.length-1?'1px solid #F2F2F7':'none'}}>
+                          <div style=${{width:8,height:8,borderRadius:4,background:it.color,flexShrink:0}}></div>
+                          <div style=${{flex:1,minWidth:0}}>
+                            <div style=${{fontSize:12,fontWeight:600}}>${it.text}</div>
+                            <div style=${{fontSize:10,color:'#86868B'}}>${it.sub}</div>
+                          </div>
+                          <span style=${{fontSize:9,fontWeight:700,color:it.color,background:it.color+'12',padding:'2px 8px',borderRadius:6}}>${it.type==='overdue'?'Vencida':it.type==='escalated'?'Escalado':'Gap'}</span>
+                        </div>`)}
+                    </div>
+                    <div style=${{background:'#FFF',borderRadius:16,border:'1.5px solid #E5E5EA',padding:'16px 18px'}}>
+                      <h3 style=${{fontSize:14,fontWeight:700,marginBottom:10}}>Mi trabajo</h3>
+                      ${pendingAct.slice(0,5).map(a=>html`
+                        <div key=${a.id} style=${{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #F2F2F7'}}>
+                          <div style=${{width:8,height:8,borderRadius:4,background:a.date&&a.date<today?'#FF3B30':a.date&&a.date<=endOfWeek?'#007AFF':'#C7C7CC',flexShrink:0}}></div>
+                          <div style=${{flex:1,minWidth:0}}>
+                            <div style=${{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${a.text}</div>
+                            <div style=${{fontSize:10,color:'#86868B'}}>${a._room||''}</div>
+                          </div>
+                          ${a.date&&html`<span style=${{fontSize:10,color:a.date<today?'#FF3B30':'#86868B',flexShrink:0}}>${fd(a.date)}</span>`}
+                        </div>`)}
+                      ${pendingAct.length===0&&html`<p style=${{fontSize:11,color:'#C7C7CC',textAlign:'center',padding:12}}>Sin tareas pendientes</p>`}
+                    </div>
+                  </div>`}
+
+                <div style=${{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+                  ${[
+                    {s:'gobierno',ic:'BarChart3',l:'Gobierno',d:'KPIs y reporting'},
+                    {s:'riesgos',ic:'AlertTriangle',l:'Escalado global',d:rEscalated+' activos'},
+                    {s:'personas',ic:'Users',l:'Plan de formación',d:criticalGaps+' gaps · '+skActions.filter(a=>a.status==='en_curso').length+' en curso'},
+                  ].map(x=>html`
+                    <div key=${x.s} onClick=${()=>setSection(x.s)}
+                      style=${{background:'#FFF',borderRadius:14,border:'1.5px solid #E5E5EA',padding:'16px',textAlign:'center',cursor:'pointer',transition:'all .15s'}}
+                      onMouseOver=${e=>{e.currentTarget.style.borderColor='#007AFF';e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,.06)';}}
+                      onMouseOut=${e=>{e.currentTarget.style.borderColor='#E5E5EA';e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none';}}>
+                      <${Icon} name=${x.ic} size=${22} color="#5856D6" />
+                      <div style=${{fontSize:13,fontWeight:700,marginTop:6}}>${x.l}</div>
+                      <div style=${{fontSize:11,color:'#86868B',marginTop:2}}>${x.d}</div>
+                    </div>`)}
                 </div>
-              </div>`}
-</div>`}
+              `;
+            })()}
+
+          </div>`}
+
+
 
           ${section==='proyectos'&&html`<div>
             <h1 style=${{fontSize:22,fontWeight:700,marginBottom:4}}>Mis proyectos</h1>
