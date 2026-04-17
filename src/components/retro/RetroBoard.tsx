@@ -59,6 +59,7 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [userProfile, setUserProfile] = useState<Member | null>(null);
   const [allRooms, setAllRooms] = useState<Room[]>([]);
   const phaseStartRef = useRef(Date.now());
@@ -181,31 +182,61 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
   const onlineCount = Object.keys(online).length;
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F5F5F7' }}>
-      {/* ══ SIDEBAR ══ */}
-      <aside style={{ width: 200, background: '#FFF', borderRight: '1px solid #E5E5EA', padding: '16px 10px', display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'relative', boxShadow: '2px 0 8px rgba(0,0,0,.03)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, padding: '0 6px' }}>
-          <h2 style={{ fontFamily: "'Comfortaa',sans-serif", fontSize: 16, fontWeight: 400, background: 'linear-gradient(90deg,#007AFF,#5856D6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>revelio</h2>
-          <span onClick={() => { if (onSwitchProject) setShowProjectPicker(!showProjectPicker); }}
-            style={{ fontSize: 10, background: '#007AFF10', color: '#007AFF', padding: '2px 8px', borderRadius: 6, fontWeight: 600, cursor: onSwitchProject ? 'pointer' : 'default' }}>
-            {salaDisplay} {onSwitchProject ? '▾' : ''}
-          </span>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#F5F5F7' }}>
 
-        {/* Project picker popover */}
-        {showProjectPicker && allRooms.length > 0 && (
-          <div style={{ position: 'absolute', top: 38, left: 10, zIndex: 999, background: '#FFF', borderRadius: 12, border: '1.5px solid #E5E5EA', boxShadow: '0 8px 30px rgba(0,0,0,.12)', padding: 6, minWidth: 180 }}>
-            {allRooms.map(r => (
-              <button key={r.slug} onClick={() => { onSwitchProject!(r.slug, r.tipo); setShowProjectPicker(false); }}
-                style={{
-                  display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: 12,
-                  fontWeight: r.slug === sala ? 700 : 500, background: r.slug === sala ? '#007AFF10' : 'transparent', color: r.slug === sala ? '#007AFF' : '#1D1D1F',
-                }}>
-                {r.name} {r.slug === sala ? '✓' : ''}
+      {/* ══ HEADER (full-width) ══ */}
+      <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 24px', background: '#FFF', borderBottom: '1px solid #E8E8ED', flexShrink: 0, zIndex: 20 }}>
+        <h2 style={{ fontFamily: "'Comfortaa',sans-serif", fontSize: 18, fontWeight: 400, background: 'linear-gradient(90deg,#007AFF,#5856D6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>revelio</h2>
+        <div style={{ width: 1, height: 20, background: '#E5E5EA', margin: '0 4px' }} />
+        <div style={{ position: 'relative' }}>
+          <span onClick={() => { if (onSwitchProject) setShowProjectPicker(!showProjectPicker); }}
+            style={{ fontSize: 14, fontWeight: 600, color: '#1D1D1F', cursor: onSwitchProject ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 4 }}>
+            {salaDisplay}
+            {onSwitchProject && <Icon name="ChevronDown" size={12} color="#86868B" />}
+          </span>
+          {showProjectPicker && allRooms.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 999, background: '#FFF', borderRadius: 12, border: '1.5px solid #E5E5EA', boxShadow: '0 8px 30px rgba(0,0,0,.12)', padding: 6, minWidth: 200 }}>
+              {allRooms.map(r => (
+                <button key={r.slug} onClick={() => { onSwitchProject!(r.slug, r.tipo); setShowProjectPicker(false); }}
+                  style={{ display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: 12, fontWeight: r.slug === sala ? 700 : 500, background: r.slug === sala ? '#007AFF10' : 'transparent', color: r.slug === sala ? '#007AFF' : '#1D1D1F' }}>
+                  {r.name} {r.slug === sala ? '✓' : ''}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ flex: 1 }} />
+        <NotificationBell user={user} actions={(state.actions as Task[]) || []} risks={(state.risks as Risk[]) || []} sala={sala} />
+        <button onClick={onBackToHome}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid #E8E8ED', background: '#FFF', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#007AFF' }}>
+          <Icon name="Home" size={13} color="#007AFF" /> Home
+        </button>
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setShowUserMenu(!showUserMenu)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px 4px 4px', borderRadius: 10, border: '1px solid #E8E8ED', background: '#FFF', cursor: 'pointer' }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: user.color || '#007AFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{user.avatar || '👤'}</div>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#1D1D1F' }}>{user.name}</span>
+            <Icon name="ChevronDown" size={12} color="#86868B" />
+          </button>
+          {showUserMenu && (
+            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#FFF', borderRadius: 12, border: '1px solid #E8E8ED', boxShadow: '0 8px 24px #0002', minWidth: 180, zIndex: 100, overflow: 'hidden' }}>
+              <button onClick={() => { setShowUserMenu(false); setShowProfile(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', border: 'none', background: 'none', width: '100%', textAlign: 'left', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#1D1D1F' }}>
+                <Icon name="User" size={14} color="#007AFF" /> Mi perfil
               </button>
-            ))}
-          </div>
-        )}
+              <div style={{ height: 1, background: '#F2F2F7' }} />
+              <button onClick={onLogout}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', border: 'none', background: 'none', width: '100%', textAlign: 'left', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#FF3B30' }}>
+                <Icon name="LogOut" size={14} color="#FF3B30" /> Cerrar sesión
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* ══ SIDEBAR ══ */}
+      <aside style={{ width: 200, background: '#FFF', borderRight: '1px solid #E5E5EA', padding: '16px 10px', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
 
         {MAIN_TABS.map(t => (
           <button key={t.id} onClick={() => setMainTab(t.id)}
@@ -238,34 +269,11 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
           <button onClick={() => setShowTagManager(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: 'none', background: 'none', color: '#5856D6', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
             <Icon name="Tag" size={12} color="#5856D6" /> Etiquetas
           </button>
-          <button onClick={onBackToHome} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: 'none', background: 'none', color: '#007AFF', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-            <Icon name="ArrowLeft" size={12} color="#007AFF" /> Inicio
-          </button>
-          <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: 'none', background: 'none', color: '#FF3B30', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-            <Icon name="LogOut" size={12} color="#FF3B30" /> Salir
-          </button>
-          {/* User avatar - click to edit profile */}
-          <div onClick={() => setShowProfile(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 6px', marginTop: 8, borderTop: '1px solid #F2F2F7', cursor: 'pointer' }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: user.color || '#007AFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>
-              {user.avatar || '👤'}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
-              <div style={{ fontSize: 9, color: '#86868B' }}>{user.role || ''}</div>
-            </div>
-            <Icon name="Settings" size={12} color="#C7C7CC" />
-          </div>
         </div>
       </aside>
 
       {/* ══ CONTENT ══ */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '18px 20px', position: 'relative' }}>
-
-        {/* Top bar: notification bell */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <NotificationBell user={user} actions={(state.actions as Task[]) || []} risks={(state.risks as Risk[]) || []} sala={sala} />
-        </div>
 
         {/* Remote cursors */}
         {Object.entries(cursors).map(([id, c]) => (
@@ -376,6 +384,7 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
         {/* ── Team ── */}
         {mainTab === 'equipo' && <SkillMatrix user={user} sala={sala} />}
       </div>
+      </div>{/* closes flex-row */}
 
       {/* ══ MODALS ══ */}
 
