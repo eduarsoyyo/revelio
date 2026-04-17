@@ -6,10 +6,11 @@ import type { Room, Member, AppUser } from '@app-types/index';
 import { loadRooms } from '@data/rooms';
 import { loadTeamMembers } from '@data/team';
 import { AdminDashboard } from './AdminDashboard';
-import { AdminEscaladoGlobal, MaestrosPanel } from './AdminPanels';
+import { MaestrosPanel } from './AdminPanels';
 import { UsersPanel } from './UsersPanel';
 import { RolesPanel } from './RolesPanel';
 import { CalendarPanel } from './CalendarPanel';
+import { EscaladoPanel } from './EscaladoPanel';
 import { CrossProject } from './CrossProject';
 import { ConsultantTimeline } from './ConsultantTimeline';
 import { ProjectsPanel } from './ProjectsPanel';
@@ -273,7 +274,7 @@ export function RoomPicker({ user, onGoToRoom, onLogout, onBackToHome }: RoomPic
           {tab === 'maestros' && <MaestrosPanel />}
 
           {/* Riesgos y Escalado */}
-          {tab === 'riesgos' && <AdminEscaladoGlobal />}
+          {tab === 'riesgos' && <EscaladoPanel />}
         </div>
       </div>
 
