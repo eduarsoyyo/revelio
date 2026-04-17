@@ -3,6 +3,7 @@ import { useState, useEffect } from 'preact/hooks';
 import type { Member } from '@app-types/index';
 import { loadTeamMembers, saveTeamMember } from '@data/team';
 import { Icon } from '@components/common/Icon';
+import { ABSENCE_TYPES } from '../../config/absenceTypes';
 
 interface TabVacacionesProps {
   team: Member[];
@@ -12,15 +13,6 @@ interface TabVacacionesProps {
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const HOLIDAYS_DEFAULT = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
-
-const ABSENCE_TYPES = [
-  { id: 'vacaciones',         label: '🏖️ Vacaciones',         color: '#FF9500' },
-  { id: 'baja_medica',        label: '🏥 Baja médica',         color: '#FF3B30' },
-  { id: 'asuntos_propios',    label: '📅 Asuntos propios',     color: '#5856D6' },
-  { id: 'formacion',          label: '📚 Formación',           color: '#007AFF' },
-  { id: 'permiso_retribuido', label: 'Permiso retribuido',  color: '#34C759' },
-  { id: 'otro',               label: '📝 Otro',                color: '#86868B' },
-] as const;
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
