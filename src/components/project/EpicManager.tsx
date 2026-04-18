@@ -90,21 +90,17 @@ export function EpicManager({ actions, tags = [], tagAssignments = [], onUpdateA
 
   return (
     <div>
+      {/* Create epic (popup) */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 2 }}>Épicas</h3>
-          <p style={{ fontSize: 12, color: '#86868B' }}>{epics.length} épicas · {unassigned.length} tareas sin asignar</p>
+          <p style={{ fontSize: 12, color: '#86868B' }}>{epics.length} épicas · {unassigned.length} sin asignar</p>
         </div>
-      </div>
-
-      {/* Create epic */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
-        <input value={newEpic} onInput={e => setNewEpic((e.target as HTMLInputElement).value)}
-          onKeyDown={e => e.key === 'Enter' && createEpic()} placeholder="Nueva épica…"
-          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1.5px solid #E5E5EA', fontSize: 13, outline: 'none' }} />
-        <button onClick={createEpic}
-          style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1D1D1F', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-          + Crear
+        <button onClick={() => {
+          const name = prompt('Nombre de la nueva épica:');
+          if (name?.trim()) { if (!standaloneEpics.includes(name.trim())) saveStandalone([...standaloneEpics, name.trim()]); setSelectedEpic(name.trim()); }
+        }} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: '#1D1D1F', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Icon name="Plus" size={11} color="#FFF" /> Nueva épica
         </button>
       </div>
 

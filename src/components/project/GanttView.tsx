@@ -183,16 +183,14 @@ export function GanttView({ actions, sala, teamMembers, onUpdateActions, onOpenD
         // Every day: "L12", "M13"
         result.push({ label: `${dayNames[d.getDay()]}${d.getDate()}`, x: i * dayWidth + dayWidth / 2, isWeekend: isWe });
       } else if (zoom === 'month') {
-        // Every Monday
-        if (d.getDay() === 1) {
-          result.push({ label: `${d.getDate()}`, x: i * dayWidth + dayWidth * 3.5, isWeekend: false });
-        }
+        // Show every day number
+        result.push({ label: `${d.getDate()}`, x: i * dayWidth + dayWidth / 2, isWeekend: isWe });
       } else if (zoom === 'quarter') {
-        // Every other Monday (biweekly)
+        // Every Monday → week number
         if (d.getDay() === 1) {
           const jan1 = new Date(d.getFullYear(), 0, 1);
           const wn = Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
-          if (wn % 2 === 0) result.push({ label: `S${wn}`, x: i * dayWidth + dayWidth * 7, isWeekend: false });
+          result.push({ label: `S${wn}`, x: i * dayWidth + dayWidth * 3.5, isWeekend: false });
         }
       }
     }
@@ -217,12 +215,12 @@ export function GanttView({ actions, sala, teamMembers, onUpdateActions, onOpenD
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 2 }}>Timeline</h3>
-          <p style={{ fontSize: 12, color: '#86868B' }}>{tasks.length} tareas · {viewMode === 'task' ? `${epics.length} épicas` : `${teamMembers.length} consultores`}</p>
+          <p style={{ fontSize: 12, color: '#86868B' }}>{tasks.length} accionables · {viewMode === 'task' ? `${epics.length} épicas` : `${teamMembers.length} consultores`}</p>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {/* View mode toggle */}
           <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1.5px solid #5856D6' }}>
-            {([['task', 'Tareas'], ['consultant', 'Consultores']] as const).map(([id, label]) => (
+            {([['task', 'Accionables'], ['consultant', 'Consultores']] as const).map(([id, label]) => (
               <button key={id} onClick={() => setViewMode(id as 'task' | 'consultant')}
                 style={{ padding: '5px 12px', fontSize: 11, fontWeight: viewMode === id ? 700 : 500, background: viewMode === id ? '#5856D6' : '#FFF', color: viewMode === id ? '#FFF' : '#5856D6', border: 'none', cursor: 'pointer' }}>
                 {label}
@@ -256,7 +254,7 @@ export function GanttView({ actions, sala, teamMembers, onUpdateActions, onOpenD
       {tasks.length === 0 && viewMode === 'task' ? (
         <div style={{ background: '#FFF', borderRadius: 14, border: '1.5px solid #E5E5EA', padding: 32, textAlign: 'center' }}>
           <Icon name="Calendar" size={36} color="#C7C7CC" />
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#6E6E73', marginTop: 8 }}>Sin tareas</p>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#6E6E73', marginTop: 8 }}>Sin accionables</p>
         </div>
       ) : viewMode === 'task' ? (
         <div style={{ background: '#FFF', borderRadius: 14, border: '1.5px solid #E5E5EA', overflow: 'hidden' }}
@@ -430,7 +428,7 @@ export function GanttView({ actions, sala, teamMembers, onUpdateActions, onOpenD
                     <div style={{ width: 22, height: 22, borderRadius: 6, background: m.color || '#007AFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0 }}>{m.avatar || '👤'}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 10, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-                      <div style={{ fontSize: 8, color: '#86868B' }}>{myTasks.length} tareas · {myHours}h</div>
+                      <div style={{ fontSize: 8, color: '#86868B' }}>{myTasks.length} acc. · {myHours}h</div>
                       {/* Capacity bar */}
                       <div style={{ display: 'flex', height: 3, borderRadius: 1.5, overflow: 'hidden', background: '#F2F2F7', marginTop: 2 }}>
                         <div style={{ width: `${Math.min(100, (1 - otherDed) * 100)}%`, background: '#007AFF' }} title="Este proyecto" />

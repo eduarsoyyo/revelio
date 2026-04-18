@@ -175,7 +175,7 @@ export function TaskDetailModal({
               <div style={{ background: '#F9F9FB', borderRadius: 10, padding: '10px 14px', border: '1px solid #E5E5EA' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>Contexto</div>
                 {f.source === 'retro' && <p style={{ fontSize: 12, color: '#6E6E73', margin: 0 }}>Creada durante una retrospectiva.</p>}
-                {f.source === 'risk' && <p style={{ fontSize: 12, color: '#6E6E73', margin: 0 }}>Tarea de mitigación vinculada a un riesgo.</p>}
+                {f.source === 'risk' && <p style={{ fontSize: 12, color: '#6E6E73', margin: 0 }}>Acción de mitigación vinculada a un riesgo.</p>}
                 {f.source === 'manual' && !f.riskId && <p style={{ fontSize: 12, color: '#6E6E73', margin: 0 }}>Creada manualmente desde seguimiento.</p>}
               </div>
             )}

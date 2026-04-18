@@ -78,7 +78,7 @@ export function TaskCard({
             )}
             {task.date && (
               <span style={{ fontSize: 10, color: overdue ? '#FF3B30' : '#86868B', fontWeight: overdue ? 700 : 400 }}>
-                {overdue && '⚠ '}{fd(task.date)}
+                {overdue && '▲ '}{fd(task.date)}
               </span>
             )}
             {(task as any).hours && (
