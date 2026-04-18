@@ -2,7 +2,7 @@
 import { useState } from 'preact/hooks';
 import type { AppUser, Risk } from '@app-types/index';
 import type { RetroNote } from '../../types/index';
-import { RISK_TYPES } from '@domain/risks';
+import { RISK_TYPES, riskNumber } from '@domain/risks';
 import { calculateCriticality } from '@domain/criticality';
 import { NOTE_CATEGORIES } from '../../config/retro';
 import { Heatmap } from '@components/risks/Heatmap';
@@ -108,7 +108,7 @@ export function P5Risks({ risks, onUpdateRisks, notes, user }: P5RisksProps) {
                 <div key={r.id} onClick={() => setDetailRisk({ ...r })}
                   style={{ padding: '8px 10px', borderRadius: 8, borderLeft: `3px solid ${tc?.color || '#FF9500'}`, background: '#FAFAFA', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: tc?.color }}>{tc?.id === 'riesgo' ? 'R' : tc?.id === 'problema' ? 'P' : 'O'}{risks.indexOf(r) + 1}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: tc?.color }}>{riskNumber(r, risks)}</span>
                     <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>{r.title || r.text}</span>
                     {r.owner && r.owner !== 'Sin asignar' && <span style={{ fontSize: 9, color: '#007AFF' }}>{r.owner}</span>}
                   </div>

@@ -1,7 +1,7 @@
 // ═══ ESCALADO PANEL — Risk escalation management by level ═══
 import { useState } from 'preact/hooks';
 import type { Risk, Member, AppUser } from '@app-types/index';
-import { riskTitle, ESCALATION_LEVELS, nextEscalationLevel, prevEscalationLevel } from '@domain/risks';
+import { riskTitle, riskNumber, ESCALATION_LEVELS, nextEscalationLevel, prevEscalationLevel } from '@domain/risks';
 import { Icon } from '@components/common/Icon';
 
 // ── Types ──
@@ -101,11 +101,7 @@ export function EscaladoPanel({
                   </p>
                 )}
                 {items.map(r => {
-                  const typeKey = r.type || 'riesgo';
-                  const prefix = typeKey === 'problema' ? 'P' : typeKey === 'oportunidad' ? 'O' : 'R';
-                  const rn = risks
-                    .filter(x => (x.type || 'riesgo') === typeKey && x.status !== 'mitigated')
-                    .findIndex(x => x.id === r.id) + 1;
+                  const num = riskNumber(r, risks);
                   const hasMit = !!(r.mitigation?.trim());
                   const hasLinked = actions.some(a => a.riskId === r.id);
                   const nextLvl = nextEscalationLevel(level.id);
@@ -128,7 +124,7 @@ export function EscaladoPanel({
                     >
                       {/* Risk header */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: level.color }}>{prefix}{rn}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: level.color }}>{num}</span>
                         <span style={{ fontSize: 13, flex: 1, fontWeight: 600 }}>{riskTitle(r)}</span>
                         {hasMit && <span title="Mitigación" style={{ fontSize: 9, background: '#34C75915', color: '#34C759', padding: '2px 6px', borderRadius: 6, fontWeight: 700 }}><Icon name="Shield" size={9} color="#34C759" /></span>}
                         {hasLinked && <span title="Tareas vinculadas" style={{ fontSize: 9, background: '#007AFF15', color: '#007AFF', padding: '2px 6px', borderRadius: 6, fontWeight: 700 }}><Icon name="Link" size={9} color="#007AFF" /></span>}

@@ -91,11 +91,8 @@ export function RiskDetailModal({
 
   // Domain calculations
   const typeKey = f.type || 'riesgo';
-  const prefix = RISK_TYPES.find(t => t.id === typeKey)?.prefix || 'R';
+  const num = riskNumber(f as Risk, allRisks);
   const color = typeKey === 'problema' ? '#FF3B30' : heatColor(f.impact || 'medio', f.prob || 'media');
-  const idx = allRisks
-    .filter(r => (r.type || 'riesgo') === typeKey && r.status !== 'mitigated')
-    .findIndex(r => r.id === risk.id) + 1;
 
   const handleSave = () => {
     const saved = { ...f, text: f.title || f.text };
@@ -113,7 +110,7 @@ export function RiskDetailModal({
 
         {/* Header */}
         <div style={{ padding: '18px 24px', borderBottom: '1px solid #F2F2F7', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, background: '#FAFAFA' }}>
-          <span style={{ fontSize: 14, fontWeight: 800, color, background: color + '15', padding: '4px 10px', borderRadius: 8 }}>{prefix}{idx || '?'}</span>
+          <span style={{ fontSize: 14, fontWeight: 800, color, background: color + '15', padding: '4px 10px', borderRadius: 8 }}>{num}</span>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, fontWeight: 700, color, background: color + '12', padding: '2px 8px', borderRadius: 6 }}>
               {TYPE_OPTS.find(t => t.id === typeKey)?.icon} {TYPE_OPTS.find(t => t.id === typeKey)?.label}
