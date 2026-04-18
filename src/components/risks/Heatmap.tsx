@@ -76,7 +76,7 @@ export function Heatmap({ risks, onClickRisk }: HeatmapProps) {
                           border: '2.5px solid #FFF', boxShadow: `0 2px 8px ${dc}40`, cursor: 'pointer',
                           outline: escColor ? `2.5px dashed ${escColor}` : 'none', outlineOffset: '2px',
                         }}>
-                        {prefix}{rn}
+                        {rn}
                       </div>
                       {isHovered && (
                         <div style={{
@@ -87,7 +87,7 @@ export function Heatmap({ risks, onClickRisk }: HeatmapProps) {
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
                             <div style={{ width: 14, height: 14, borderRadius: 7, background: dc, color: '#FFF', fontSize: 7, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{prefix}</div>
-                            <span style={{ fontWeight: 700, color: dc }}>{prefix}{rn}</span>
+                            <span style={{ fontWeight: 700, color: dc }}>{rn}</span>
                             <span style={{ fontSize: 10, color: '#86868B' }}>{type === 'oportunidad' ? 'Oportunidad' : type === 'problema' ? 'Problema' : 'Riesgo'}</span>
                           </div>
                           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2, color: '#1D1D1F' }}>{riskTitle(r)}</div>
