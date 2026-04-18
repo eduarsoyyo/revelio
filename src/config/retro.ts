@@ -2,13 +2,51 @@
 import type { BadgeStats } from '../types/index';
 
 export const PHASES = [
-  { id: 'review',     label: 'Repaso',      num: '01', guide: 'Revisa el objetivo del sprint y las tareas comprometidas. Marca las completadas y comenta las bloqueadas.' },
+  { id: 'review',     label: 'Repaso',      num: '01', guide: 'Revisa el objetivo de la iteración y las tareas comprometidas. Marca las completadas y evalúa el cumplimiento.' },
   { id: 'individual', label: 'Individual',  num: '02', guide: 'Cada persona escribe notas en privado (Good/Bad/Start/Stop). Sin hablar — enfoque individual. 5-8 min.' },
   { id: 'discuss',    label: 'En común',    num: '03', guide: 'Se comparten las notas por categoría. Vota las más relevantes. Debate breve — no resolver, solo entender.' },
   { id: 'actions',    label: 'Accionables', num: '04', guide: 'Convierte las notas más votadas en tareas concretas con responsable y fecha. Cada acción debe ser accionable.' },
   { id: 'risks',      label: 'Riesgos',     num: '05', guide: 'Identifica riesgos y problemas surgidos. Asigna impacto y probabilidad. Escala los críticos.' },
   { id: 'session',    label: 'Resumen',     num: '06', guide: 'Revisa lo decidido: accionables, riesgos, compromisos. Finalizar archiva la retro y lanza la celebración.' },
 ] as const;
+
+export const DEFAULT_TASKS: Record<string, Array<{ text: string; done: boolean }>> = {
+  agile: [
+    { text: 'Revisión del Sprint Backlog', done: false },
+    { text: 'Demo de funcionalidades completadas', done: false },
+    { text: 'Revisión de criterios de aceptación', done: false },
+    { text: 'Actualización del Product Backlog', done: false },
+    { text: 'Revisión de impedimentos', done: false },
+    { text: 'Velocity y métricas del sprint', done: false },
+    { text: 'Feedback del Product Owner', done: false },
+  ],
+  waterfall: [
+    { text: 'Revisión de entregables de la fase', done: false },
+    { text: 'Verificación de criterios de salida', done: false },
+    { text: 'Revisión de riesgos del proyecto', done: false },
+    { text: 'Actualización del cronograma', done: false },
+    { text: 'Revisión de cambios aprobados', done: false },
+    { text: 'Estado de dependencias externas', done: false },
+    { text: 'Validación de calidad (QA)', done: false },
+  ],
+  itil: [
+    { text: 'Revisión de incidencias del periodo', done: false },
+    { text: 'Estado de problemas abiertos', done: false },
+    { text: 'Revisión de cambios implementados', done: false },
+    { text: 'Cumplimiento de SLAs', done: false },
+    { text: 'Revisión de disponibilidad del servicio', done: false },
+    { text: 'Estado de solicitudes pendientes', done: false },
+    { text: 'Mejora continua — acciones del periodo', done: false },
+  ],
+  kanban: [
+    { text: 'Revisión del flujo de trabajo', done: false },
+    { text: 'Análisis de WIP y cuellos de botella', done: false },
+    { text: 'Lead time y cycle time del periodo', done: false },
+    { text: 'Tareas bloqueadas o en espera', done: false },
+    { text: 'Priorización del backlog', done: false },
+    { text: 'Revisión de políticas del tablero', done: false },
+  ],
+};
 
 export const MAIN_TABS = [
   { id: 'resumen',     label: 'Resumen',     lucide: 'LayoutDashboard' },

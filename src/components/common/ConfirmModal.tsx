@@ -1,5 +1,6 @@
 // ═══ CONFIRM MODAL — Reusable confirmation dialog ═══
 
+import { useEffect } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 
 interface ConfirmModalProps {
@@ -23,6 +24,15 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  // Enter to confirm, Escape to cancel
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onConfirm, onCancel]);
   return (
     <div
       style={{

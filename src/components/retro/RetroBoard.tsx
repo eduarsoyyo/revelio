@@ -346,7 +346,7 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
                 <span style={{ fontSize: 12, color: '#007AFF', lineHeight: 1.4 }}>{PHASES[phase]?.guide}</span>
               </div>
 
-              {phase === 0 && <P1Review tasks={state.tasks} onUpdateTasks={t => upd('tasks', t)} objective={((state.obj as Record<string, string> | undefined))?.text || ''} onUpdateObjective={t => upd('obj', { ...(state.obj as Record<string, string> || {}), text: t })} user={user} />}
+              {phase === 0 && <P1Review tasks={state.tasks} onUpdateTasks={t => upd('tasks', t)} objective={((state.obj as Record<string, string> | undefined))?.text || ''} onUpdateObjective={t => upd('obj', { ...(state.obj as Record<string, string> || {}), text: t })} objectiveStatus={((state.obj as Record<string, string> | undefined))?.status || ''} onUpdateObjectiveStatus={s => upd('obj', { ...(state.obj as Record<string, string> || {}), status: s })} user={user} tipo={tipo} />}
               {phase === 1 && <P2Individual notes={state.notes} onUpdateNotes={n => upd('notes', n)} user={user} />}
               {phase === 2 && <P3Discuss notes={state.notes} onUpdateNotes={n => upd('notes', n)} user={user} />}
               {phase === 3 && <P4Actions notes={state.notes} actions={state.actions as Task[]} onUpdateActions={a => upd('actions', a)} user={user} />}
