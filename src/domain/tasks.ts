@@ -99,9 +99,9 @@ export function taskMetrics(tasks: Task[]) {
 export function groupByStatus(tasks: Task[]): Record<string, Task[]> {
   const groups: Record<string, Task[]> = {};
   tasks.forEach(t => {
-    // Normalize statuses to kanban columns
+    // Normalize statuses to kanban columns (backlog stays separate)
     let col = t.status || 'backlog';
-    if (col === 'todo' || col === 'backlog') col = 'pending';
+    if (col === 'todo') col = 'pending';
     if (col === 'doing' || col === 'in_progress') col = 'inprogress';
     if (!groups[col]) groups[col] = [];
     groups[col].push(t);

@@ -474,7 +474,7 @@ export function UserHomePage({ user, onLogout, onSelectProject, onOpenAdmin }: U
                   <div style={{ padding: 32, textAlign: 'center', color: '#86868B' }}>
                     <Icon name="CheckCircle" size={28} color="#34C759" />
                     <p style={{ fontSize: 13, marginTop: 8 }}>
-                      {taskFilter === 'today' ? 'Nada pendiente para hoy' : taskFilter === 'week' ? 'Semana despejada' : 'Sin tareas pendientes'}
+                      {taskFilter === 'today' ? 'Nada pendiente para hoy' : taskFilter === 'week' ? 'Semana despejada' : 'Sin accionables pendientes'}
                     </p>
                   </div>
                 ) : (
@@ -825,7 +825,7 @@ export function UserHomePage({ user, onLogout, onSelectProject, onOpenAdmin }: U
                   <Icon name="Bell" size={15} color="#007AFF" /> Preferencias de notificación
                 </h3>
                 {[
-                  { label: 'Tareas vencidas', key: 'overdue' },
+                  { label: 'Accionables vencidos', key: 'overdue' },
                   { label: 'Riesgos escalados', key: 'escalated' },
                   { label: 'Nuevas asignaciones', key: 'assigned' },
                 ].map(n => (

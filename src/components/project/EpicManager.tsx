@@ -188,7 +188,7 @@ export function EpicManager({ actions, tags = [], tagAssignments = [], onUpdateA
           <div style={{ background: '#FFF', borderRadius: 14, border: '1.5px solid #E5E5EA', padding: 16 }}>
             <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{selectedEpic}</h4>
             {selectedTasks.length === 0 ? (
-              <p style={{ fontSize: 12, color: '#86868B', textAlign: 'center', padding: 20 }}>Sin tareas asignadas. Usa los botones "+ Asignar" de la lista de la izquierda.</p>
+              <p style={{ fontSize: 12, color: '#86868B', textAlign: 'center', padding: 20 }}>Sin accionables asignados. Usa los botones "+ Asignar" de la lista de la izquierda.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {selectedTasks.map(t => {

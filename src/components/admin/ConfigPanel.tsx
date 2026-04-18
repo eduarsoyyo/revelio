@@ -202,7 +202,7 @@ export function ConfigPanel() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               {[
-                { key: 'kpi_tasks_green', label: 'Tareas al día (%)', def: 80 },
+                { key: 'kpi_tasks_green', label: 'Accionables al día (%)', def: 80 },
                 { key: 'kpi_risks_max', label: 'Max riesgos críticos', def: 2 },
                 { key: 'kpi_escalated_pct', label: 'Escalados resueltos (%)', def: 90 },
               ].map(k => (

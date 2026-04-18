@@ -81,7 +81,7 @@ export function Gamification({ actions, risks, teamMembers, retroMetrics, curren
       {/* Scoring legend */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         {[
-          { label: 'Tarea completada', pts: POINTS.taskComplete, color: '#34C759' },
+          { label: 'Acción completada', pts: POINTS.taskComplete, color: '#34C759' },
           { label: 'Riesgo identificado', pts: POINTS.riskCreate, color: '#FF9500' },
           { label: 'Riesgo mitigado', pts: POINTS.riskMitigate, color: '#007AFF' },
         ].map(p => (
@@ -107,7 +107,7 @@ export function Gamification({ actions, risks, teamMembers, retroMetrics, curren
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: isMe ? 700 : 500 }}>{entry.member.name}{isMe ? ' (tú)' : ''}</div>
                   <div style={{ fontSize: 10, color: '#86868B' }}>
-                    {entry.stats.tasksCompleted} tareas · {entry.unlocked.length} logros
+                    {entry.stats.tasksCompleted} accionables · {entry.unlocked.length} logros
                     {entry.house ? ` · ${HOUSES[entry.house].emoji}` : ''}
                   </div>
                 </div>

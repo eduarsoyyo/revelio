@@ -187,7 +187,7 @@ export function StatusReportView({ actions, risks, teamMembers }: StatusReportPr
               <div style={{ height: 4, borderRadius: 2, background: '#F2F2F7' }}>
                 <div style={{ width: `${e.pct}%`, height: 4, borderRadius: 2, background: e.pct === 100 ? '#34C759' : '#007AFF', transition: 'width .3s' }} />
               </div>
-              <div style={{ fontSize: 9, color: '#86868B', marginTop: 2 }}>{e.done}/{e.total} tareas · {e.points} h</div>
+              <div style={{ fontSize: 9, color: '#86868B', marginTop: 2 }}>{e.done}/{e.total} acc. · {e.points} h</div>
             </div>
           ))}
         </div>

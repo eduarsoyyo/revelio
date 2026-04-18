@@ -103,7 +103,7 @@ export function AdminDashboard({ rooms, filterProject, onGoToRoom }: AdminDashbo
           { icon: 'Activity', value: `${health.score}%`, label: 'Salud global', color: health.color },
           { icon: 'FolderOpen', value: `${projectMetrics.length}`, label: 'Proyectos', color: '#007AFF' },
           { icon: 'Users', value: `${totalMembers}`, label: 'Personas', color: '#1D1D1F' },
-          { icon: 'CheckCircle', value: `${totalTasks}`, label: 'Tareas', color: '#34C759' },
+          { icon: 'CheckCircle', value: `${totalTasks}`, label: 'Accionables', color: '#34C759' },
           { icon: 'AlertTriangle', value: `${totalRisksOpen}`, label: 'Riesgos abiertos', color: totalRisksOpen > 0 ? '#FF9500' : '#34C759' },
           { icon: 'TrendingUp', value: `${totalEscalated}`, label: 'Escalados', color: totalEscalated > 0 ? '#FF3B30' : '#34C759' },
         ] as const).map(k => (

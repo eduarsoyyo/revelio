@@ -36,8 +36,6 @@ export function TaskBoard({
   const [sortBy, setSortBy] = useState<SortBy>('priority');
   const [filterOwner, setFilterOwner] = useState('all');
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ text: '', owner: '', date: '', priority: 'medium', type: 'tarea' });
 
   // Drag state
   const [dragId, setDragId] = useState<string | null>(null);
@@ -91,13 +89,6 @@ export function TaskBoard({
     onUpdateActions(actions.map(a => a.id === id ? { ...a, status: status as Task['status'], updatedAt: new Date().toISOString() } : a));
   };
 
-  const addTask = () => {
-    if (!form.text.trim()) return;
-    onUpdateActions([...actions, { id: uid(), text: form.text.trim(), owner: form.owner || 'Sin asignar', date: form.date || undefined, status: 'backlog', priority: form.priority as Task['priority'], voteScore: 0, createdBy: user.id } as Task]);
-    setForm({ text: '', owner: '', date: '', priority: 'medium', type: 'tarea' });
-    setShowForm(false);
-  };
-
   const getTagsForTask = (tid: string) => tags.filter(t => tagAssignments.some(ta => ta.tag_id === t.id && ta.entity_type === 'action' && ta.entity_id === tid));
   const handleDrop = (colId: string) => { if (dragId) { updateStatus(dragId, colId); setDragId(null); } };
 
@@ -142,42 +133,14 @@ export function TaskBoard({
           <option value="all">Todos</option>
           {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
         </select>
-        <button onClick={() => setShowForm(true)} style={{ marginLeft: 'auto', padding: '6px 14px', borderRadius: 9, border: 'none', background: '#1D1D1F', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button onClick={() => {
+          const task = { id: uid(), text: '', owner: 'Sin asignar', status: 'backlog', priority: 'medium', createdBy: user.id, createdAt: new Date().toISOString() } as Task;
+          onUpdateActions([...actions, task]);
+          onOpenTaskDetail(task);
+        }} style={{ marginLeft: 'auto', padding: '6px 14px', borderRadius: 9, border: 'none', background: '#1D1D1F', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
           <Icon name="Plus" size={11} color="#FFF" /> Nuevo accionable
         </button>
       </div>
-
-      {/* Quick add modal */}
-      {showForm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowForm(false); }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(4px)' }} />
-          <div style={{ position: 'relative', background: '#FFF', borderRadius: 20, width: '90%', maxWidth: 460, padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700 }}>Nuevo accionable</h3>
-              <button onClick={() => setShowForm(false)} style={{ border: 'none', background: '#F2F2F7', borderRadius: 10, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Icon name="X" size={16} color="#86868B" /></button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input value={form.text} onInput={e => setForm({ ...form, text: (e.target as HTMLInputElement).value })} placeholder="Descripción" autoFocus onKeyDown={e => e.key === 'Enter' && addTask()} style={{ padding: '10px 14px', borderRadius: 10, border: '1.5px solid #E5E5EA', fontSize: 14, outline: 'none', background: '#F9F9FB' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <select value={form.owner} onChange={e => setForm({ ...form, owner: (e.target as HTMLSelectElement).value })} style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E5E5EA', fontSize: 12, outline: 'none', background: '#F9F9FB' }}>
-                  <option value="">Asignar a...</option>
-                  {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                </select>
-                <select value={form.priority} onChange={e => setForm({ ...form, priority: (e.target as HTMLSelectElement).value })} style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E5E5EA', fontSize: 12, outline: 'none', background: '#F9F9FB' }}>
-                  {PRIORITIES.map(p => <option key={p.id} value={p.id}>{p.icon} {p.label}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <input type="date" value={form.date} onInput={e => setForm({ ...form, date: (e.target as HTMLInputElement).value })} style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E5E5EA', fontSize: 12, outline: 'none', background: '#F9F9FB' }} />
-                <select value={form.type} onChange={e => setForm({ ...form, type: (e.target as HTMLSelectElement).value })} style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #E5E5EA', fontSize: 12, outline: 'none', background: '#F9F9FB' }}>
-                  {ITEM_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                </select>
-              </div>
-            </div>
-            <button onClick={addTask} disabled={!form.text.trim()} style={{ width: '100%', padding: 11, borderRadius: 11, border: 'none', background: '#007AFF', color: '#FFF', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 16, opacity: form.text.trim() ? 1 : 0.5 }}>Crear accionable</button>
-          </div>
-        </div>
-      )}
 
       {/* ── KANBAN ── */}
       {view === 'board' && (
