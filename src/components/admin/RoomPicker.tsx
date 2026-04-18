@@ -14,6 +14,7 @@ import { EscaladoPanel } from './EscaladoPanel';
 import { CrossProject } from './CrossProject';
 import { ConsultantTimeline } from './ConsultantTimeline';
 import { ProjectsPanel } from './ProjectsPanel';
+import { ConfigPanel } from './ConfigPanel';
 import { Icon } from '@components/common/Icon';
 import { Loading } from '@components/common/Feedback';
 import { ProfileEditor } from '@components/common/ProfileEditor';
@@ -54,6 +55,7 @@ const NAV: NavItem[] = [
       { id: 'cross',       icon: 'GitMerge',   label: 'Cross-proyecto' },
     ],
   },
+  { id: 'config', icon: 'Settings', label: 'Configuración' },
 ];
 
 export function RoomPicker({ user, onGoToRoom, onLogout, onBackToHome }: RoomPickerProps) {
@@ -282,6 +284,7 @@ export function RoomPicker({ user, onGoToRoom, onLogout, onBackToHome }: RoomPic
 
           {/* Riesgos y Escalado */}
           {tab === 'riesgos' && <EscaladoPanel />}
+          {tab === 'config' && <ConfigPanel />}
         </div>
       </div>
 
