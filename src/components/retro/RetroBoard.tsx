@@ -181,6 +181,14 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
   const formatTimer = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
   const onlineCount = Object.keys(online).length;
 
+  // Contrast: dark text for light backgrounds
+  const textForBg = (bg: string) => {
+    const hex = (bg || '#007AFF').replace('#', '');
+    if (hex.length < 6) return '#FFF';
+    const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+    return (r * 0.299 + g * 0.587 + b * 0.114) > 160 ? '#1D1D1F' : '#FFF';
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#F5F5F7' }}>
 
@@ -282,7 +290,7 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
             transform: 'translate(-2px, -2px)', transition: 'left .1s, top .1s',
           }}>
             <svg width="20" height="24" viewBox="0 0 16 20"><path d="M0 0L16 12L6 14L4 20L0 0Z" fill={c.color || '#007AFF'} stroke="#FFF" strokeWidth="1" /></svg>
-            <span style={{ fontSize: 11, background: c.color || '#007AFF', color: '#FFF', padding: '2px 8px', borderRadius: 6, marginLeft: 6, whiteSpace: 'nowrap', fontWeight: 600, boxShadow: '0 2px 8px rgba(0,0,0,.15)' }}>
+            <span style={{ fontSize: 11, background: c.color || '#007AFF', color: textForBg(c.color || '#007AFF'), padding: '2px 8px', borderRadius: 6, marginLeft: 6, whiteSpace: 'nowrap', fontWeight: 600, boxShadow: '0 2px 8px rgba(0,0,0,.15)' }}>
               <span style={{ fontSize: 14, marginRight: 3 }}>{c.avatar}</span>{c.name?.split(' ')[0]}
             </span>
           </div>
@@ -351,7 +359,7 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
               {phase === 2 && <P3Discuss notes={state.notes} onUpdateNotes={n => upd('notes', n)} user={user} />}
               {phase === 3 && <P5Risks risks={state.risks as Risk[]} onUpdateRisks={r => upd('risks', r)} notes={state.notes} user={user} />}
               {phase === 4 && <P4Actions notes={state.notes} actions={state.actions as Task[]} risks={state.risks as Risk[]} onUpdateActions={a => upd('actions', a)} onOpenTaskDetail={t => setDetailTask(t)} user={user} />}
-              {phase === 5 && <P6Summary notes={state.notes} actions={state.actions as Task[]} risks={state.risks as Risk[]} phaseTimes={phaseTimes} objective={((state.obj as Record<string, string> | undefined))?.text || ''} user={user} onFinalize={handleFinalize} finalizing={finalizing} />}
+              {phase === 5 && <P6Summary notes={state.notes} actions={state.actions as Task[]} risks={state.risks as Risk[]} phaseTimes={phaseTimes} objective={((state.obj as Record<string, string> | undefined))?.text || ''} objectiveStatus={((state.obj as Record<string, string> | undefined))?.status || ''} tasks={state.tasks} user={user} onFinalize={handleFinalize} finalizing={finalizing} />}
             </div>
           </div>
         )}
