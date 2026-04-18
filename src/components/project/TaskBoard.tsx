@@ -210,7 +210,7 @@ export function TaskBoard({
         </div>
       )}
 
-      {/* ── BACKLOG ── */}
+      {/* ── BACKLOG (only backlog items + button to move to board) ── */}
       {view === 'backlog' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {(grouped['backlog'] || []).length === 0 && <p style={{ textAlign: 'center', color: '#C7C7CC', padding: 24, fontSize: 13 }}>Sin accionables en backlog</p>}
@@ -219,26 +219,12 @@ export function TaskBoard({
               <div style={{ flex: 1 }}>
                 <TaskCard task={task} teamMembers={teamMembers} tags={getTagsForTask(task.id)} onOpenDetail={onOpenTaskDetail} />
               </div>
-              <button onClick={() => updateStatus(task.id, 'pending')} title="Mover a Pendiente"
+              <button onClick={() => updateStatus(task.id, 'pending')} title="Mover a Board"
                 style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #FF950030', background: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#FF9500', flexShrink: 0 }}>
                 <Icon name="ArrowRight" size={10} color="#FF9500" /> Board
               </button>
             </div>
           ))}
-          {/* Other statuses grouped */}
-          {['pending', 'inprogress', 'blocked'].map(st => {
-            const items = grouped[st] || [];
-            if (items.length === 0) return null;
-            const cfg = KANBAN_COLUMNS.find(c => c.id === st);
-            return (
-              <div key={st} style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: cfg?.color || '#86868B', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: 3, background: cfg?.color }} /> {cfg?.label} ({items.length})
-                </div>
-                {items.map(task => <TaskCard key={task.id} task={task} teamMembers={teamMembers} tags={getTagsForTask(task.id)} onOpenDetail={onOpenTaskDetail} />)}
-              </div>
-            );
-          })}
         </div>
       )}
 
@@ -298,13 +284,13 @@ export function TaskBoard({
         </div>
       )}
 
-      {/* ── HISTORY (by month, collapsed) ── */}
+      {/* ── HISTORY (table style, grouped by month, collapsed) ── */}
       {view === 'history' && (() => {
         const archived = sortTasks(actions.filter(a => a.status === 'archived' || a.status === 'done'), 'date');
         const byMonth: Record<string, Task[]> = {};
         archived.forEach(a => {
           const d = a.date || (a as any).updatedAt || (a as any).createdAt || today;
-          const key = d.slice(0, 7); // yyyy-MM
+          const key = d.slice(0, 7);
           if (!byMonth[key]) byMonth[key] = [];
           byMonth[key].push(a);
         });
@@ -320,17 +306,44 @@ export function TaskBoard({
             {months.map(m => {
               const [y, mo] = m.split('-');
               const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+              const items = byMonth[m];
               return (
-                <details key={m} style={{ marginBottom: 6 }}>
+                <details key={m} style={{ marginBottom: 8 }}>
                   <summary style={{ padding: '8px 12px', background: '#FFF', borderRadius: 10, border: '1.5px solid #E5E5EA', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Icon name="Calendar" size={12} color="#86868B" />
                     {label.charAt(0).toUpperCase() + label.slice(1)}
-                    <span style={{ fontSize: 10, color: '#86868B', fontWeight: 500, marginLeft: 'auto' }}>{byMonth[m].length} accionables</span>
+                    <span style={{ fontSize: 10, color: '#86868B', fontWeight: 500, marginLeft: 'auto' }}>{items.length} accionables</span>
                   </summary>
-                  <div style={{ padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
-                    {byMonth[m].map(task => (
-                      <TaskCard key={task.id} task={task} compact teamMembers={teamMembers} tags={getTagsForTask(task.id)} onOpenDetail={onOpenTaskDetail} />
-                    ))}
+                  <div style={{ background: '#FFF', borderRadius: 10, border: '1.5px solid #E5E5EA', overflow: 'auto', marginTop: 4 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ background: '#FAFAFA' }}>
+                          {['', 'Accionable', 'Responsable', 'Fecha', 'Prioridad', 'Estado', 'Horas', 'Épica'].map(h => (
+                            <th key={h} style={{ padding: '6px 8px', fontSize: 9, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', borderBottom: '1.5px solid #E5E5EA', textAlign: h === 'Accionable' ? 'left' : 'center' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((t, i) => {
+                          const tp = ITEM_TYPE_MAP[(t as any).type || 'tarea'] || ITEM_TYPE_MAP.tarea;
+                          const pr = PRIORITY_MAP[(t as any).priority || 'medium'] || PRIORITY_MAP.medium;
+                          const st = TASK_STATUS_MAP[t.status || 'done'] || TASK_STATUS_MAP.done;
+                          return (
+                            <tr key={t.id} onClick={() => onOpenTaskDetail(t)} style={{ background: i % 2 === 0 ? '#FFF' : '#FAFAFA', cursor: 'pointer', opacity: 0.7 }}
+                              onMouseOver={e => (e.currentTarget.style.opacity = '1')} onMouseOut={e => (e.currentTarget.style.opacity = '0.7')}>
+                              <td style={{ padding: '5px 6px', borderBottom: '1px solid #F2F2F7', textAlign: 'center' }}><Icon name={tp.lucide} size={11} color={tp.color} /></td>
+                              <td style={{ padding: '5px 8px', borderBottom: '1px solid #F2F2F7', fontWeight: 500, textDecoration: 'line-through', color: '#86868B' }}>{t.text}</td>
+                              <td style={{ padding: '5px', borderBottom: '1px solid #F2F2F7', textAlign: 'center', fontSize: 10, color: '#007AFF' }}>{t.owner || '—'}</td>
+                              <td style={{ padding: '5px', borderBottom: '1px solid #F2F2F7', textAlign: 'center', fontSize: 10, color: '#86868B' }}>{fd(t.date) || '—'}</td>
+                              <td style={{ padding: '5px', borderBottom: '1px solid #F2F2F7', textAlign: 'center' }}><span style={{ fontSize: 9, fontWeight: 700, color: pr.color }}>{pr.icon}</span></td>
+                              <td style={{ padding: '5px', borderBottom: '1px solid #F2F2F7', textAlign: 'center' }}><span style={{ fontSize: 9, fontWeight: 600, color: st.color, background: st.bg, padding: '1px 5px', borderRadius: 4 }}>{st.label}</span></td>
+                              <td style={{ padding: '5px', borderBottom: '1px solid #F2F2F7', textAlign: 'center', color: '#5856D6', fontWeight: 600 }}>{(t as any).hours || '—'}</td>
+                              <td style={{ padding: '5px', borderBottom: '1px solid #F2F2F7', textAlign: 'center', fontSize: 9, color: '#AF52DE' }}>{(t as any).epicLink || '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </details>
               );

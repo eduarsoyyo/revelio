@@ -305,6 +305,11 @@ export function GanttView({ actions, sala, teamMembers, onUpdateActions, onOpenD
                   <text key={`sub-${i}`} x={s.x} y={43} textAnchor="middle" fontSize={zoom === 'week' ? '9' : '8'} fill={s.isWeekend ? '#C7C7CC' : '#AEAEB2'}>{s.label}</text>
                 ))}
 
+                {/* Vertical grid lines */}
+                {subLabels.map((s, i) => (
+                  <line key={`grid-${i}`} x1={s.x} y1={HEADER_H} x2={s.x} y2={totalH} stroke={s.isWeekend ? '#F0F0F2' : '#F5F5F7'} strokeWidth="0.5" />
+                ))}
+
                 {/* Today */}
                 <line x1={todayX} y1={0} x2={todayX} y2={totalH} stroke="#FF3B30" strokeWidth="1.5" strokeDasharray="4 2" />
                 <rect x={todayX - 14} y={2} width={28} height={14} rx={4} fill="#FF3B30" />
@@ -455,8 +460,9 @@ export function GanttView({ actions, sala, teamMembers, onUpdateActions, onOpenD
                 {subLabels.map((s, i) => (
                   <text key={`sub-${i}`} x={s.x} y={43} textAnchor="middle" fontSize={zoom === 'week' ? '9' : '8'} fill={s.isWeekend ? '#C7C7CC' : '#AEAEB2'}>{s.label}</text>
                 ))}
-
-                {/* Today marker */}
+                {subLabels.map((s, i) => (
+                  <line key={`grid-${i}`} x1={s.x} y1={HEADER_H} x2={s.x} y2={HEADER_H + teamMembers.length * 52} stroke={s.isWeekend ? '#F0F0F2' : '#F5F5F7'} strokeWidth="0.5" />
+                ))}
                 {(() => { const tx = dayToX(todayStr); return tx >= 0 && tx <= chartWidth ? (
                   <g><line x1={tx} y1={0} x2={tx} y2={HEADER_H + teamMembers.length * 52} stroke="#FF3B30" strokeWidth="1.5" strokeDasharray="4 2" />
                   <rect x={tx - 14} y={2} width={28} height={14} rx={4} fill="#FF3B30" />
