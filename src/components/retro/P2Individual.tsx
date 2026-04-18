@@ -101,7 +101,7 @@ export function P2Individual({ notes, onUpdateNotes, user }: P2IndividualProps) 
               {g.notes.map(n => {
                 const mine = isMine(n);
                 return (
-                <div key={n.id} style={{ padding: '8px 10px', borderRadius: 8, background: mine ? g.bg : '#F2F2F7', borderLeft: `3px solid ${mine ? g.color : '#D1D1D6'}`, marginBottom: 4, position: 'relative' }}>
+                <div key={n.id} style={{ padding: '8px 10px', borderRadius: 8, background: g.bg, borderLeft: `3px solid ${g.color}`, marginBottom: 4, position: 'relative' }}>
                   <div style={{ fontSize: 12, marginBottom: 4, paddingRight: mine ? 40 : 0, filter: mine ? 'none' : 'blur(5px)', userSelect: mine ? 'auto' : 'none' as any }}>{n.text}</div>
                   <div style={{ fontSize: 10, color: '#86868B', filter: mine ? 'none' : 'blur(4px)' }}>{n.userName}</div>
                   {mine && (

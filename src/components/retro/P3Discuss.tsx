@@ -14,6 +14,7 @@ const CAT_ICONS: Record<string, string> = { good: 'ThumbsUp', bad: 'ThumbsDown',
 
 export function P3Discuss({ notes, onUpdateNotes, user }: P3DiscussProps) {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
+  const [reactOpen, setReactOpen] = useState<string | null>(null);
   const allNotes = (notes || []) as RetroNote[];
   const myNotes = allNotes.filter(n => n.userId === user.id || n.userName === user.name);
 
@@ -82,22 +83,23 @@ export function P3Discuss({ notes, onUpdateNotes, user }: P3DiscussProps) {
                 const voteCount = n.votes?.length || 0;
                 const hasVoted = (n.votes || []).includes(user.id);
                 const reactions = (n.reactions || {}) as Record<string, string[]>;
+                
                 return (
                   <div key={n.id} style={{
                     background: g.bg, borderRadius: 10, padding: '10px 12px', marginBottom: 6,
-                    borderLeft: `3px solid ${g.color}`, cursor: 'pointer',
+                    borderLeft: `3px solid ${g.color}`,
                     border: hasVoted ? `2px solid ${g.color}40` : undefined,
                   }}>
                     <div style={{ fontSize: 12, marginBottom: 6 }}>{n.text}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 10, color: '#86868B' }}>{n.userName}</span>
 
-                      {/* Reactions */}
+                      {/* Active reactions */}
                       <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
                         {Object.entries(reactions).filter(([, u]) => u.length > 0).map(([emoji, users]) => (
-                          <button key={emoji} onClick={(e) => { e.stopPropagation(); react(n.id, emoji); }}
+                          <button key={emoji} onClick={() => react(n.id, emoji)}
                             style={{
-                              padding: '1px 4px', borderRadius: 6, fontSize: 10, border: 'none', cursor: 'pointer',
+                              padding: '1px 5px', borderRadius: 6, fontSize: 10, border: 'none', cursor: 'pointer',
                               background: users.includes(user.id) ? '#007AFF15' : '#F2F2F7',
                             }}>
                             {emoji} {users.length}
@@ -105,8 +107,14 @@ export function P3Discuss({ notes, onUpdateNotes, user }: P3DiscussProps) {
                         ))}
                       </div>
 
-                      {/* Vote button */}
-                      <button onClick={(e) => { e.stopPropagation(); vote(n.id); }}
+                      {/* React toggle */}
+                      <button onClick={() => setReactOpen(reactOpen === n.id ? null : n.id)}
+                        style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E5EA', background: reactOpen === n.id ? '#F2F2F7' : '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon name="Smile" size={11} color="#86868B" />
+                      </button>
+
+                      {/* Vote */}
+                      <button onClick={() => vote(n.id)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px', borderRadius: 6,
                           border: hasVoted ? 'none' : '1px solid #E5E5EA',
@@ -118,15 +126,17 @@ export function P3Discuss({ notes, onUpdateNotes, user }: P3DiscussProps) {
                       </button>
                     </div>
 
-                    {/* Reaction bar (click to react) */}
-                    <div style={{ display: 'flex', gap: 2, marginTop: 4 }}>
-                      {REACTIONS.map(r => (
-                        <button key={r} onClick={(e) => { e.stopPropagation(); react(n.id, r); }}
-                          style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: (reactions[r] || []).includes(user.id) ? '#007AFF10' : 'transparent', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {r}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Reaction picker (hidden until toggle) */}
+                    {reactOpen === n.id && (
+                      <div style={{ display: 'flex', gap: 3, marginTop: 6, padding: '4px 0' }}>
+                        {REACTIONS.map(r => (
+                          <button key={r} onClick={() => { react(n.id, r); setReactOpen(null); }}
+                            style={{ width: 26, height: 26, borderRadius: 8, border: (reactions[r] || []).includes(user.id) ? '2px solid #007AFF' : '1px solid #E5E5EA', background: '#FFF', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
