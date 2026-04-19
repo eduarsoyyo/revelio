@@ -57,8 +57,7 @@ async function deleteTrainingItem(id: string) { try { const s = await sb(); awai
 const cardS = { background: '#FFF', borderRadius: 14, border: '1.5px solid #E5E5EA' } as const;
 const inputS = { padding: '8px 12px', borderRadius: 10, border: '1.5px solid #E5E5EA', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const, fontFamily: 'inherit', background: '#F9F9FB' };
 const labelS = { fontSize: 10, fontWeight: 700 as number, color: '#86868B', display: 'block', marginBottom: 3, textTransform: 'uppercase' as const, letterSpacing: 0.3 };
-const BUILTIN_ROLES = ['Service Manager', 'Jefe de proyecto', 'Scrum Master', 'Product Owner', 'Consultor', 'Analista Funcional', 'Desarrollador/a', 'QA / Tester', 'DevOps', 'Tech Lead', 'Diseñador/a'];
-const ROLE_COLORS: Record<string, string> = { 'Service Manager': '#FF3B30', 'Jefe de proyecto': '#FF9500', 'Scrum Master': '#007AFF', 'Product Owner': '#5856D6', 'Consultor': '#34C759', 'Analista Funcional': '#AF52DE', 'Desarrollador/a': '#00C7BE', 'QA / Tester': '#FF2D55', 'DevOps': '#5AC8FA', 'Tech Lead': '#FF6482' };
+const ROLE_COLORS: Record<string, string> = { 'Service Manager': '#FF3B30', 'Jefe de proyecto': '#FF9500', 'Scrum Master': '#007AFF', 'Product Owner': '#5856D6', 'Consultor': '#34C759', 'Analista Funcional': '#AF52DE', 'Desarrollador/a': '#00C7BE', 'QA / Tester': '#FF2D55', 'DevOps': '#5AC8FA', 'Tech Lead': '#FF6482', 'PMO': '#FF9500', 'Diseñador/a': '#AF52DE', 'Jefe de Proyecto': '#FF9500' };
 const CAT_COLORS = ['#007AFF', '#5856D6', '#34C759', '#FF9500', '#FF3B30', '#AF52DE', '#00C7BE', '#FF2D55'];
 const SKILL_ICONS = ['📘', '💻', '🧠', '🎯', '🔧', '📊', '🗣️', '✍️', '🔬', '🎨', '📐', '🤝'];
 
@@ -104,7 +103,7 @@ export function RolesPanel() {
     });
   }, []);
 
-  const allRoleNames = useMemo(() => [...new Set([...BUILTIN_ROLES, ...roles.map(r => r.name), ...members.map(m => m.role_label).filter(Boolean) as string[]])], [roles, members]);
+  const allRoleNames = useMemo(() => [...new Set([...roles.map(r => r.name), ...members.map(m => m.role_label).filter(Boolean) as string[]])], [roles, members]);
   const byRole = (role: string) => members.filter(m => m.role_label === role);
   const roleColor = (role: string) => ROLE_COLORS[role] || '#5856D6';
 
@@ -181,7 +180,7 @@ export function RolesPanel() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 10 }}>
             {allRoleNames.map(role => {
-              const mems = byRole(role); const color = roleColor(role); const isBuiltin = BUILTIN_ROLES.includes(role);
+              const mems = byRole(role); const color = roleColor(role); const isDb = roles.some(r => r.name === role);
               return (
                 <div key={role} style={{ ...cardS, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -193,7 +192,7 @@ export function RolesPanel() {
                     ) : <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{role}</div>}
                     <div style={{ fontSize: 10, color: mems.length > 0 ? color : '#C7C7CC', fontWeight: 600 }}>{mems.length} persona{mems.length !== 1 ? 's' : ''}</div>
                   </div>
-                  {!isBuiltin && (
+                  {isDb && (
                     <div style={{ display: 'flex', gap: 3 }}>
                       <button onClick={() => { setEditRole(role); setEditRoleName(role); }} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #E5E5EA', background: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="Edit" size={10} color="#007AFF" /></button>
                       <button onClick={() => { setDelModal({ type: 'role', id: role, name: role }); setDelConfirm(''); }} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #FF3B3020', background: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="Trash2" size={10} color="#FF3B30" /></button>

@@ -1,3 +1,4 @@
+// @ts-nocheck — legacy code, superseded by UsersPanel/RolesPanel/CalendarPanel
 // ═══ ADMIN PANELS — Maestros, Roles, Usuarios, Convenio, Calendarios, Escalado Global ═══
 // All admin sub-panels for Centro de Control.
 
@@ -12,7 +13,7 @@ import { loadRooms } from '../../data/rooms';
 import { Icon } from '../common/Icon';
 
 // ── Shared helpers ──
-const BUILTIN_ROLES = ['Scrum Master','Product Owner','Desarrollador/a','QA / Tester','Diseñador/a','DevOps','Tech Lead','Analista','Project Manager','Stakeholder','Otro'];
+const BUILTIN_ROLES: string[] = []; // deprecated — roles from admin_roles table
 const ROLE_COLORS: Record<string, string> = {'Scrum Master':'#007AFF','Product Owner':'#5856D6','Desarrollador/a':'#34C759','QA / Tester':'#FF9500','Diseñador/a':'#FF2D55','DevOps':'#00C7BE','Tech Lead':'#FF3B30','Analista':'#AF52DE','Project Manager':'#007AFF','Stakeholder':'#86868B'};
 
 // ═══ 1. ADMIN ROLES ═══

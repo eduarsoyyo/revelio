@@ -36,10 +36,10 @@ export async function loadCrossProjectData(): Promise<CrossProjectData> {
   const retros = retrosR.ok ? retrosR.data : [];
 
   // Load org_chart for all rooms
-  const orgCharts: Record<string, Array<{ member_id: string; dedication: number }>> = {};
+  const orgCharts: Record<string, Array<{ member_id: string; dedication: number; start_date: string; end_date: string }>> = {};
   for (const room of rooms) {
     const result = await loadOrgChart(room.slug);
-    if (result.ok) orgCharts[room.slug] = result.data.map(r => ({ member_id: r.member_id, dedication: (r as Record<string, unknown>).dedication as number || 1 }));
+    if (result.ok) orgCharts[room.slug] = result.data.map(r => ({ member_id: r.member_id, dedication: (r as Record<string, unknown>).dedication as number || 1, start_date: (r as Record<string, unknown>).start_date as string || '', end_date: (r as Record<string, unknown>).end_date as string || '' }));
   }
 
   // Build member → projects map with dedication
@@ -52,11 +52,19 @@ export async function loadCrossProjectData(): Promise<CrossProjectData> {
 
     for (const sala of memberRooms) {
       const room = rooms.find(r => r.slug === sala);
-      const orgEntry = (orgCharts[sala] || []).find(o => o.member_id === member.id);
+      const orgEntries = (orgCharts[sala] || []).filter(o => o.member_id === member.id);
+      // Sum dedication from all periods active today
+      const today = new Date().toISOString().slice(0, 10);
+      const activeDed = orgEntries.reduce((sum, e) => {
+        const s = (e as any).start_date || '2000-01-01';
+        const ed = (e as any).end_date || '2099-12-31';
+        if (today >= s && today <= ed) return sum + ((e as any).dedication || 1);
+        return sum;
+      }, 0);
       projects.push({
         sala,
         name: room?.name || sala,
-        dedication: orgEntry?.dedication || 1,
+        dedication: activeDed || (orgEntries.length > 0 ? orgEntries[0].dedication : 1),
       });
     }
 

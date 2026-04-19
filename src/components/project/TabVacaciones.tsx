@@ -12,7 +12,7 @@ interface TabVacacionesProps {
 }
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const HOLIDAYS_DEFAULT = ['01-01','01-06','05-01','08-15','10-12','11-01','12-06','12-08','12-25'];
+const HOLIDAYS_DEFAULT: string[] = []; // deprecated — use calendario
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 

@@ -14,7 +14,7 @@ interface VacCalendarModalProps {
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const DAYNAMES = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const HOLIDAYS_FB = ['01-01', '01-06', '05-01', '08-15', '10-12', '11-01', '12-06', '12-08', '12-25'];
+const HOLIDAYS_FB: string[] = []; // deprecated — use member calendario
 
 export function VacCalendarModal({ profile, onClose, onSaved }: VacCalendarModalProps) {
   const today = new Date();

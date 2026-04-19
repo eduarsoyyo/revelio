@@ -40,7 +40,26 @@ export function TabFTEs({ team, sala }: TabFTEsProps) {
   }, [sala]);
 
   // Helpers
-  const getOrg = (mid: string) => orgData.find(r => r.member_id === mid) || {};
+  // Find the active org entry for a member on a specific date (supports multiple periods)
+  const getOrg = (mid: string, forDate?: string) => {
+    const entries = orgData.filter(r => r.member_id === mid);
+    if (entries.length === 0) return { dedication: 1, _noEntries: true }; // no org data = default 100%
+    if (entries.length === 1 && !entries[0].start_date && !entries[0].end_date) return entries[0]; // single open-ended
+    if (!forDate) forDate = new Date().toISOString().slice(0, 10);
+    // First try: find a date-bounded period that covers forDate
+    const bounded = entries.filter(e => e.start_date || e.end_date);
+    const match = bounded.find(e => {
+      const s = e.start_date || '2000-01-01';
+      const ed = e.end_date || '2099-12-31';
+      return forDate! >= s && forDate! <= ed;
+    });
+    if (match) return match;
+    // Fallback: open-ended entry (no dates = always active)
+    const open = entries.find(e => !e.start_date && !e.end_date);
+    if (open) return open;
+    // No period matches this date
+    return { dedication: 0, _noMatch: true };
+  };
   const isWk = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
   const fmtD = (d: string) => { const p = d.split('-'); return `${p[2]}/${p[1]}`; };
 
@@ -81,11 +100,9 @@ export function TabFTEs({ team, sala }: TabFTEsProps) {
     if (isWk(d)) return 0;
     if (isHoliday(m, ds)) return 0; // festivos = 0 horas
     const cal = getCal(m);
-    const org = getOrg(m.id);
-    const ded = org.dedication ?? 1;
-    const start = org.start_date || '2000-01-01';
-    const end = org.end_date || '2099-12-31';
-    if (ds < start || ds > end) return 0;
+    const org = getOrg(m.id, ds);
+    const ded = org.dedication ?? 0; // no period = 0 dedication
+    if (ded === 0) return 0;
 
     let baseH = 8;
     if (cal) {
