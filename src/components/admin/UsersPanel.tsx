@@ -26,7 +26,7 @@ interface UserForm {
   role_label: string; company: string; phone: string;
   calendario_id: string; manager_id: string;
   hire_date: string; status: string; is_superuser: boolean;
-  rooms: string[];
+  rooms: string[]; avatar: string; color: string; house: string;
 }
 
 const emptyForm: UserForm = {
@@ -34,8 +34,18 @@ const emptyForm: UserForm = {
   role_label: '', company: '', phone: '',
   calendario_id: '', manager_id: '',
   hire_date: '', status: 'active', is_superuser: false,
-  rooms: [],
+  rooms: [], avatar: '👤', color: '#007AFF', house: '',
 };
+
+const AVATAR_OPTIONS = ['🦊','🐻','🐼','🦁','🦉','🐍','🦡','🦅','🐉','🦄','🧙','⚡','🔮','🏰','🪄','🐺','🦋','🐝','🧚','🐸','👤'];
+const HOUSE_OPTIONS = [
+  { id: '', label: 'Sin casa', color: '#86868B', emoji: '' },
+  { id: 'gryffindor', label: 'Gryffindor', color: '#AE0001', emoji: '🦁' },
+  { id: 'slytherin', label: 'Slytherin', color: '#2A623D', emoji: '🐍' },
+  { id: 'ravenclaw', label: 'Ravenclaw', color: '#0E1A40', emoji: '🦅' },
+  { id: 'hufflepuff', label: 'Hufflepuff', color: '#FFDB00', emoji: '🦡' },
+];
+const COLOR_OPTIONS = ['#007AFF','#FF3B30','#34C759','#FF9500','#5856D6','#AF52DE','#FF2D55','#00C7BE','#1D1D1F'];
 
 export function UsersPanel() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -117,6 +127,9 @@ export function UsersPanel() {
       status: (m as Record<string, unknown>).status as string || 'active',
       is_superuser: !!m.is_superuser,
       rooms: m.rooms || [],
+      avatar: m.avatar || '👤',
+      color: m.color || '#007AFF',
+      house: m.house || '',
     });
     setEditMember(m);
     setModal('edit');
@@ -133,21 +146,21 @@ export function UsersPanel() {
       manager_id: form.manager_id || null,
       hire_date: form.hire_date || null,
       status: form.status || 'active',
+      rooms: form.rooms,
+      avatar: form.avatar || '👤',
+      color: form.color || '#007AFF',
+      house: form.house || null,
     };
     if (modal === 'create') {
       payload.id = Date.now().toString(36) + Math.random().toString(36).slice(2);
-      payload.rooms = form.rooms || [];
       payload.vacations = [];
       payload.annual_vac_days = 22;
       payload.prev_year_pending = 0;
     } else if (editMember) {
       payload.id = editMember.id;
-      payload.rooms = editMember.rooms || form.rooms || [];
       payload.vacations = editMember.vacations;
       payload.annual_vac_days = editMember.annual_vac_days;
       payload.prev_year_pending = editMember.prev_year_pending;
-      payload.avatar = editMember.avatar;
-      payload.color = editMember.color;
     }
     const result = await saveTeamMember(payload as Member);
     if (result.ok) {
@@ -282,6 +295,30 @@ export function UsersPanel() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Avatar + Color + Name row */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div>
+                  <label style={labelS}>Avatar</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+                    {AVATAR_OPTIONS.map(a => (
+                      <button key={a} onClick={() => setForm({ ...form, avatar: a })}
+                        style={{ width: 28, height: 28, borderRadius: 8, border: form.avatar === a ? '2px solid #007AFF' : '1px solid #E5E5EA', background: form.avatar === a ? '#007AFF10' : '#FFF', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={labelS}>Color</label>
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                    {COLOR_OPTIONS.map(c => (
+                      <button key={c} onClick={() => setForm({ ...form, color: c })}
+                        style={{ width: 24, height: 24, borderRadius: 6, background: c, border: form.color === c ? '3px solid #1D1D1F' : '2px solid transparent', cursor: 'pointer' }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div><label style={labelS}>Nombre *</label><input value={form.name} onInput={e => setForm({ ...form, name: (e.target as HTMLInputElement).value })} style={inputS} /></div>
                 <div><label style={labelS}>Usuario</label><input value={form.username} onInput={e => setForm({ ...form, username: (e.target as HTMLInputElement).value })} placeholder={form.name.toLowerCase().replace(/\s+/g, '.')} style={inputS} /></div>
@@ -300,6 +337,21 @@ export function UsersPanel() {
                   </select>
                 </div>
               </div>
+
+              {/* Casa */}
+              <div>
+                <label style={labelS}>Casa</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {HOUSE_OPTIONS.map(h => (
+                    <button key={h.id} onClick={() => setForm({ ...form, house: h.id })}
+                      style={{ flex: 1, padding: '6px 4px', borderRadius: 8, border: form.house === h.id ? `2px solid ${h.color}` : '1.5px solid #E5E5EA', background: form.house === h.id ? h.color + '15' : '#FFF', cursor: 'pointer', textAlign: 'center', fontSize: 10, fontWeight: form.house === h.id ? 700 : 500, color: form.house === h.id ? h.color : '#86868B' }}>
+                      {h.emoji && <div style={{ fontSize: 16 }}>{h.emoji}</div>}
+                      {h.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div><label style={labelS}>Calendario</label>
                   <select value={form.calendario_id} onChange={e => setForm({ ...form, calendario_id: (e.target as HTMLSelectElement).value })} style={inputS}>
@@ -314,6 +366,26 @@ export function UsersPanel() {
                   </select>
                 </div>
               </div>
+
+              {/* Proyectos */}
+              <div>
+                <label style={labelS}>Proyectos asignados</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {rooms.map(r => {
+                    const assigned = (form.rooms || []).includes(r.slug);
+                    return (
+                      <button key={r.slug} onClick={() => {
+                        const updated = assigned ? form.rooms.filter(s => s !== r.slug) : [...form.rooms, r.slug];
+                        setForm({ ...form, rooms: updated });
+                      }}
+                        style={{ padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: assigned ? 'none' : '1.5px solid #E5E5EA', background: assigned ? '#007AFF' : '#FFF', color: assigned ? '#FFF' : '#6E6E73' }}>
+                        {assigned && '✓ '}{r.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                 <div><label style={labelS}>Fecha incorporación</label><input type="date" value={form.hire_date} onInput={e => setForm({ ...form, hire_date: (e.target as HTMLInputElement).value })} style={inputS} /></div>
                 <div><label style={labelS}>Estado</label>
@@ -327,32 +399,6 @@ export function UsersPanel() {
                     <input type="checkbox" checked={form.is_superuser} onChange={() => setForm({ ...form, is_superuser: !form.is_superuser })} style={{ accentColor: '#007AFF' }} />
                     Administrador
                   </label>
-                </div>
-              </div>
-
-              {/* Project assignment */}
-              <div>
-                <label style={labelS}>Proyectos asignados</label>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {rooms.map(r => {
-                    const assigned = (editMember?.rooms || form.rooms || []).includes(r.slug);
-                    return (
-                      <button key={r.slug} onClick={() => {
-                        const current = editMember?.rooms || form.rooms || [];
-                        const updated = assigned ? current.filter((s: string) => s !== r.slug) : [...current, r.slug];
-                        if (editMember) setEditMember({ ...editMember, rooms: updated });
-                        setForm({ ...form, rooms: updated });
-                      }}
-                        style={{
-                          padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                          border: assigned ? 'none' : '1.5px solid #E5E5EA',
-                          background: assigned ? '#007AFF' : '#FFF',
-                          color: assigned ? '#FFF' : '#6E6E73',
-                        }}>
-                        {assigned && '✓ '}{r.name}
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
             </div>
