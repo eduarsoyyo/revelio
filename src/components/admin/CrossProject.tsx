@@ -315,18 +315,22 @@ export function CrossProject() {
                   </table>
                   {/* Periods detail */}
                   <div style={{ marginTop: 8 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: '#86868B', textTransform: 'uppercase' }}>Periodos</span>
-                    {c.periods.map((p, i) => (
-                      <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 10, marginTop: 4 }}>
-                        <span style={{ fontSize: 9, fontWeight: 600, color: '#007AFF' }}>{p.name}</span>
-                        <span style={{ fontSize: 9, fontWeight: 700 }}>{Math.round(p.dedication * 100)}%</span>
-                        <span style={{ fontSize: 8, color: '#86868B' }}>
-                          {p.start_date ? `${p.start_date.slice(8,10)}/${p.start_date.slice(5,7)}` : '∞'}
-                          {' → '}
-                          {p.end_date ? `${p.end_date.slice(8,10)}/${p.end_date.slice(5,7)}` : '∞'}
-                        </span>
-                      </div>
-                    ))}
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#86868B', textTransform: 'uppercase' }}>Periodos ({c.periods.length})</span>
+                    {c.periods.map((p, i) => {
+                      const unconfigured = !p.start_date && !p.end_date && p.dedication === 0;
+                      return (
+                        <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 10, marginTop: 4 }}>
+                          <span style={{ fontSize: 9, fontWeight: 600, color: unconfigured ? '#C7C7CC' : '#007AFF' }}>{p.name}</span>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: unconfigured ? '#C7C7CC' : undefined }}>{Math.round(p.dedication * 100)}%</span>
+                          <span style={{ fontSize: 8, color: '#86868B' }}>
+                            {p.start_date ? `${p.start_date.slice(8,10)}/${p.start_date.slice(5,7)}/${p.start_date.slice(0,4)}` : '∞'}
+                            {' → '}
+                            {p.end_date ? `${p.end_date.slice(8,10)}/${p.end_date.slice(5,7)}/${p.end_date.slice(0,4)}` : '∞'}
+                          </span>
+                          {unconfigured && <span style={{ fontSize: 7, color: '#FF9500', fontWeight: 700 }}>SIN CONFIGURAR</span>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

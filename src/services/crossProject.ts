@@ -71,16 +71,18 @@ export async function loadCrossProjectData(): Promise<CrossProjectData> {
       const orgEntries = (orgCharts[sala] || []).filter(o => o.member_id === member.id);
       // Sum dedication from all periods active today
       const today = new Date().toISOString().slice(0, 10);
-      const activeDed = orgEntries.reduce((sum, e) => {
+      const activePeriods = orgEntries.filter(e => {
         const s = (e as any).start_date || '2000-01-01';
         const ed = (e as any).end_date || '2099-12-31';
-        if (today >= s && today <= ed) return sum + ((e as any).dedication || 1);
-        return sum;
-      }, 0);
+        return today >= s && today <= ed;
+      });
+      const activeDed = activePeriods.reduce((sum, e) => sum + ((e as any).dedication || 0), 0);
+      // Use active dedication if there are configured periods; fallback to first period if no active but periods exist; 0 if nothing configured
+      const finalDed = activePeriods.length > 0 ? activeDed : orgEntries.length > 0 ? orgEntries[0].dedication || 0 : 0;
       projects.push({
         sala,
         name: room?.name || sala,
-        dedication: activeDed || (orgEntries.length > 0 ? orgEntries[0].dedication : 1),
+        dedication: finalDed,
       });
     }
 
@@ -107,8 +109,7 @@ export async function loadCrossProjectData(): Promise<CrossProjectData> {
   // Get latest retro data per room
   const latestByRoom: Record<string, Record<string, unknown>> = {};
   retros.forEach(r => {
-    const existing = latestByRoom[r.sala];
-    if (!existing || r.created_at > (existing.created_at as string || '')) {
+    if (!latestByRoom[r.sala] || r.created_at > (latestByRoom[r.sala] as Record<string, unknown>).created_at as string) {
       latestByRoom[r.sala] = r as unknown as Record<string, unknown>;
     }
   });
@@ -161,14 +162,14 @@ export async function loadCrossProjectData(): Promise<CrossProjectData> {
         allPeriods.push({
           sala,
           name: room?.name || sala,
-          dedication: e.dedication || 1,
+          dedication: e.dedication || 0,
           start_date: e.start_date || '',
           end_date: e.end_date || '',
         });
       }
-      // If no org entry, add a default
+      // If no org entry, add a default with 0 (unconfigured)
       if (entries.length === 0) {
-        allPeriods.push({ sala, name: room?.name || sala, dedication: 1, start_date: '', end_date: '' });
+        allPeriods.push({ sala, name: room?.name || sala, dedication: 0, start_date: '', end_date: '' });
       }
     }
     // Calculate today's dedication
