@@ -164,15 +164,16 @@ export function useRealtime({ user, sala, tipo, onPhaseReceived, onTimerReceived
 
     // Broadcast: phase changes
     ch.on('broadcast', { event: 'phase' }, ({ payload }: { payload: BroadcastPayload }) => {
-      if (payload.from !== user.id && onPhaseReceived) onPhaseReceived(payload.phase);
+      if (payload.from !== user.id && onPhaseReceived) onPhaseReceived(payload.phase as number);
     });
 
     // Broadcast: cursor positions
     ch.on('broadcast', { event: 'cursor' }, ({ payload }: { payload: BroadcastPayload }) => {
       if (payload.id === user.id) return;
+      const pid = payload.id as string;
       cursRef.current = {
         ...cursRef.current,
-        [payload.id]: { x: payload.x, y: payload.y, name: payload.name, avatar: payload.avatar, color: payload.color, ts: Date.now() },
+        [pid]: { x: payload.x as number, y: payload.y as number, name: payload.name as string, avatar: payload.avatar as string, color: payload.color as string, ts: Date.now() },
       };
       setCursors({ ...cursRef.current });
     });
@@ -181,7 +182,7 @@ export function useRealtime({ user, sala, tipo, onPhaseReceived, onTimerReceived
     ch.on('broadcast', { event: 'sync' }, ({ payload }: { payload: BroadcastPayload }) => {
       if (payload.from === user.id) return;
       setState(prev => {
-        const next = { ...prev, [payload.key]: payload.data };
+        const next = { ...prev, [payload.key as string]: payload.data };
         saveLocal(next);
         return next;
       });
@@ -190,7 +191,7 @@ export function useRealtime({ user, sala, tipo, onPhaseReceived, onTimerReceived
     // Broadcast: timer sync
     ch.on('broadcast', { event: 'timer' }, ({ payload }: { payload: BroadcastPayload }) => {
       if (payload.from === user.id) return;
-      if (onTimerReceived) onTimerReceived(payload.secs, payload.isRunning, payload.startedAt);
+      if (onTimerReceived) onTimerReceived(payload.secs as number, payload.isRunning as boolean, payload.startedAt as number | null);
     });
 
     // Broadcast: request full state (for latecomers)
@@ -198,7 +199,7 @@ export function useRealtime({ user, sala, tipo, onPhaseReceived, onTimerReceived
       if (payload.from === user.id) return;
       const s = stRef.current;
       Object.keys(s).forEach(k => {
-        ch.httpSend({ type: 'broadcast', event: 'sync', payload: { key: k, data: (s as any)[k], from: user.id } });
+        (ch as any).httpSend({ type: 'broadcast', event: 'sync', payload: { key: k, data: (s as any)[k], from: user.id } });
       });
     });
 
@@ -211,7 +212,7 @@ export function useRealtime({ user, sala, tipo, onPhaseReceived, onTimerReceived
       if (status === 'SUBSCRIBED') {
         await ch.track({ name: user.name, avatar: user.avatar || '👤', color: user.color || '#007AFF' });
         // Request state from other users after a short delay
-        setTimeout(() => ch.httpSend({ type: 'broadcast', event: 'req', payload: { from: user.id } }), 600);
+        setTimeout(() => (ch as any).httpSend({ type: 'broadcast', event: 'req', payload: { from: user.id } }), 600);
         log.info('Subscribed to channel', { sala });
       }
     });

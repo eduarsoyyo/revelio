@@ -21,7 +21,7 @@ export function RetroHistory({ sala, onClose }: RetroHistoryProps) {
       loadRetroHistory(sala),
       loadMetrics(sala),
     ]).then(([histR, met]) => {
-      if (histR.ok) setRetros(histR.data as Array<Record<string, unknown>>);
+      if (histR.ok) setRetros(histR.data as unknown as Array<Record<string, unknown>>);
       setMetrics(met);
       setLoading(false);
     });
