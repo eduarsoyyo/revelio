@@ -107,7 +107,8 @@ export async function loadCrossProjectData(): Promise<CrossProjectData> {
   // Get latest retro data per room
   const latestByRoom: Record<string, Record<string, unknown>> = {};
   retros.forEach(r => {
-    if (!latestByRoom[r.sala] || r.created_at > (latestByRoom[r.sala] as Record<string, unknown>).created_at as string) {
+    const existing = latestByRoom[r.sala];
+    if (!existing || r.created_at > (existing.created_at as string || '')) {
       latestByRoom[r.sala] = r as unknown as Record<string, unknown>;
     }
   });

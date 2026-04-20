@@ -49,7 +49,7 @@ export async function loadDashboardData(filterSlugs?: string[]): Promise<Dashboa
   // Build allData from retro snapshots
   const snaps = retrosResult.ok ? retrosResult.data : [];
   const bySala: Record<string, { data: unknown; created_at: string }> = {};
-  snaps.forEach((s: Record<string, unknown>) => {
+  (snaps as any[]).forEach((s: any) => {
     if (!bySala[s.sala] || s.created_at > bySala[s.sala].created_at) bySala[s.sala] = s;
   });
   const allData: Record<string, { actions?: Task[]; risks?: Risk[]; notes?: unknown[] }> = {};
