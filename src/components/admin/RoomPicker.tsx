@@ -19,6 +19,7 @@ import { Icon } from '@components/common/Icon';
 import { Loading } from '@components/common/Feedback';
 import { ProfileEditor } from '@components/common/ProfileEditor';
 import { NotificationBell } from '@components/common/NotificationBell';
+import { AdminOrgChart } from './AdminOrgChart';
 
 interface RoomPickerProps {
   user: AppUser;
@@ -266,19 +267,7 @@ export function RoomPicker({ user, onGoToRoom, onLogout, onBackToHome }: RoomPic
           {tab === 'usuarios' && <UsersPanel />}
           {tab === 'roles' && <RolesPanel />}
           {tab === 'calendarios' && <CalendarPanel />}
-          {tab === 'organigrama' && (
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon name="GitBranch" size={18} color="#5856D6" /> Organigrama
-              </h2>
-              <p style={{ fontSize: 13, color: '#86868B', marginBottom: 16 }}>Estructura jerárquica del equipo (por proyecto, seleccionable desde cada proyecto).</p>
-              {/* Placeholder — will be populated in Iter 6 */}
-              <div style={{ background: '#FFF', borderRadius: 14, border: '1.5px solid #E5E5EA', padding: 40, textAlign: 'center', color: '#C7C7CC' }}>
-                <Icon name="GitBranch" size={40} color="#E5E5EA" />
-                <p style={{ fontSize: 13, marginTop: 8 }}>Organigrama global — disponible próximamente</p>
-              </div>
-            </div>
-          )}
+          {tab === 'organigrama' && <AdminOrgChart />}
           {tab === 'timeline' && <ConsultantTimeline />}
           {tab === 'cross' && <CrossProject />}
 

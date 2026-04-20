@@ -232,7 +232,7 @@ export function P6Summary({ notes, actions, risks, phaseTimes, objective, object
       )}
 
       {/* ═══ CALIDAD + MEJORAS + FINALIZAR ═══ */}
-      <div style={{ textAlign: 'center', padding: 20, ...cardS }}>
+      <div style={{ ...cardS, textAlign: 'center', padding: 20 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#86868B', marginBottom: 8 }}>CALIDAD DE LA RETRO</div>
         <div style={{ position: 'relative', width: 90, height: 90, margin: '0 auto 8px' }}>
           <svg viewBox="0 0 100 100" style={{ width: 90, height: 90 }}>

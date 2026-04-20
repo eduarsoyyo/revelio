@@ -29,6 +29,7 @@ import { NotificationBell } from '../common/NotificationBell';
 import { ProfileEditor } from '../common/ProfileEditor';
 import { RetroHistory } from './RetroHistory';
 
+interface RetroObjective { text?: string; status?: string; met?: boolean | null }
 interface Tag { id: string; name: string; color: string }
 interface TagAssignment { tag_id: string; entity_type: string; entity_id: string; sala: string }
 
@@ -153,19 +154,19 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
     setFinalizing(true);
     await finalizeRetro(sala, tipo, {
       notes: state.notes, actions: state.actions as Task[], risks: state.risks as Risk[],
-      objective: ((state.obj as Record<string, string> | undefined))?.text || '', tasks: state.tasks,
+      objective: ((state.obj as RetroObjective | undefined))?.text || '', tasks: state.tasks,
     }, user.id, phaseTimes);
 
     // Evaluate retro quality → tier
     const notes = Array.isArray(state.notes) ? state.notes : [];
     const actions = Array.isArray(state.actions) ? state.actions : [];
-    const obj = state.obj as Record<string, unknown> | undefined;
+    const obj = state.obj as RetroObjective | undefined;
     const { tier } = evaluateRetroTier({
       notes: notes.length,
       participants: Object.keys(online || {}).length + 1,
       totalMembers: teamMembers.length,
       actions: actions.length,
-      votes: notes.reduce((s: number, n: Record<string, unknown>) => s + ((n.votes as number) || 0), 0),
+      votes: notes.reduce((s: number, n: Record<string, unknown>) => s + (Array.isArray(n.votes) ? n.votes.length : 0), 0),
       risksReviewed: Array.isArray(state.risks) && (state.risks as Array<Record<string, unknown>>).some(r => r.status === 'mitigated'),
       objectiveMet: obj?.met as boolean | null ?? null,
     });
@@ -354,12 +355,12 @@ export function RetroBoard({ user, sala, tipo, salaDisplay, onLogout, onBackToHo
                 <span style={{ fontSize: 12, color: '#007AFF', lineHeight: 1.4 }}>{PHASES[phase]?.guide}</span>
               </div>
 
-              {phase === 0 && <P1Review tasks={state.tasks} onUpdateTasks={t => upd('tasks', t)} objective={((state.obj as Record<string, string> | undefined))?.text || ''} onUpdateObjective={t => upd('obj', { ...(state.obj as Record<string, string> || {}), text: t })} objectiveStatus={((state.obj as Record<string, string> | undefined))?.status || ''} onUpdateObjectiveStatus={s => upd('obj', { ...(state.obj as Record<string, string> || {}), status: s })} user={user} tipo={tipo} />}
+              {phase === 0 && <P1Review tasks={state.tasks} onUpdateTasks={t => upd('tasks', t)} objective={((state.obj as RetroObjective | undefined))?.text || ''} onUpdateObjective={t => upd('obj', { ...(state.obj as RetroObjective || {}), text: t })} objectiveStatus={((state.obj as RetroObjective | undefined))?.status || ''} onUpdateObjectiveStatus={s => upd('obj', { ...(state.obj as RetroObjective || {}), status: s })} user={user} tipo={tipo} />}
               {phase === 1 && <P2Individual notes={state.notes} onUpdateNotes={n => upd('notes', n)} user={user} />}
               {phase === 2 && <P3Discuss notes={state.notes} onUpdateNotes={n => upd('notes', n)} user={user} />}
               {phase === 3 && <P5Risks risks={state.risks as Risk[]} onUpdateRisks={r => upd('risks', r)} notes={state.notes} user={user} />}
               {phase === 4 && <P4Actions notes={state.notes} actions={state.actions as Task[]} risks={state.risks as Risk[]} onUpdateActions={a => upd('actions', a)} onOpenTaskDetail={t => setDetailTask(t)} user={user} />}
-              {phase === 5 && <P6Summary notes={state.notes} actions={state.actions as Task[]} risks={state.risks as Risk[]} phaseTimes={phaseTimes} objective={((state.obj as Record<string, string> | undefined))?.text || ''} objectiveStatus={((state.obj as Record<string, string> | undefined))?.status || ''} tasks={state.tasks} user={user} onFinalize={handleFinalize} finalizing={finalizing} />}
+              {phase === 5 && <P6Summary notes={state.notes} actions={state.actions as Task[]} risks={state.risks as Risk[]} phaseTimes={phaseTimes} objective={((state.obj as RetroObjective | undefined))?.text || ''} objectiveStatus={((state.obj as RetroObjective | undefined))?.status || ''} tasks={state.tasks} user={user} onFinalize={handleFinalize} finalizing={finalizing} />}
             </div>
           </div>
         )}

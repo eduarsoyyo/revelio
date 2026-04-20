@@ -170,7 +170,7 @@ export function TabVacaciones({ team, sala, onRefresh }: TabVacacionesProps) {
                         {vac && (
                           <div title={`${absType?.label || 'Ausencia'}\n${vac.from} → ${vac.to || vac.from}`}
                             style={{ width: '100%', height: 20, background: (absType?.color || '#FF9500') + '40', cursor: 'pointer' }}
-                            onClick={() => delVac(m.id, vac.id)}
+                            onClick={() => vac.id && delVac(m.id, vac.id)}
                           />
                         )}
                         {!vac && hol && <span style={{ color: '#FF3B30' }}>•</span>}
