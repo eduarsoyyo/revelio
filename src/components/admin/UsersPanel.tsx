@@ -53,21 +53,6 @@ function workDaysToDate(cal: CalFull | null, yr: number, toStr: string): number 
   while (d <= end) { if (d.getDay() !== 0 && d.getDay() !== 6 && !hS.has(d.toISOString().slice(0, 10))) days++; d.setDate(d.getDate() + 1) }
   return days
 }
-// Absence hours: count business days in approved absences that fall on workdays, times daily hours
-function absenceHoursYTD(cal: CalFull | null, yr: number, absences: AbsenceReq[], memberId: string): number {
-  if (!cal) return 0
-  const hS = getHolidaySet(cal, yr); const intS = cal.intensive_start || '08-01'; const intE = cal.intensive_end || '08-31'
-  const myAbs = absences.filter(a => a.member_id === memberId && a.status === 'aprobada')
-  let h = 0
-  for (const a of myAbs) {
-    const d = new Date(a.date_from); const end = new Date(a.date_to)
-    while (d <= end) { const dw = d.getDay(); const ds = d.toISOString().slice(0, 10); const mm = ds.slice(5)
-      if (ds.startsWith(String(yr)) && dw !== 0 && dw !== 6 && !hS.has(ds)) {
-        if (mm >= intS && mm <= intE) h += cal.daily_hours_intensive || 7; else if (dw === 5) h += cal.daily_hours_v || 8; else h += cal.daily_hours_lj || 8 }
-      d.setDate(d.getDate() + 1) }
-  }
-  return h
-}
 function vacDaysApproved(absences: AbsenceReq[], memberId: string, yr: number): number {
   return absences.filter(a => a.member_id === memberId && a.status === 'aprobada' && a.type === 'vacaciones' && a.date_from.startsWith(String(yr))).reduce((s, a) => s + a.days, 0)
 }
@@ -110,10 +95,6 @@ export function UsersPanel() {
   // Fichadas: real hours from time_entries YTD (excluding rejected and _pendiente)
   const fichadasYTD = (m: Member): number => {
     return timeEntries.filter(e => e.member_id === m.id && e.status !== 'rejected' && e.sala !== '_pendiente').reduce((s, e) => s + e.hours, 0)
-  }
-  // Total "effective" hours = fichadas + approved absence hours (absences count as worked for comparison)
-  const effectiveHoursYTD = (m: Member): number => {
-    return fichadasYTD(m) + absenceHoursYTD(getCal(m), yr, absReqs, m.id)
   }
   // Expected hours to today from calendar, minus vac+aus days
   const expectedH = (m: Member): number => {
