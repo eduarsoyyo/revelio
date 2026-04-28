@@ -171,9 +171,9 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
         {[
-          { l: 'Venta', v: `${fmt(pnl.totRev)}€`, c: '#007AFF', I: DollarSign },
-          { l: 'Coste real', v: `${fmt(pnl.totCost)}€`, c: '#FF9500', I: TrendingDown },
-          { l: 'Margen real', v: `${fmt(pnl.totMargin)}€`, c: pnl.totMargin >= 0 ? '#34C759' : '#FF3B30', I: TrendingUp },
+          { l: 'Venta', v: `${fmt(pnl.totRev)}â‚¬`, c: '#007AFF', I: DollarSign },
+          { l: 'Coste real', v: `${fmt(pnl.totCost)}â‚¬`, c: '#FF9500', I: TrendingDown },
+          { l: 'Margen real', v: `${fmt(pnl.totMargin)}â‚¬`, c: pnl.totMargin >= 0 ? '#34C759' : '#FF3B30', I: TrendingUp },
           { l: 'Margen %', v: `${pnl.totMarginPct}%`, c: pnl.totMarginPct >= 20 ? '#34C759' : pnl.totMarginPct >= 10 ? '#FF9500' : '#FF3B30', I: BarChart3 },
           { l: 'Horas', v: fmt(pnl.totHours), c: '#8E8E93', I: Calculator },
         ].map(k => (
@@ -190,13 +190,13 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
             <thead><tr className="bg-[#F2F2F7] dark:bg-[#2C2C2E]"><th className="px-3 py-2 text-left font-semibold text-[#8E8E93] sticky left-0 bg-[#F2F2F7] dark:bg-[#2C2C2E] z-10">Concepto</th>{MO.map((m, i) => <th key={m} className={`px-1.5 py-2 text-center font-semibold ${i === now.getMonth() && isCurrentYear ? 'text-[#007AFF]' : 'text-[#8E8E93]'}`}>{m}</th>)}<th className="px-2 py-2 text-center font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">Total</th></tr></thead>
             <tbody>
               <tr className="border-t border-[#F2F2F7] dark:border-[#2C2C2E]"><td className="px-3 py-2 font-semibold text-[#007AFF] sticky left-0 bg-white dark:bg-[#1C1C1E] z-10">Venta</td>{pnl.months.map((m, i) => <td key={i} className={`px-1 py-2 text-center font-medium ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}><span className="text-[#007AFF]">{fmt(m.revenue)}</span></td>)}<td className="px-2 py-2 text-center font-bold text-[#007AFF]">{fmt(pnl.totRev)}</td></tr>
-              <tr className="border-t border-[#F2F2F7]/50"><td className="px-3 py-2 font-semibold text-[#8E8E93] sticky left-0 bg-white dark:bg-[#1C1C1E] z-10">Coste est.</td>{pnl.months.map((_, i) => <td key={i} className={`px-1 py-2 text-center text-[#8E8E93] ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}>{totalEstCost > 0 ? fmt(Math.round(totalEstCost / 12)) : '—'}</td>)}<td className="px-2 py-2 text-center font-semibold text-[#8E8E93]">{totalEstCost > 0 ? fmt(totalEstCost) : '—'}</td></tr>
+              <tr className="border-t border-[#F2F2F7]/50"><td className="px-3 py-2 font-semibold text-[#8E8E93] sticky left-0 bg-white dark:bg-[#1C1C1E] z-10">Coste est.</td>{pnl.months.map((_, i) => <td key={i} className={`px-1 py-2 text-center text-[#8E8E93] ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}>{totalEstCost > 0 ? fmt(Math.round(totalEstCost / 12)) : 'â‚¬'}</td>)}<td className="px-2 py-2 text-center font-semibold text-[#8E8E93]">{totalEstCost > 0 ? fmt(totalEstCost) : 'â‚¬'}</td></tr>
               <tr className="border-t border-[#F2F2F7]/50"><td className="px-3 py-2 font-semibold text-[#FF9500] sticky left-0 bg-white dark:bg-[#1C1C1E] z-10">Coste real</td>{pnl.months.map((m, i) => <td key={i} className={`px-1 py-2 text-center ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}><span className="text-[#FF9500]">{fmt(m.cost)}</span></td>)}<td className="px-2 py-2 text-center font-bold text-[#FF9500]">{fmt(pnl.totCost)}</td></tr>
               <tr className="border-t-2 border-[#E5E5EA] dark:border-[#3A3A3C] bg-[#F9F9FB] dark:bg-[#2C2C2E]"><td className="px-3 py-2 font-bold sticky left-0 bg-[#F9F9FB] dark:bg-[#2C2C2E] z-10" style={{ color: pnl.totMargin >= 0 ? '#34C759' : '#FF3B30' }}>Margen real</td>{pnl.months.map((m, i) => <td key={i} className={`px-1 py-2 text-center font-bold ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}><span style={{ color: m.margin >= 0 ? '#34C759' : '#FF3B30' }}>{fmt(m.margin)}</span></td>)}<td className="px-2 py-2 text-center font-bold" style={{ color: pnl.totMargin >= 0 ? '#34C759' : '#FF3B30' }}>{fmt(pnl.totMargin)}</td></tr>
               <tr className="border-t border-[#F2F2F7]/50"><td className="px-3 py-1.5 text-[#8E8E93] sticky left-0 bg-white dark:bg-[#1C1C1E] z-10">Margen %</td>{pnl.months.map((m, i) => <td key={i} className={`px-1 py-1.5 text-center ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}><span style={{ color: m.marginPct >= 20 ? '#34C759' : m.marginPct >= 10 ? '#FF9500' : '#FF3B30' }}>{m.marginPct}%</span></td>)}<td className="px-2 py-1.5 text-center font-bold" style={{ color: pnl.totMarginPct >= 20 ? '#34C759' : pnl.totMarginPct >= 10 ? '#FF9500' : '#FF3B30' }}>{pnl.totMarginPct}%</td></tr>
               <tr className="border-t border-[#F2F2F7]/50"><td className="px-3 py-1.5 text-[#8E8E93] sticky left-0 bg-white dark:bg-[#1C1C1E] z-10">Horas</td>{pnl.months.map((m, i) => <td key={i} className={`px-1 py-1.5 text-center text-[#8E8E93] ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}>{fmt(m.hours)}</td>)}<td className="px-2 py-1.5 text-center font-semibold text-[#8E8E93]">{fmt(pnl.totHours)}</td></tr>
               <tr><td colSpan={14} className="h-2 bg-[#F2F2F7]/30 dark:bg-[#2C2C2E]/30" /></tr>
-              {monthlyData.map(p => (<tr key={p.id} className="border-t border-[#F2F2F7]/30 hover:bg-[#F2F2F7]/30"><td className="px-3 py-1.5 sticky left-0 bg-white dark:bg-[#1C1C1E] z-10"><span className="dark:text-[#F5F5F7]">{p.avatar || '·'} {p.name.split(' ')[0]}</span> <span className="text-[7px] text-[#8E8E93]">{fmtD(p.costRate)}€/h</span></td>{p.months.map((m, i) => <td key={i} className={`px-1 py-1.5 text-center text-[#8E8E93] ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}>{m.hours > 0 ? fmt(m.cost) : '—'}</td>)}<td className="px-2 py-1.5 text-center font-semibold dark:text-[#F5F5F7]">{fmt(p.months.reduce((s, m) => s + m.cost, 0))}</td></tr>))}
+              {monthlyData.map(p => (<tr key={p.id} className="border-t border-[#F2F2F7]/30 hover:bg-[#F2F2F7]/30"><td className="px-3 py-1.5 sticky left-0 bg-white dark:bg-[#1C1C1E] z-10"><span className="dark:text-[#F5F5F7]">{p.avatar || 'â‚¬'} {p.name.split(' ')[0]}</span> <span className="text-[7px] text-[#8E8E93]">{fmtD(p.costRate)}â‚¬/h</span></td>{p.months.map((m, i) => <td key={i} className={`px-1 py-1.5 text-center text-[#8E8E93] ${i === now.getMonth() && isCurrentYear ? 'bg-[#007AFF]/3' : ''}`}>{m.hours > 0 ? fmt(m.cost) : 'â‚¬'}</td>)}<td className="px-2 py-1.5 text-center font-semibold dark:text-[#F5F5F7]">{fmt(p.months.reduce((s, m) => s + m.cost, 0))}</td></tr>))}
             </tbody>
           </table>
         </div>
@@ -206,9 +206,9 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
       {view === 'pnl' && period === 'anual' && (
         <div className="rounded-card border border-[#E5E5EA] dark:border-[#3A3A3C] bg-white dark:bg-[#1C1C1E] p-5">
           <div className="space-y-4">
-            {[{ l: 'Venta', v: pnl.totRev, c: '#007AFF' }, { l: 'Coste real', v: pnl.totCost, c: '#FF9500' }, { l: 'Margen real', v: pnl.totMargin, c: pnl.totMargin >= 0 ? '#34C759' : '#FF3B30' }].map(r => { const maxV = Math.max(pnl.totRev, pnl.totCost, 1); return (<div key={r.l}><div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold dark:text-[#F5F5F7]">{r.l}</span><span className="text-sm font-bold" style={{ color: r.c }}>{fmt(r.v)}€</span></div><div className="h-3 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.abs(r.v) / maxV * 100}%`, background: r.c }} /></div></div>) })}
+            {[{ l: 'Venta', v: pnl.totRev, c: '#007AFF' }, { l: 'Coste real', v: pnl.totCost, c: '#FF9500' }, { l: 'Margen real', v: pnl.totMargin, c: pnl.totMargin >= 0 ? '#34C759' : '#FF3B30' }].map(r => { const maxV = Math.max(pnl.totRev, pnl.totCost, 1); return (<div key={r.l}><div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold dark:text-[#F5F5F7]">{r.l}</span><span className="text-sm font-bold" style={{ color: r.c }}>{fmt(r.v)}â‚¬</span></div><div className="h-3 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.abs(r.v) / maxV * 100}%`, background: r.c }} /></div></div>) })}
             <div className="text-center pt-3 border-t border-[#F2F2F7] dark:border-[#3A3A3C]"><p className="text-3xl font-bold" style={{ color: pnl.totMarginPct >= 20 ? '#34C759' : pnl.totMarginPct >= 10 ? '#FF9500' : '#FF3B30' }}>{pnl.totMarginPct}%</p><p className="text-[9px] text-[#8E8E93]">Margen real {yr}</p></div>
-            <div className="pt-3 border-t border-[#F2F2F7] dark:border-[#3A3A3C]"><p className="text-[9px] font-bold text-[#8E8E93] uppercase mb-2">Desglose por persona</p>{monthlyData.map(p => { const totCost = p.months.reduce((s, m) => s + m.cost, 0); const totH = p.months.reduce((s, m) => s + m.hours, 0); return (<div key={p.id} className="flex items-center gap-2 py-1.5 border-b border-[#F2F2F7]/50 last:border-0"><span className="text-[10px] w-4">{p.avatar || '·'}</span><span className="text-[9px] font-medium w-24 truncate dark:text-[#F5F5F7]">{p.name.split(' ')[0]}</span><span className="text-[8px] text-[#8E8E93] w-12 text-right">{fmt(totH)}h</span><span className="text-[8px] text-[#FF9500] w-16 text-right font-semibold">{fmt(totCost)}€</span></div>) })}</div>
+            <div className="pt-3 border-t border-[#F2F2F7] dark:border-[#3A3A3C]"><p className="text-[9px] font-bold text-[#8E8E93] uppercase mb-2">Desglose por persona</p>{monthlyData.map(p => { const totCost = p.months.reduce((s, m) => s + m.cost, 0); const totH = p.months.reduce((s, m) => s + m.hours, 0); return (<div key={p.id} className="flex items-center gap-2 py-1.5 border-b border-[#F2F2F7]/50 last:border-0"><span className="text-[10px] w-4">{p.avatar || 'â‚¬'}</span><span className="text-[9px] font-medium w-24 truncate dark:text-[#F5F5F7]">{p.name.split(' ')[0]}</span><span className="text-[8px] text-[#8E8E93] w-12 text-right">{fmt(totH)}h</span><span className="text-[8px] text-[#FF9500] w-16 text-right font-semibold">{fmt(totCost)}â‚¬</span></div>) })}</div>
           </div>
         </div>
       )}
@@ -227,7 +227,7 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
               <CalendarRange className="w-3.5 h-3.5 text-[#5856D6]" />
               <div className="flex items-center gap-1"><label className="text-[8px] text-[#8E8E93] font-bold uppercase">Desde</label><input type="date" value={simFrom} onChange={e => setSimFrom(e.target.value)} className="rounded border border-[#E5E5EA] dark:border-[#3A3A3C] px-2 py-0.5 text-[10px] outline-none dark:bg-[#2C2C2E] dark:text-[#F5F5F7]" /></div>
               <div className="flex items-center gap-1"><label className="text-[8px] text-[#8E8E93] font-bold uppercase">Hasta</label><input type="date" value={simTo} onChange={e => setSimTo(e.target.value)} className="rounded border border-[#E5E5EA] dark:border-[#3A3A3C] px-2 py-0.5 text-[10px] outline-none dark:bg-[#2C2C2E] dark:text-[#F5F5F7]" /></div>
-              {!simFrom && !simTo && <span className="text-[8px] text-[#8E8E93]">Sin filtro = año completo {yr}</span>}
+              {!simFrom && !simTo && <span className="text-[8px] text-[#8E8E93]">Sin filtro = aâ‚¬o completo {yr}</span>}
             </div>
 
             {/* Table header */}
@@ -257,11 +257,11 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
               const changed = simSal !== undefined || simDed !== undefined
               return (
                 <div key={m.id} className={`grid grid-cols-[1fr_70px_55px_70px_60px] gap-1 items-center py-1 px-1 rounded ${changed ? 'bg-[#5856D6]/5' : ''}`}>
-                  <span className="text-[9px] truncate dark:text-[#F5F5F7]">{m.avatar || '·'} {m.name.split(' ')[0]} <span className="text-[7px] text-[#8E8E93]">{m.role_label}</span></span>
+                  <span className="text-[9px] truncate dark:text-[#F5F5F7]">{m.avatar || 'â‚¬'} {m.name.split(' ')[0]} <span className="text-[7px] text-[#8E8E93]">{m.role_label}</span></span>
                   <input type="number" value={effSal || ''} onChange={e => setSimSalaryOverrides(p => ({ ...p, [m.id]: Number(e.target.value) }))} className="rounded border border-[#E5E5EA] dark:border-[#3A3A3C] px-1 py-0.5 text-[9px] outline-none text-right dark:bg-[#2C2C2E] dark:text-[#F5F5F7]" step={500} />
                   <input type="number" value={Math.round(effDed * 100)} onChange={e => setSimDedOverrides(p => ({ ...p, [m.id]: Number(e.target.value) }))} className="rounded border border-[#E5E5EA] dark:border-[#3A3A3C] px-1 py-0.5 text-[9px] outline-none text-right dark:bg-[#2C2C2E] dark:text-[#F5F5F7]" min={0} max={100} step={5} />
-                  <span className="text-[9px] text-right dark:text-[#F5F5F7]">{costH > 0 ? `${costH.toFixed(2).replace('.', ',')}€` : '—'}</span>
-                  <span className="text-[9px] text-right font-semibold" style={{ color: costPeriod > 0 ? '#FF9500' : '#8E8E93' }}>{costPeriod > 0 ? `${fmt(costPeriod)}€` : '—'}</span>
+                  <span className="text-[9px] text-right dark:text-[#F5F5F7]">{costH > 0 ? `${costH.toFixed(2).replace('.', ',')}â‚¬` : 'â‚¬'}</span>
+                  <span className="text-[9px] text-right font-semibold" style={{ color: costPeriod > 0 ? '#FF9500' : '#8E8E93' }}>{costPeriod > 0 ? `${fmt(costPeriod)}â‚¬` : 'â‚¬'}</span>
                 </div>
               )
             })}
@@ -288,13 +288,13 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
                   </div>
                   <input type="number" value={ep.salary || ''} onChange={e => { const n = [...simExtraPersons]; n[ei] = { ...n[ei]!, salary: Number(e.target.value) }; setSimExtraPersons(n) }} className="rounded border border-[#E5E5EA] dark:border-[#3A3A3C] px-1 py-0.5 text-[9px] outline-none text-right dark:bg-[#2C2C2E] dark:text-[#F5F5F7]" step={500} />
                   <input type="number" value={ep.dedication} onChange={e => { const n = [...simExtraPersons]; n[ei] = { ...n[ei]!, dedication: Number(e.target.value) }; setSimExtraPersons(n) }} className="rounded border border-[#E5E5EA] dark:border-[#3A3A3C] px-1 py-0.5 text-[9px] outline-none text-right dark:bg-[#2C2C2E] dark:text-[#F5F5F7]" min={0} max={100} step={5} />
-                  <span className="text-[9px] text-right dark:text-[#F5F5F7]">{costH > 0 ? `${costH.toFixed(2).replace('.', ',')}€` : '—'}</span>
-                  <span className="text-[9px] text-right font-semibold text-[#FF9500]">{costPeriod > 0 ? `${fmt(costPeriod)}€` : '—'}</span>
+                  <span className="text-[9px] text-right dark:text-[#F5F5F7]">{costH > 0 ? `${costH.toFixed(2).replace('.', ',')}â‚¬` : 'â‚¬'}</span>
+                  <span className="text-[9px] text-right font-semibold text-[#FF9500]">{costPeriod > 0 ? `${fmt(costPeriod)}â‚¬` : 'â‚¬'}</span>
                   <button onClick={() => setSimExtraPersons(simExtraPersons.filter((_, i) => i !== ei))} className="text-[#8E8E93] hover:text-[#FF3B30]"><X className="w-3 h-3" /></button>
                 </div>
               )
             })}
-            <button onClick={() => setSimExtraPersons([...simExtraPersons, { id: String(Date.now()), name: '', salary: 25000, multiplier: 1.33, dedication: 100, from: simFrom || '', to: simTo || '' }])} className="text-[9px] text-[#34C759] font-medium flex items-center gap-0.5 mt-2"><Plus className="w-3 h-3" /> Añadir persona ficticia</button>
+            <button onClick={() => setSimExtraPersons([...simExtraPersons, { id: String(Date.now()), name: '', salary: 25000, multiplier: 1.33, dedication: 100, from: simFrom || '', to: simTo || '' }])} className="text-[9px] text-[#34C759] font-medium flex items-center gap-0.5 mt-2"><Plus className="w-3 h-3" /> Aâ‚¬adir persona ficticia</button>
           </div>
 
           {/* Simulated result */}
@@ -329,13 +329,13 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
               <div className="rounded-card border-2 border-[#5856D6]/20 bg-[#5856D6]/3 dark:bg-[#5856D6]/5 p-4">
                 <h4 className="text-[10px] font-semibold text-[#5856D6] mb-2 flex items-center gap-1"><Calculator className="w-3 h-3" /> Resultado simulado{simFrom || simTo ? ` (${simFrom || 'inicio'} ? ${simTo || 'fin'})` : ` ${yr}`}</h4>
                 <div className="grid grid-cols-3 gap-3 text-center">
-                  <div><p className="text-lg font-bold text-[#007AFF]">{fmt(simTotRev)}€</p><p className="text-[7px] text-[#8E8E93]">Venta</p></div>
-                  <div><p className="text-lg font-bold text-[#FF9500]">{fmt(simTotCost)}€</p><p className="text-[7px] text-[#8E8E93]">Coste</p></div>
-                  <div><p className="text-lg font-bold" style={{ color: simMargin >= 0 ? '#34C759' : '#FF3B30' }}>{fmt(simMargin)}€ ({simPct}%)</p><p className="text-[7px] text-[#8E8E93]">Margen</p></div>
+                  <div><p className="text-lg font-bold text-[#007AFF]">{fmt(simTotRev)}â‚¬</p><p className="text-[7px] text-[#8E8E93]">Venta</p></div>
+                  <div><p className="text-lg font-bold text-[#FF9500]">{fmt(simTotCost)}â‚¬</p><p className="text-[7px] text-[#8E8E93]">Coste</p></div>
+                  <div><p className="text-lg font-bold" style={{ color: simMargin >= 0 ? '#34C759' : '#FF3B30' }}>{fmt(simMargin)}â‚¬ ({simPct}%)</p><p className="text-[7px] text-[#8E8E93]">Margen</p></div>
                 </div>
                 <div className="mt-2 pt-2 border-t border-[#5856D6]/10 flex justify-center gap-4 text-[8px]">
-                  <span className="text-[#8E8E93]">vs Base: Venta <span style={{ color: simTotRev >= pnl.totRev ? '#34C759' : '#FF3B30' }}>{simTotRev >= pnl.totRev ? '+' : ''}{fmt(simTotRev - pnl.totRev)}€</span></span>
-                  <span className="text-[#8E8E93]">Coste <span style={{ color: simTotCost <= pnl.totCost ? '#34C759' : '#FF3B30' }}>{simTotCost <= pnl.totCost ? '' : '+'}{fmt(simTotCost - pnl.totCost)}€</span></span>
+                  <span className="text-[#8E8E93]">vs Base: Venta <span style={{ color: simTotRev >= pnl.totRev ? '#34C759' : '#FF3B30' }}>{simTotRev >= pnl.totRev ? '+' : ''}{fmt(simTotRev - pnl.totRev)}â‚¬</span></span>
+                  <span className="text-[#8E8E93]">Coste <span style={{ color: simTotCost <= pnl.totCost ? '#34C759' : '#FF3B30' }}>{simTotCost <= pnl.totCost ? '' : '+'}{fmt(simTotCost - pnl.totCost)}â‚¬</span></span>
                   <span className="text-[#8E8E93]">Margen <span style={{ color: simPct >= pnl.totMarginPct ? '#34C759' : '#FF3B30' }}>{simPct >= pnl.totMarginPct ? '+' : ''}{simPct - pnl.totMarginPct}pp</span></span>
                 </div>
               </div>
@@ -352,9 +352,9 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
               <div key={b.l} className="rounded-card border border-[#E5E5EA] dark:border-[#3A3A3C] bg-white dark:bg-[#2C2C2E] p-4">
                 <p className="text-[9px] font-semibold text-[#8E8E93] uppercase mb-2">{b.l}</p>
                 <div className="space-y-1.5">
-                  <div className="flex justify-between"><span className="text-[9px] text-[#8E8E93]">Venta</span><span className="text-[10px] font-bold text-[#007AFF]">{fmt(b.rev)}€</span></div>
-                  <div className="flex justify-between"><span className="text-[9px] text-[#8E8E93]">Coste real</span><span className="text-[10px] font-bold text-[#FF9500]">{fmt(b.cost)}€</span></div>
-                  <div className="flex justify-between border-t border-[#F2F2F7] dark:border-[#3A3A3C] pt-1"><span className="text-[9px] font-semibold dark:text-[#F5F5F7]">Margen real</span><span className="text-[10px] font-bold" style={{ color: b.margin >= 0 ? '#34C759' : '#FF3B30' }}>{fmt(b.margin)}€ ({pct(b.margin, b.rev)}%)</span></div>
+                  <div className="flex justify-between"><span className="text-[9px] text-[#8E8E93]">Venta</span><span className="text-[10px] font-bold text-[#007AFF]">{fmt(b.rev)}â‚¬</span></div>
+                  <div className="flex justify-between"><span className="text-[9px] text-[#8E8E93]">Coste real</span><span className="text-[10px] font-bold text-[#FF9500]">{fmt(b.cost)}â‚¬</span></div>
+                  <div className="flex justify-between border-t border-[#F2F2F7] dark:border-[#3A3A3C] pt-1"><span className="text-[9px] font-semibold dark:text-[#F5F5F7]">Margen real</span><span className="text-[10px] font-bold" style={{ color: b.margin >= 0 ? '#34C759' : '#FF3B30' }}>{fmt(b.margin)}â‚¬ ({pct(b.margin, b.rev)}%)</span></div>
                 </div>
               </div>
             ))}
@@ -375,9 +375,9 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
                     {/* Tooltip */}
                     <div className="absolute bottom-full mb-1 hidden group-hover:block bg-[#1D1D1F] text-white rounded-lg px-2 py-1.5 text-[8px] whitespace-nowrap z-20 shadow-lg">
                       <p className="font-bold mb-0.5">{MO[i]} {yr}</p>
-                      <p>Venta: <span className="text-[#5AC8FA]">{fmt(m.revenue)}€</span></p>
-                      <p>Coste: <span className="text-[#FF9500]">{fmt(m.cost)}€</span></p>
-                      <p>Margen: <span style={{ color: m.margin >= 0 ? '#34C759' : '#FF3B30' }}>{fmt(m.margin)}€ ({m.marginPct}%)</span></p>
+                      <p>Venta: <span className="text-[#5AC8FA]">{fmt(m.revenue)}â‚¬</span></p>
+                      <p>Coste: <span className="text-[#FF9500]">{fmt(m.cost)}â‚¬</span></p>
+                      <p>Margen: <span style={{ color: m.margin >= 0 ? '#34C759' : '#FF3B30' }}>{fmt(m.margin)}â‚¬ ({m.marginPct}%)</span></p>
                     </div>
                   </div>
                 )
@@ -386,7 +386,7 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
             <div className="flex gap-3 mt-2 text-[7px] text-[#8E8E93]">
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#007AFF]" />Venta</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#FF9500]" />Coste real</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#007AFF] opacity-40" />Proyección</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#007AFF] opacity-40" />Proyecciâ‚¬n</span>
             </div>
           </div>
         </div>
