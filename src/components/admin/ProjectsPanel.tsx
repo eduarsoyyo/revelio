@@ -267,7 +267,7 @@ export function ProjectsPanel() {
       <div className="rounded-card border border-revelio-border dark:border-revelio-dark-border bg-white dark:bg-revelio-dark-card overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="bg-revelio-bg dark:bg-revelio-dark-border">{['Proyecto', 'Periodo', 'Coste est.', 'Venta', 'Coste real', 'Desviacion', 'M. objetivo', 'M. real', 'Equipo', 'Consumido', ''].map(h => <th key={h} className="px-2 py-2 text-center text-[8px] font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-revelio-bg dark:bg-revelio-dark-border">{['Proyecto', 'Periodo', 'Coste est.', 'Venta', 'Coste real', 'Desviacion', 'M. objetivo', 'M. real', 'Equipo', 'Consumido', ''].map(h => <th key={h} className="px-2 py-2 text-center text-[10px] font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase">{h}</th>)}</tr></thead>
           <tbody>{rooms.map((r, i) => {
             const tc = members.filter(m => (m.rooms || []).includes(r.slug)).length
             const svcs = getServices(r)
@@ -284,21 +284,21 @@ export function ProjectsPanel() {
             const willExceed = projCost > totalSale && totalSale > 0
             return (
               <tr key={r.slug} className={`border-t border-revelio-border dark:border-revelio-dark-border/50 ${i % 2 ? 'bg-revelio-bg/50 dark:bg-revelio-dark-border/20' : ''} hover:bg-revelio-blue/5`}>
-                <td className="px-2 py-2.5 text-left"><Link to={`/project/${r.slug}`} className="font-medium text-revelio-text dark:text-revelio-dark-text hover:text-revelio-blue text-xs">{r.name}</Link><div className="text-[8px] text-revelio-subtle dark:text-revelio-dark-subtle capitalize">{r.tipo}</div></td>
-                <td className="px-2 py-2.5 text-center text-[9px] text-revelio-subtle dark:text-revelio-dark-subtle">{sd && ed ? <span className="flex items-center justify-center gap-0.5"><Calendar className="w-2.5 h-2.5" />{new Date(sd).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })} — {new Date(ed).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })}</span> : '—'}</td>
-                <td className="px-2 py-2.5 text-center text-[9px] font-semibold text-revelio-orange">{totalEstCost > 0 ? `${fmt(totalEstCost)}€` : '—'}</td>
-                <td className="px-2 py-2.5 text-center text-[9px] font-semibold text-revelio-blue">{totalSale > 0 ? `${fmt(totalSale)}€` : '—'}</td>
-                <td className="px-2 py-2.5 text-center text-[9px] font-semibold" style={{ color: realCost > totalEstCost && (totalEstCost > 0 && realCost > 0) ? '#FF3B30' : '#FF9500' }}>{realCost > 0 ? `${fmt(realCost)}€` : '—'}</td>
-                <td className="px-2 py-2.5 text-center text-[9px] font-bold">{totalEstCost > 0 ? <span style={{ color: deviation > 5 ? '#FF3B30' : deviation < -5 ? '#34C759' : '#8E8E93' }}>{deviation > 0 ? '+' : ''}{deviation}%</span> : '—'}</td>
-                <td className="px-2 py-2.5 text-center text-[9px]"><span className={`font-bold ${targetMargin >= 20 ? 'text-revelio-green' : targetMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${targetMargin}%` : '�'}</span></td>
-                <td className="px-2 py-2.5 text-center text-[9px]"><span className={`font-bold ${realMargin >= 20 ? 'text-revelio-green' : realMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${realMargin}%` : '�'}</span></td>
-                <td className="px-2 py-2.5 text-center"><span className="flex items-center justify-center gap-1 text-[9px] text-revelio-subtle dark:text-revelio-dark-subtle"><Users className="w-3 h-3" />{tc}</span></td>
+                <td className="px-2 py-2.5 text-left"><Link to={`/project/${r.slug}`} className="font-medium text-revelio-text dark:text-revelio-dark-text hover:text-revelio-blue text-xs">{r.name}</Link><div className="text-[10px] text-revelio-subtle dark:text-revelio-dark-subtle capitalize">{r.tipo}</div></td>
+                <td className="px-2 py-2.5 text-center text-[11px] text-revelio-subtle dark:text-revelio-dark-subtle">{sd && ed ? <span className="flex items-center justify-center gap-0.5"><Calendar className="w-2.5 h-2.5" />{new Date(sd).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })} — {new Date(ed).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })}</span> : '—'}</td>
+                <td className="px-2 py-2.5 text-center text-[11px] font-semibold text-revelio-orange">{totalEstCost > 0 ? `${fmt(totalEstCost)}€` : '—'}</td>
+                <td className="px-2 py-2.5 text-center text-[11px] font-semibold text-revelio-blue">{totalSale > 0 ? `${fmt(totalSale)}€` : '—'}</td>
+                <td className="px-2 py-2.5 text-center text-[11px] font-semibold" style={{ color: realCost > totalEstCost && (totalEstCost > 0 && realCost > 0) ? '#FF3B30' : '#FF9500' }}>{realCost > 0 ? `${fmt(realCost)}€` : '—'}</td>
+                <td className="px-2 py-2.5 text-center text-[11px] font-bold">{totalEstCost > 0 ? <span style={{ color: deviation > 5 ? '#FF3B30' : deviation < -5 ? '#34C759' : '#8E8E93' }}>{deviation > 0 ? '+' : ''}{deviation}%</span> : '—'}</td>
+                <td className="px-2 py-2.5 text-center text-[11px]"><span className={`font-bold ${targetMargin >= 20 ? 'text-revelio-green' : targetMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${targetMargin}%` : '�'}</span></td>
+                <td className="px-2 py-2.5 text-center text-[11px]"><span className={`font-bold ${realMargin >= 20 ? 'text-revelio-green' : realMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${realMargin}%` : '�'}</span></td>
+                <td className="px-2 py-2.5 text-center"><span className="flex items-center justify-center gap-1 text-[11px] text-revelio-subtle dark:text-revelio-dark-subtle"><Users className="w-3 h-3" />{tc}</span></td>
                 <td className="px-2 py-2.5 text-center">
                   {totalSale > 0 ? <div className="flex items-center justify-center gap-1.5">
                     <div className="w-12 h-1.5 bg-revelio-bg dark:bg-revelio-dark-border rounded-full overflow-hidden"><div className={`h-full rounded-full ${consumed >= 90 ? 'bg-revelio-red' : consumed >= 70 ? 'bg-revelio-orange' : 'bg-revelio-green'}`} style={{ width: `${consumed}%` }} /></div>
-                    <span className={`text-[9px] font-semibold ${consumed >= 90 ? 'text-revelio-red' : consumed >= 70 ? 'text-revelio-orange' : 'text-revelio-green'}`}>{consumed}%</span>
+                    <span className={`text-[11px] font-semibold ${consumed >= 90 ? 'text-revelio-red' : consumed >= 70 ? 'text-revelio-orange' : 'text-revelio-green'}`}>{consumed}%</span>
                     {willExceed && <AlertTriangle className="w-3 h-3 text-revelio-red" />}
-                  </div> : <span className="text-[9px] text-revelio-subtle">—</span>}
+                  </div> : <span className="text-[11px] text-revelio-subtle">—</span>}
                 </td>
                 <td className="px-2 py-2.5 text-center"><div className="flex gap-1 justify-center"><button onClick={() => openEdit(r)} className="w-5 h-5 rounded border border-revelio-border dark:border-revelio-dark-border flex items-center justify-center hover:bg-revelio-bg dark:hover:bg-revelio-dark-border"><Edit className="w-2.5 h-2.5 text-revelio-blue" /></button><button onClick={() => { setDeleteTarget(r); setDeleteConfirm('') }} className="w-5 h-5 rounded border border-revelio-red/20 flex items-center justify-center hover:bg-revelio-red/5"><Trash2 className="w-2.5 h-2.5 text-revelio-red" /></button><Link to={`/project/${r.slug}`} className="w-5 h-5 rounded border border-revelio-border dark:border-revelio-dark-border flex items-center justify-center hover:bg-revelio-bg dark:hover:bg-revelio-dark-border"><ExternalLink className="w-2.5 h-2.5 text-revelio-subtle" /></Link></div></td>
               </tr>
@@ -326,27 +326,27 @@ export function ProjectsPanel() {
               {/* Services */}
               <div className="border-t border-revelio-border dark:border-revelio-dark-border pt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase flex items-center gap-1"><DollarSign className="w-3 h-3 text-revelio-green" /> Servicios / Contratos</p>
-                  <button onClick={() => setForm({ ...form, services: [...form.services, { id: uid(), name: '', from: form.start_date, to: form.end_date, cost: 0, margin_pct: 20, risk_pct: 5 }] })} className="text-[9px] text-revelio-blue font-medium flex items-center gap-0.5"><Plus className="w-3 h-3" /> Servicio</button>
+                  <p className="text-xs font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase flex items-center gap-1"><DollarSign className="w-3 h-3 text-revelio-green" /> Servicios / Contratos</p>
+                  <button onClick={() => setForm({ ...form, services: [...form.services, { id: uid(), name: '', from: form.start_date, to: form.end_date, cost: 0, margin_pct: 20, risk_pct: 5 }] })} className="text-[11px] text-revelio-blue font-medium flex items-center gap-0.5"><Plus className="w-3 h-3" /> Servicio</button>
                 </div>
-                {form.services.length === 0 && <p className="text-[10px] text-revelio-subtle dark:text-revelio-dark-subtle bg-revelio-bg dark:bg-revelio-dark-border rounded-lg px-3 py-2">Sin servicios.</p>}
+                {form.services.length === 0 && <p className="text-xs text-revelio-subtle dark:text-revelio-dark-subtle bg-revelio-bg dark:bg-revelio-dark-border rounded-lg px-3 py-2">Sin servicios.</p>}
                 {form.services.map((sv, si) => {
                   const sale = saleFromService(sv); const marginAbs = sale - sv.cost; const riskAbs = Math.round(sale * (sv.risk_pct || 0) / 100)
                   return (
                     <div key={sv.id} className="mb-3 bg-revelio-bg dark:bg-revelio-dark-border rounded-lg px-3 py-2">
                       <div className="flex items-center justify-between mb-2">
-                        <input value={sv.name} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, name: e.target.value }; setForm({ ...form, services: n }) }} placeholder="Nombre del servicio" className="flex-1 rounded border border-revelio-border dark:border-revelio-dark-border px-2 py-1 text-[10px] outline-none font-semibold dark:bg-revelio-dark-bg dark:text-revelio-dark-text mr-2" />
+                        <input value={sv.name} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, name: e.target.value }; setForm({ ...form, services: n }) }} placeholder="Nombre del servicio" className="flex-1 rounded border border-revelio-border dark:border-revelio-dark-border px-2 py-1 text-xs outline-none font-semibold dark:bg-revelio-dark-bg dark:text-revelio-dark-text mr-2" />
                         <button onClick={() => setForm({ ...form, services: form.services.filter((_, i) => i !== si) })} className="text-revelio-subtle hover:text-revelio-red"><X className="w-3 h-3" /></button>
                       </div>
                       <div className="grid grid-cols-5 gap-2 mb-2">
-                        <div><label className="text-[8px] text-revelio-subtle">Desde</label><input type="date" value={sv.from} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, from: e.target.value }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-[10px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text" /></div>
-                        <div><label className="text-[8px] text-revelio-subtle">Hasta</label><input type="date" value={sv.to} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, to: e.target.value }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-[10px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text" /></div>
-                        <div><label className="text-[8px] text-revelio-subtle">Coste est.</label><input type="number" value={sv.cost || ''} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, cost: Number(e.target.value) }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-[10px] outline-none text-right font-bold dark:bg-revelio-dark-bg dark:text-revelio-dark-text" step={1000} /></div>
-                        <div><label className="text-[8px] text-revelio-subtle">Margen %</label><input type="number" value={sv.margin_pct} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, margin_pct: Number(e.target.value) }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-[10px] outline-none text-right dark:bg-revelio-dark-bg dark:text-revelio-dark-text" min={0} max={90} /></div>
-                        <div><label className="text-[8px] text-revelio-subtle">Riesgo %</label><input type="number" value={sv.risk_pct || 0} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, risk_pct: Number(e.target.value) }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-[10px] outline-none text-right dark:bg-revelio-dark-bg dark:text-revelio-dark-text" min={0} max={30} /></div>
+                        <div><label className="text-[10px] text-revelio-subtle">Desde</label><input type="date" value={sv.from} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, from: e.target.value }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-xs outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text" /></div>
+                        <div><label className="text-[10px] text-revelio-subtle">Hasta</label><input type="date" value={sv.to} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, to: e.target.value }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-xs outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text" /></div>
+                        <div><label className="text-[10px] text-revelio-subtle">Coste est.</label><input type="number" value={sv.cost || ''} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, cost: Number(e.target.value) }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-xs outline-none text-right font-bold dark:bg-revelio-dark-bg dark:text-revelio-dark-text" step={1000} /></div>
+                        <div><label className="text-[10px] text-revelio-subtle">Margen %</label><input type="number" value={sv.margin_pct} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, margin_pct: Number(e.target.value) }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-xs outline-none text-right dark:bg-revelio-dark-bg dark:text-revelio-dark-text" min={0} max={90} /></div>
+                        <div><label className="text-[10px] text-revelio-subtle">Riesgo %</label><input type="number" value={sv.risk_pct || 0} onChange={e => { const n = [...form.services]; n[si] = { ...n[si]!, risk_pct: Number(e.target.value) }; setForm({ ...form, services: n }) }} className="w-full rounded border border-revelio-border dark:border-revelio-dark-border px-1.5 py-1 text-xs outline-none text-right dark:bg-revelio-dark-bg dark:text-revelio-dark-text" min={0} max={30} /></div>
                       </div>
                       {sv.cost > 0 && (
-                        <div className="flex gap-3 text-[9px]">
+                        <div className="flex gap-3 text-[11px]">
                           <span className="text-revelio-subtle">Coste: <span className="font-bold text-revelio-orange">{fmt(sv.cost)}€</span></span>
                           <span className="text-revelio-subtle">Margen: <span className="font-bold text-revelio-green">+{fmt(marginAbs)}€</span></span>
                           {riskAbs > 0 && <span className="text-revelio-subtle">Riesgo: <span className="font-bold text-revelio-violet">+{fmt(riskAbs)}€</span></span>}
@@ -362,8 +362,8 @@ export function ProjectsPanel() {
                   const tMargin = tSale - tCost; const tPct = tSale > 0 ? Math.round((tMargin / tSale) * 100) : 0
                   return (
                     <div className="rounded-lg bg-white dark:bg-revelio-dark-card border border-revelio-border/50 dark:border-revelio-dark-border/50 p-3 mt-2">
-                      <div className="flex justify-between text-[10px] mb-1"><span className="text-revelio-subtle">Coste total</span><span className="font-bold text-revelio-orange">{fmt(tCost)}€</span></div>
-                      <div className="flex justify-between text-[10px] mb-1"><span className="text-revelio-subtle">Margen + Riesgo ({tPct}%)</span><span className="font-bold text-revelio-green">+{fmt(tMargin)}€</span></div>
+                      <div className="flex justify-between text-xs mb-1"><span className="text-revelio-subtle">Coste total</span><span className="font-bold text-revelio-orange">{fmt(tCost)}€</span></div>
+                      <div className="flex justify-between text-xs mb-1"><span className="text-revelio-subtle">Margen + Riesgo ({tPct}%)</span><span className="font-bold text-revelio-green">+{fmt(tMargin)}€</span></div>
                       <div className="flex justify-between text-xs border-t border-revelio-border/30 dark:border-revelio-dark-border/30 pt-1.5"><span className="font-semibold dark:text-revelio-dark-text">Venta total</span><span className="font-bold text-revelio-blue text-sm">{fmt(tSale)}€</span></div>
                     </div>
                   )
@@ -373,9 +373,9 @@ export function ProjectsPanel() {
               {/* Team */}
               {modal === 'edit' && projMembers.length > 0 && (
                 <div className="border-t border-revelio-border dark:border-revelio-dark-border pt-4">
-                  <p className="text-[10px] font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase mb-2 flex items-center gap-1"><Users className="w-3 h-3" /> Equipo asignado</p>
-                  <table className="w-full text-[9px]">
-                    <thead><tr className="text-[8px] font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase"><th className="text-center py-1">Persona</th><th className="text-center px-1">% Ded.</th><th className="text-center px-1">Desde</th><th className="text-center px-1">Hasta</th></tr></thead>
+                  <p className="text-xs font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase mb-2 flex items-center gap-1"><Users className="w-3 h-3" /> Equipo asignado</p>
+                  <table className="w-full text-[11px]">
+                    <thead><tr className="text-[10px] font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase"><th className="text-center py-1">Persona</th><th className="text-center px-1">% Ded.</th><th className="text-center px-1">Desde</th><th className="text-center px-1">Hasta</th></tr></thead>
                     <tbody>{projMembers.map(m => {
                       const oe = orgEdits.find(o => o.member_id === m.id) || { member_id: m.id, sala: editRoom!.slug, dedication: 100, start_date: form.start_date, end_date: form.end_date }
                       const updOrg = (f: keyof OrgEntry, v: string | number) => {
@@ -384,15 +384,15 @@ export function ProjectsPanel() {
                       }
                       return (
                         <tr key={m.id} className="border-t border-revelio-border/30 dark:border-revelio-dark-border/30">
-                          <td className="py-1.5 text-center"><Link to={`/persona/${m.id}`} className="hover:text-revelio-blue"><span style={{ color: m.color }}>{m.avatar || '·'}</span> {m.name.split(' ')[0]} <span className="text-[8px] text-revelio-subtle">{m.role_label}</span></Link></td>
-                          <td className="px-1 text-center"><input type="number" value={oe.dedication} onChange={e => updOrg('dedication', Number(e.target.value))} className="w-14 rounded border border-revelio-border dark:border-revelio-dark-border px-1 py-0.5 text-[10px] outline-none text-center dark:bg-revelio-dark-bg dark:text-revelio-dark-text" min={0} max={100} step={5} /></td>
-                          <td className="px-1 text-center"><input type="date" value={oe.start_date || ''} onChange={e => updOrg('start_date', e.target.value)} className="rounded border border-revelio-border dark:border-revelio-dark-border px-1 py-0.5 text-[9px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text w-[110px]" /></td>
-                          <td className="px-1 text-center"><input type="date" value={oe.end_date || ''} onChange={e => updOrg('end_date', e.target.value)} className="rounded border border-revelio-border dark:border-revelio-dark-border px-1 py-0.5 text-[9px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text w-[110px]" /></td>
+                          <td className="py-1.5 text-center"><Link to={`/persona/${m.id}`} className="hover:text-revelio-blue"><span style={{ color: m.color }}>{m.avatar || '·'}</span> {m.name.split(' ')[0]} <span className="text-[10px] text-revelio-subtle">{m.role_label}</span></Link></td>
+                          <td className="px-1 text-center"><input type="number" value={oe.dedication} onChange={e => updOrg('dedication', Number(e.target.value))} className="w-14 rounded border border-revelio-border dark:border-revelio-dark-border px-1 py-0.5 text-xs outline-none text-center dark:bg-revelio-dark-bg dark:text-revelio-dark-text" min={0} max={100} step={5} /></td>
+                          <td className="px-1 text-center"><input type="date" value={oe.start_date || ''} onChange={e => updOrg('start_date', e.target.value)} className="rounded border border-revelio-border dark:border-revelio-dark-border px-1 py-0.5 text-[11px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text w-[110px]" /></td>
+                          <td className="px-1 text-center"><input type="date" value={oe.end_date || ''} onChange={e => updOrg('end_date', e.target.value)} className="rounded border border-revelio-border dark:border-revelio-dark-border px-1 py-0.5 text-[11px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text w-[110px]" /></td>
                         </tr>
                       )
                     })}</tbody>
                   </table>
-                  <p className="text-[8px] text-revelio-subtle dark:text-revelio-dark-subtle mt-1">Dedicacion se guarda en org_chart (FTEs, Jornada, ficha individual).</p>
+                  <p className="text-[10px] text-revelio-subtle dark:text-revelio-dark-subtle mt-1">Dedicacion se guarda en org_chart (FTEs, Jornada, ficha individual).</p>
                 </div>
               )}
             </div>
@@ -417,4 +417,4 @@ export function ProjectsPanel() {
   )
 }
 
-function L({ children }: { children: React.ReactNode }) { return <label className="text-[10px] font-semibold text-revelio-subtle dark:text-revelio-dark-subtle uppercase block mb-1">{children}</label> }
+function L({ children }: { children: React.ReactNode }) { return <label className="text-xs font-semibold text-revelio-subtle dark:text-revelio-dark-subtle uppercase block mb-1">{children}</label> }
