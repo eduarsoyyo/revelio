@@ -54,7 +54,22 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
     }> = []
 
     team.forEach(m => {
-      const costRate = simCostOverrides[m.id] ?? (((m as unknown as Record<string, unknown>).cost_rate as number) || 0)
+      // Cost rate from salary model: salary * multiplier / convenio_hours
+      const rx = m as unknown as Record<string, unknown>
+      const crArr = rx.cost_rates as Array<{ from: string; to?: string; salary?: number; rate?: number; multiplier?: number }> | undefined
+      let baseCostRate = (rx.cost_rate as number) || 0
+      if (crArr && crArr.length > 0) {
+        const now = new Date().toISOString().slice(0, 7)
+        const sorted = [...crArr].sort((a, b) => b.from.localeCompare(a.from))
+        const cur = sorted.find(r => r.from <= now && (!r.to || r.to >= now)) || sorted[0]
+        if (cur?.salary) {
+          const calId2 = rx.calendario_id as string
+          const mCal = calId2 ? calendarios.find(c => c.id === calId2) : null
+          const convH = (mCal as unknown as Record<string, unknown>)?.convenio_hours as number || 1800
+          baseCostRate = Math.round(((cur.salary * (cur.multiplier || 1.33)) / convH) * 100) / 100
+        } else if (cur?.rate) { baseCostRate = cur.rate }
+      }
+      const costRate = simCostOverrides[m.id] ?? baseCostRate
       const memberSellRate = ((m as unknown as Record<string, unknown>).sell_rate as number) || effectiveSellRate
       const calId = (m as unknown as Record<string, unknown>).calendario_id as string
       const cal = calId ? calendarios.find(c => c.id === calId) : null
