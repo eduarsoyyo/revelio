@@ -267,7 +267,7 @@ export function ProjectsPanel() {
       <div className="rounded-card border border-revelio-border dark:border-revelio-dark-border bg-white dark:bg-revelio-dark-card overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="bg-revelio-bg dark:bg-revelio-dark-border">{['Proyecto', 'Periodo', 'Coste est.', 'Venta', 'Coste real', 'Desviacion', 'Margen', 'Equipo', 'Consumido', ''].map(h => <th key={h} className="px-2 py-2 text-center text-[8px] font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-revelio-bg dark:bg-revelio-dark-border">{['Proyecto', 'Periodo', 'Coste est.', 'Venta', 'Coste real', 'Desviacion', 'M. objetivo', 'M. real', 'Equipo', 'Consumido', ''].map(h => <th key={h} className="px-2 py-2 text-center text-[8px] font-bold text-revelio-subtle dark:text-revelio-dark-subtle uppercase">{h}</th>)}</tr></thead>
           <tbody>{rooms.map((r, i) => {
             const tc = members.filter(m => (m.rooms || []).includes(r.slug)).length
             const svcs = getServices(r)
@@ -276,6 +276,7 @@ export function ProjectsPanel() {
             const realCost = projectCostYTD(r.slug)
             const projCost = projectCostEOY(r.slug)
             const deviation = totalEstCost > 0 ? Math.round(((projCost - totalEstCost) / totalEstCost) * 100) : 0
+            const targetMargin = totalSale > 0 ? Math.round(((totalSale - totalEstCost) / totalSale) * 100) : 0
             const realMargin = totalSale > 0 ? Math.round(((totalSale - projCost) / totalSale) * 100) : 0
             const consumed = totalSale > 0 ? Math.min(100, Math.round((realCost / totalSale) * 100)) : 0
             const sd = (rx(r).start_date as string) || ''; const ed = (rx(r).end_date as string) || ''
@@ -287,9 +288,10 @@ export function ProjectsPanel() {
                 <td className="px-2 py-2.5 text-center text-[9px] text-revelio-subtle dark:text-revelio-dark-subtle">{sd && ed ? <span className="flex items-center justify-center gap-0.5"><Calendar className="w-2.5 h-2.5" />{new Date(sd).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })} — {new Date(ed).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })}</span> : '—'}</td>
                 <td className="px-2 py-2.5 text-center text-[9px] font-semibold text-revelio-orange">{totalEstCost > 0 ? `${fmt(totalEstCost)}€` : '—'}</td>
                 <td className="px-2 py-2.5 text-center text-[9px] font-semibold text-revelio-blue">{totalSale > 0 ? `${fmt(totalSale)}€` : '—'}</td>
-                <td className="px-2 py-2.5 text-center text-[9px] font-semibold" style={{ color: realCost > totalEstCost && totalEstCost > 0 ? '#FF3B30' : '#FF9500' }}>{realCost > 0 ? `${fmt(realCost)}€` : '—'}</td>
+                <td className="px-2 py-2.5 text-center text-[9px] font-semibold" style={{ color: realCost > totalEstCost && (totalEstCost > 0 && realCost > 0) ? '#FF3B30' : '#FF9500' }}>{realCost > 0 ? `${fmt(realCost)}€` : '—'}</td>
                 <td className="px-2 py-2.5 text-center text-[9px] font-bold">{totalEstCost > 0 ? <span style={{ color: deviation > 5 ? '#FF3B30' : deviation < -5 ? '#34C759' : '#8E8E93' }}>{deviation > 0 ? '+' : ''}{deviation}%</span> : '—'}</td>
-                <td className="px-2 py-2.5 text-center text-[9px]"><span className={`font-bold ${realMargin >= 20 ? 'text-revelio-green' : realMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${realMargin}%` : '—'}</span></td>
+                <td className="px-2 py-2.5 text-center text-[9px]"><span className={`font-bold ${targetMargin >= 20 ? 'text-revelio-green' : targetMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${targetMargin}%` : '�'}</span></td>
+                <td className="px-2 py-2.5 text-center text-[9px]"><span className={`font-bold ${realMargin >= 20 ? 'text-revelio-green' : realMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${realMargin}%` : '�'}</span></td>
                 <td className="px-2 py-2.5 text-center"><span className="flex items-center justify-center gap-1 text-[9px] text-revelio-subtle dark:text-revelio-dark-subtle"><Users className="w-3 h-3" />{tc}</span></td>
                 <td className="px-2 py-2.5 text-center">
                   {totalSale > 0 ? <div className="flex items-center justify-center gap-1.5">
