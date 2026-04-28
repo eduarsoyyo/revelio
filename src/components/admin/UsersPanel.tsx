@@ -36,6 +36,15 @@ function holidayCountYr(cal: CalFull | null, yr: number): number {
   if (!cal) return 0
   return (cal.holidays || []).filter(h => { const f = h.date.length === 10 ? h.date : `${yr}-${h.date}`; const d = new Date(f); return d.getFullYear() === yr && d.getDay() !== 0 && d.getDay() !== 6 }).length
 }
+function getTargetHours(cal: CalFull | null, ds: string): number {
+  const dw = new Date(ds).getDay(); if (dw === 0 || dw === 6) return 0
+  if (!cal) return 8
+  if ((cal.holidays || []).some(h => h.date === ds || (h.date.length === 5 && ds.slice(5) === h.date))) return 0
+  const mm = ds.slice(5); const intS = cal.intensive_start || '08-01'; const intE = cal.intensive_end || '08-31'
+  if (intS && intE && mm >= intS && mm <= intE) return cal.daily_hours_intensive || 7
+  if (dw === 5) return cal.daily_hours_v || 8
+  return cal.daily_hours_lj || 8
+}
 function expectedHoursToDate(cal: CalFull | null, yr: number, toStr: string): number {
   if (!cal) return 0
   const hS = getHolidaySet(cal, yr); const intS = cal.intensive_start || '08-01'; const intE = cal.intensive_end || '08-31'
@@ -44,10 +53,6 @@ function expectedHoursToDate(cal: CalFull | null, yr: number, toStr: string): nu
     if (dw !== 0 && dw !== 6 && !hS.has(ds)) { if (mm >= intS && mm <= intE) h += cal.daily_hours_intensive || 7; else if (dw === 5) h += cal.daily_hours_v || 8; else h += cal.daily_hours_lj || 8 }
     d.setDate(d.getDate() + 1) }
   return h
-}
-function expectedHoursYear(cal: CalFull | null, yr: number): number {
-  if (!cal) return 1800
-  return expectedHoursToDate(cal, yr, `${yr}-12-31`)
 }
 function workDaysToDate(cal: CalFull | null, yr: number, toStr: string): number {
   const hS = getHolidaySet(cal, yr); let days = 0; const d = new Date(yr, 0, 1); const end = new Date(toStr)
@@ -59,6 +64,13 @@ function vacDaysApproved(absences: AbsenceReq[], mid: string, yr: number): numbe
 }
 function ausDaysApproved(absences: AbsenceReq[], mid: string, yr: number): number {
   return absences.filter(a => a.member_id === mid && a.status === 'aprobada' && a.type !== 'vacaciones' && a.date_from.startsWith(String(yr))).reduce((s, a) => s + a.days, 0)
+}
+/** Get all business days in a date range */
+function businessDaysInRange(from: string, to: string, cal: CalFull | null, yr: number): string[] {
+  const hS = getHolidaySet(cal, yr); const days: string[] = []
+  const d = new Date(from); const end = new Date(to)
+  while (d <= end) { const ds = d.toISOString().slice(0, 10); if (d.getDay() !== 0 && d.getDay() !== 6 && !hS.has(ds)) days.push(ds); d.setDate(d.getDate() + 1) }
+  return days
 }
 const fmtN = (n: number): string => { const [i, de] = n.toFixed(1).split('.'); return `${i!.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${de}` }
 
@@ -83,14 +95,13 @@ export function UsersPanel() {
   const [tab, setTab] = useState<'general' | 'costes' | 'contrato'>('general')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<string | null>(null)
-  // Multi-select
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<string | null>(null)
   const [bulkValue, setBulkValue] = useState('')
-  // Bulk fichaje
-  const [bulkFichajeDate, setBulkFichajeDate] = useState('')
-  const [bulkFichajeHours, setBulkFichajeHours] = useState('')
+  const [bulkFrom, setBulkFrom] = useState('')
+  const [bulkTo, setBulkTo] = useState('')
   const [bulkFichajeSaving, setBulkFichajeSaving] = useState(false)
+  const [bulkFichajeResult, setBulkFichajeResult] = useState<string | null>(null)
 
   const rx = (m: Member) => m as unknown as Record<string, unknown>
   const today = new Date().toISOString().slice(0, 10)
@@ -112,74 +123,65 @@ export function UsersPanel() {
   }
   const vacTotal = (m: Member): number => (m.annual_vac_days || 22) + (m.prev_year_pending || 0) + (Number(rx(m).vacation_carryover) || 0)
 
-  // Toggle select
   const toggleSelect = (id: string) => { const n = new Set(selected); if (n.has(id)) n.delete(id); else n.add(id); setSelected(n) }
   const toggleAll = () => { if (selected.size === filtered.length) setSelected(new Set()); else setSelected(new Set(filtered.map(m => m.id))) }
 
-  // Bulk actions
   const applyBulk = async () => {
-    if (!bulkAction || selected.size === 0) return
-    setSaving(true)
-    const ids = [...selected]
-    for (const id of ids) {
+    if (!bulkAction || selected.size === 0) return; setSaving(true)
+    for (const id of selected) {
       const upd: Record<string, unknown> = {}
       if (bulkAction === 'company') upd.company = bulkValue
       else if (bulkAction === 'role') upd.role_label = bulkValue
       else if (bulkAction === 'calendario') upd.calendario_id = bulkValue || null
       else if (bulkAction === 'status') upd.contract_type = bulkValue
       if (Object.keys(upd).length > 0) await supabase.from('team_members').update(upd).eq('id', id)
-    }
-    // Bulk project assign
-    if (bulkAction === 'project' && bulkValue) {
-      for (const id of ids) {
+      if (bulkAction === 'project' && bulkValue) {
         const m = members.find(x => x.id === id)
         if (m && !(m.rooms || []).includes(bulkValue)) {
-          const newRooms = [...(m.rooms || []), bulkValue]
-          await supabase.from('team_members').update({ rooms: newRooms }).eq('id', id)
+          await supabase.from('team_members').update({ rooms: [...(m.rooms || []), bulkValue] }).eq('id', id)
           await supabase.from('org_chart').insert({ member_id: id, sala: bulkValue, dedication: 1, start_date: null, end_date: null })
         }
       }
     }
-    // Reload
-    const { data } = await supabase.from('team_members').select('*').order('name')
-    if (data) setMembers(data)
-    const { data: newOrg } = await supabase.from('org_chart').select('*')
-    if (newOrg) setOrgChart(newOrg as OrgRow[])
+    const { data } = await supabase.from('team_members').select('*').order('name'); if (data) setMembers(data)
+    const { data: nO } = await supabase.from('org_chart').select('*'); if (nO) setOrgChart(nO as OrgRow[])
     setSaving(false); setBulkAction(null); setBulkValue(''); setSelected(new Set())
   }
 
-  // Bulk fichaje
+  // Bulk fichaje by date range — for each selected person, for each business day, insert hours according to their calendar
   const applyBulkFichaje = async () => {
-    if (selected.size === 0 || !bulkFichajeDate) return
-    setBulkFichajeSaving(true)
-    const ids = [...selected]
-    for (const id of ids) {
-      const m = members.find(x => x.id === id)
-      if (!m) continue
+    if (selected.size === 0 || !bulkFrom || !bulkTo) return
+    setBulkFichajeSaving(true); setBulkFichajeResult(null)
+    let totalDays = 0; let skipped = 0
+    for (const id of selected) {
+      const m = members.find(x => x.id === id); if (!m) continue
       const cal = getCal(m)
-      const h = bulkFichajeHours ? Number(bulkFichajeHours) : (cal ? (() => { const dw = new Date(bulkFichajeDate).getDay(); const mm = bulkFichajeDate.slice(5); if (cal.intensive_start && mm >= cal.intensive_start && mm <= cal.intensive_end) return cal.daily_hours_intensive || 7; if (dw === 5) return cal.daily_hours_v || 8; return cal.daily_hours_lj || 8 })() : 8)
-      if (h <= 0) continue
-      // Check if already filed
-      const exists = timeEntries.some(e => e.member_id === id && e.date === bulkFichajeDate && e.status !== 'rejected' && e.sala !== '_pendiente')
-      if (exists) continue
-      // Distribute by org_chart dedication
-      const myOrg = orgChart.filter(o => o.member_id === id && o.sala !== '__global__' && (o.start_date || '2000-01-01') <= bulkFichajeDate && (o.end_date || '2099-12-31') >= bulkFichajeDate && o.dedication > 0)
-      if (myOrg.length > 0) {
-        let distributed = 0
-        for (const o of myOrg) { const oh = Math.round(o.dedication * h * 100) / 100; distributed += oh; await supabase.from('time_entries').insert({ member_id: id, sala: o.sala, date: bulkFichajeDate, hours: oh, category: 'productivo', auto_distributed: true, status: 'approved' }) }
-        const rem = Math.round((h - distributed) * 100) / 100
-        if (rem > 0.01) await supabase.from('time_entries').insert({ member_id: id, sala: '_sin_asignar', date: bulkFichajeDate, hours: rem, category: 'no_asignado', auto_distributed: true, status: 'approved' })
-      } else {
-        await supabase.from('time_entries').insert({ member_id: id, sala: '_sin_asignar', date: bulkFichajeDate, hours: h, category: 'no_asignado', auto_distributed: true, status: 'approved' })
+      const days = businessDaysInRange(bulkFrom, bulkTo, cal, yr)
+      const myOrg = orgChart.filter(o => o.member_id === id && o.sala !== '__global__' && o.dedication > 0)
+      for (const ds of days) {
+        // Skip if already filed
+        if (timeEntries.some(e => e.member_id === id && e.date === ds && e.status !== 'rejected' && e.sala !== '_pendiente')) { skipped++; continue }
+        const h = getTargetHours(cal, ds)
+        if (h <= 0) continue
+        // Filter org entries active on this date
+        const activeOrg = myOrg.filter(o => (o.start_date || '2000-01-01') <= ds && (o.end_date || '2099-12-31') >= ds)
+        if (activeOrg.length > 0) {
+          let distributed = 0
+          for (const o of activeOrg) { const oh = Math.round(o.dedication * h * 100) / 100; distributed += oh; await supabase.from('time_entries').insert({ member_id: id, sala: o.sala, date: ds, hours: oh, category: 'productivo', auto_distributed: true, status: 'approved' }) }
+          const rem = Math.round((h - distributed) * 100) / 100
+          if (rem > 0.01) await supabase.from('time_entries').insert({ member_id: id, sala: '_sin_asignar', date: ds, hours: rem, category: 'no_asignado', auto_distributed: true, status: 'approved' })
+        } else {
+          await supabase.from('time_entries').insert({ member_id: id, sala: '_sin_asignar', date: ds, hours: h, category: 'no_asignado', auto_distributed: true, status: 'approved' })
+        }
+        totalDays++
       }
     }
-    // Reload time_entries
     const { data: te } = await supabase.from('time_entries').select('member_id, date, hours, status, sala').gte('date', `${yr}-01-01`).lte('date', `${yr}-12-31`)
     if (te) setTimeEntries(te as TimeEntry[])
-    setBulkFichajeSaving(false); setBulkFichajeDate(''); setBulkFichajeHours(''); setSelected(new Set())
+    setBulkFichajeSaving(false); setBulkFichajeResult(`${totalDays} días fichados para ${selected.size} personas${skipped > 0 ? ` (${skipped} ya fichados, omitidos)` : ''}`)
+    setSelected(new Set())
   }
 
-  // Import/export
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx')
     const ws = XLSX.utils.aoa_to_sheet([['nombre*','email*','usuario','contraseña','empresa','rol','contrato','fecha_alta','coste_hora','calendario','responsable_email','vacaciones_pendientes','telefono'],['Juan Pérez','juan@empresa.com','jperez','revelio2026','ALTEN','Consultor','indefinido','2024-01-15','25','Madrid 2026','jefe@empresa.com','3','666123456']])
@@ -197,7 +199,12 @@ export function UsersPanel() {
         const email = String(row['email'] || '').trim(); const id = crypto.randomUUID()
         const { error: tmErr } = await supabase.from('team_members').insert({ id, name, username: email.split('@')[0] || name.toLowerCase().replace(/\s+/g,'.'), email, avatar: AVATARS[Math.floor(Math.random()*AVATARS.length)]||'👤', color: COLORS[Math.floor(Math.random()*COLORS.length)]||'#007AFF', company: String(row['empresa']||'ALTEN'), role_label: String(row['rol']||''), is_superuser: false, rooms: [], cost_rates: [], preferences: {} })
         if (tmErr) { errors.push(`${name}: ${tmErr.message}`); continue }
-        if (email) { const { error: aE } = await supabase.rpc('create_auth_user', { user_email: email, user_password: String(row['contraseña']||'revelio2026'), user_id: id }); if (aE) errors.push(`${name} auth: ${aE.message}`) }
+        if (email) {
+          // Delete any existing auth user with this email first to avoid duplicate key errors
+          await supabase.rpc('delete_auth_user_by_email', { target_email: email }).catch(() => {})
+          const { error: aE } = await supabase.rpc('create_auth_user', { user_email: email, user_password: String(row['contraseña']||'revelio2026'), user_id: id })
+          if (aE) errors.push(`${name} auth: ${aE.message}`)
+        }
         created++
       }
       setImportResult(`${created} creados${errors.length ? `. Errores: ${errors.join('; ')}` : ''}`)
@@ -225,7 +232,6 @@ export function UsersPanel() {
 
   const filtered = useMemo(() => { const q = search.toLowerCase(); return members.filter(m => m.name.toLowerCase().includes(q) || (m.username||'').toLowerCase().includes(q) || (m.role_label||'').toLowerCase().includes(q) || (m.email||'').toLowerCase().includes(q)) }, [members, search])
 
-  // CRUD handlers (same as before)
   const openCreate = () => { setForm({...emptyForm}); setEditMember(null); setTab('general'); setSaveError(''); setModal('create') }
   const openEdit = (m: Member) => {
     const crRaw = rx(m).cost_rates; const costRates: CostRate[] = Array.isArray(crRaw) ? crRaw as CostRate[] : []
@@ -276,12 +282,11 @@ export function UsersPanel() {
 
   return (
     <div className="max-w-[1200px]">
-      {/* HEADER */}
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div><h2 className="text-lg font-semibold text-revelio-text dark:text-revelio-dark-text">Equipo</h2><p className="text-xs text-revelio-subtle dark:text-revelio-dark-subtle">{members.length} personas{hasSelection ? ` · ${selected.size} seleccionados` : ''}</p></div>
         <div className="flex gap-2 items-center flex-wrap">
           <div className="flex rounded-lg overflow-hidden border border-revelio-border dark:border-revelio-dark-border">
-            {views.map(v => (<button key={v.id} onClick={() => { setViewMode(v.id); setSelected(new Set()) }} className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-semibold transition-colors ${viewMode === v.id ? 'bg-revelio-text dark:bg-revelio-blue text-white' : 'text-revelio-subtle dark:text-revelio-dark-subtle hover:bg-revelio-bg dark:hover:bg-revelio-dark-border'}`}><v.icon className="w-3 h-3" />{v.label}</button>))}
+            {views.map(v => (<button key={v.id} onClick={() => { setViewMode(v.id); setSelected(new Set()); setBulkFichajeResult(null) }} className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-semibold transition-colors ${viewMode === v.id ? 'bg-revelio-text dark:bg-revelio-blue text-white' : 'text-revelio-subtle dark:text-revelio-dark-subtle hover:bg-revelio-bg dark:hover:bg-revelio-dark-border'}`}><v.icon className="w-3 h-3" />{v.label}</button>))}
           </div>
           <div className="relative"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-revelio-subtle" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." className="pl-8 pr-3 py-1.5 rounded-lg border border-revelio-border dark:border-revelio-dark-border text-xs outline-none w-40 dark:bg-revelio-dark-bg dark:text-revelio-dark-text" /></div>
           <button onClick={downloadTemplate} className="px-3 py-1.5 rounded-lg border border-revelio-border dark:border-revelio-dark-border text-xs font-medium text-revelio-subtle flex items-center gap-1 hover:bg-revelio-bg dark:hover:bg-revelio-dark-border"><Download className="w-3.5 h-3.5" /> Plantilla</button>
@@ -290,18 +295,14 @@ export function UsersPanel() {
         </div>
       </div>
       {importResult && (<div className={`rounded-lg px-4 py-2 mb-3 text-xs font-medium ${importResult.includes('Error') ? 'bg-revelio-red/10 text-revelio-red' : 'bg-revelio-green/10 text-revelio-green'}`}>{importResult}<button onClick={() => setImportResult(null)} className="ml-2 text-revelio-subtle hover:underline">Cerrar</button></div>)}
+      {bulkFichajeResult && (<div className="rounded-lg px-4 py-2 mb-3 text-xs font-medium bg-revelio-green/10 text-revelio-green">{bulkFichajeResult}<button onClick={() => setBulkFichajeResult(null)} className="ml-2 text-revelio-subtle hover:underline">Cerrar</button></div>)}
 
-      {/* BULK ACTION BAR — General */}
-      {hasSelection && (viewMode === 'general') && (
+      {/* BULK BAR — General */}
+      {hasSelection && viewMode === 'general' && (
         <div className="rounded-lg bg-revelio-blue/5 border border-revelio-blue/20 px-4 py-2.5 mb-3 flex items-center gap-3 flex-wrap">
           <span className="text-[10px] font-semibold text-revelio-blue">{selected.size} seleccionados</span>
           <select value={bulkAction || ''} onChange={e => { setBulkAction(e.target.value || null); setBulkValue('') }} className="rounded border border-revelio-border dark:border-revelio-dark-border px-2 py-1 text-[10px] outline-none bg-white dark:bg-revelio-dark-bg dark:text-revelio-dark-text">
-            <option value="">Acción masiva...</option>
-            <option value="company">Cambiar empresa</option>
-            <option value="role">Cambiar rol</option>
-            <option value="calendario">Asignar calendario</option>
-            <option value="project">Asignar proyecto</option>
-            <option value="status">Cambiar estado</option>
+            <option value="">Acción masiva...</option><option value="company">Cambiar empresa</option><option value="role">Cambiar rol</option><option value="calendario">Asignar calendario</option><option value="project">Asignar proyecto</option><option value="status">Cambiar estado</option>
           </select>
           {bulkAction === 'company' && <input value={bulkValue} onChange={e => setBulkValue(e.target.value)} placeholder="Empresa" className="rounded border border-revelio-border px-2 py-1 text-[10px] outline-none w-28 dark:bg-revelio-dark-bg dark:text-revelio-dark-text" />}
           {bulkAction === 'role' && <select value={bulkValue} onChange={e => setBulkValue(e.target.value)} className="rounded border border-revelio-border px-2 py-1 text-[10px] outline-none bg-white dark:bg-revelio-dark-bg dark:text-revelio-dark-text"><option value="">Rol...</option>{roles.map(r => <option key={r} value={r}>{r}</option>)}</select>}
@@ -313,21 +314,21 @@ export function UsersPanel() {
         </div>
       )}
 
-      {/* BULK FICHAJE BAR — Jornada */}
+      {/* BULK FICHAJE BAR — Jornada (date range) */}
       {hasSelection && viewMode === 'jornada' && (
         <div className="rounded-lg bg-revelio-orange/5 border border-revelio-orange/20 px-4 py-2.5 mb-3 flex items-center gap-3 flex-wrap">
           <span className="text-[10px] font-semibold text-revelio-orange">{selected.size} seleccionados — Fichaje masivo</span>
-          <input type="date" value={bulkFichajeDate} onChange={e => setBulkFichajeDate(e.target.value)} max={today} className="rounded border border-revelio-border px-2 py-1 text-[10px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text" />
-          <input type="number" value={bulkFichajeHours} onChange={e => setBulkFichajeHours(e.target.value)} placeholder="Horas (auto si vacío)" step={0.5} min={0} max={24} className="rounded border border-revelio-border px-2 py-1 text-[10px] outline-none w-32 dark:bg-revelio-dark-bg dark:text-revelio-dark-text" />
-          <button onClick={applyBulkFichaje} disabled={bulkFichajeSaving || !bulkFichajeDate} className="px-3 py-1 rounded bg-revelio-orange text-white text-[10px] font-semibold disabled:opacity-40">{bulkFichajeSaving ? 'Fichando...' : 'Fichar día'}</button>
+          <div className="flex items-center gap-1"><label className="text-[8px] text-revelio-subtle">Desde</label><input type="date" value={bulkFrom} onChange={e => setBulkFrom(e.target.value)} max={today} className="rounded border border-revelio-border px-2 py-1 text-[10px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text" /></div>
+          <div className="flex items-center gap-1"><label className="text-[8px] text-revelio-subtle">Hasta</label><input type="date" value={bulkTo} onChange={e => setBulkTo(e.target.value)} max={today} className="rounded border border-revelio-border px-2 py-1 text-[10px] outline-none dark:bg-revelio-dark-bg dark:text-revelio-dark-text" /></div>
+          <span className="text-[8px] text-revelio-subtle">Horas según convenio de cada persona</span>
+          <button onClick={applyBulkFichaje} disabled={bulkFichajeSaving || !bulkFrom || !bulkTo} className="px-3 py-1 rounded bg-revelio-orange text-white text-[10px] font-semibold disabled:opacity-40">{bulkFichajeSaving ? 'Fichando...' : 'Fichar rango'}</button>
           <button onClick={() => setSelected(new Set())} className="text-[10px] text-revelio-subtle hover:underline ml-auto">Cancelar</button>
         </div>
       )}
 
-      {/* TABLE */}
       <div className="rounded-card border border-revelio-border dark:border-revelio-dark-border bg-white dark:bg-revelio-dark-card overflow-hidden"><div className="overflow-x-auto"><table className="w-full border-collapse">
 
-        {/* ─── GENERAL ─── */}
+        {/* GENERAL */}
         {viewMode === 'general' && <><thead><tr className="bg-revelio-bg/50 dark:bg-revelio-dark-border/30"><th className={th}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="w-3 h-3 accent-revelio-blue" /></th><th className={th}></th><th className={`${th} text-left`}>Nombre</th><th className={th}>Usuario</th><th className={th}>Email</th><th className={th}>Empresa</th><th className={th}>Rol</th><th className={th}>Proyectos</th><th className={th}>Dedicación</th><th className={th}>Sin asignar</th><th className={th}>Calendario</th><th className={th}>Admin</th><th className={th}>Estado</th><th className={th}></th></tr></thead>
         <tbody>{filtered.map((m, i) => { const ded = memberDedToday(m); const inter = Math.max(0, 1-ded); const showIC = inter > 0; const projs = memberProjects(m); const status = (rx(m).contract_type as string) === 'inactive' ? 'inactive' : 'active'; const sel = selected.has(m.id); return (
           <tr key={m.id} className={`${sel ? 'bg-revelio-blue/5' : i%2 ? 'bg-revelio-bg/20 dark:bg-revelio-dark-border/10' : ''} hover:bg-revelio-blue/5`}>
@@ -347,7 +348,7 @@ export function UsersPanel() {
             <td className={`${td} text-center`}><div className="flex gap-1 justify-center"><button onClick={() => openEdit(m)} className="w-5 h-5 rounded border border-revelio-border dark:border-revelio-dark-border flex items-center justify-center hover:bg-revelio-bg dark:hover:bg-revelio-dark-border"><Edit className="w-2.5 h-2.5 text-revelio-blue" /></button><button onClick={() => {setDeleteTarget(m);setDeleteConfirm('')}} className="w-5 h-5 rounded border border-revelio-red/20 flex items-center justify-center hover:bg-revelio-red/5"><Trash2 className="w-2.5 h-2.5 text-revelio-red" /></button></div></td>
           </tr>) })}</tbody></>}
 
-        {/* ─── VACACIONES ─── */}
+        {/* VACACIONES */}
         {viewMode === 'vacaciones' && <><thead><tr className="bg-revelio-bg/50 dark:bg-revelio-dark-border/30"><th className={th}></th><th className={`${th} text-left`}>Nombre</th><th className={th}>Calendario</th><th className={th}>Festivos</th><th className={th}>Vac. usadas</th><th className={th}>Vac. total</th><th className={th}>Vac. pend.</th><th className={th}>Ausencias</th><th className={th}>Días trab.</th><th className={th}></th></tr></thead>
         <tbody>{filtered.map((m, i) => { const cal = getCal(m); const hols = holidayCountYr(cal,yr); const vU = vacDaysApproved(absReqs,m.id,yr); const vT = vacTotal(m); const vP = vacPend(m); const aus = ausDaysApproved(absReqs,m.id,yr); const dT = Math.max(0,workDaysToDate(cal,yr,today)-vU-aus); return (
           <tr key={m.id} className={`${i%2?'bg-revelio-bg/20 dark:bg-revelio-dark-border/10':''} hover:bg-revelio-blue/5`}>
@@ -363,9 +364,9 @@ export function UsersPanel() {
             <td className={`${td} text-center`}><button onClick={() => openEdit(m)} className="w-5 h-5 rounded border border-revelio-border dark:border-revelio-dark-border flex items-center justify-center hover:bg-revelio-bg dark:hover:bg-revelio-dark-border"><Edit className="w-2.5 h-2.5 text-revelio-blue" /></button></td>
           </tr>) })}</tbody></>}
 
-        {/* ─── JORNADA ─── */}
+        {/* JORNADA — convenio_hours as Convenio, + Esperadas año column */}
         {viewMode === 'jornada' && <><thead><tr className="bg-revelio-bg/50 dark:bg-revelio-dark-border/30"><th className={th}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="w-3 h-3 accent-revelio-blue" /></th><th className={th}></th><th className={`${th} text-left`}>Persona</th><th className={th}>Convenio</th><th className={th}>Esperadas año</th><th className={th}>Fichadas</th><th className={th}>Esperadas hoy</th><th className={th}>Diferencia</th><th className={th}>Asignación</th><th className={th}>Sin asignar</th><th className={th}></th></tr></thead>
-        <tbody>{filtered.map((m, i) => { const cal = getCal(m); const fichH = fichadasYTD(m); const expH2 = expectedH(m); const diff = Math.round((fichH-expH2)*10)/10; const ded = memberDedToday(m); const inter = Math.max(0,1-ded); const convH = cal?.convenio_hours || 0; const expYr = expectedHoursYear(cal, yr); const sel = selected.has(m.id); return (
+        <tbody>{filtered.map((m, i) => { const cal = getCal(m); const fichH = fichadasYTD(m); const expH2 = expectedH(m); const diff = Math.round((fichH-expH2)*10)/10; const ded = memberDedToday(m); const inter = Math.max(0,1-ded); const convH = cal?.convenio_hours || 0; const expYr = expectedHoursToDate(cal, yr, `${yr}-12-31`); const sel = selected.has(m.id); return (
           <tr key={m.id} className={`${sel ? 'bg-revelio-orange/5' : i%2?'bg-revelio-bg/20 dark:bg-revelio-dark-border/10':''} hover:bg-revelio-blue/5`}>
             <td className={`${td} text-center`}><input type="checkbox" checked={sel} onChange={() => toggleSelect(m.id)} className="w-3 h-3 accent-revelio-orange" /></td>
             <td className={`${td} text-center`}><span className="text-base" style={{color:m.color}}>{m.avatar||'👤'}</span></td>
@@ -380,15 +381,14 @@ export function UsersPanel() {
             <td className={`${td} text-center`}><button onClick={() => openEdit(m)} className="w-5 h-5 rounded border border-revelio-border dark:border-revelio-dark-border flex items-center justify-center hover:bg-revelio-bg dark:hover:bg-revelio-dark-border"><Edit className="w-2.5 h-2.5 text-revelio-blue" /></button></td>
           </tr>) })}</tbody></>}
 
-        {/* ─── COSTES ─── */}
-        {viewMode === 'costes' && <><thead><tr className="bg-revelio-bg/50 dark:bg-revelio-dark-border/30"><th className={th}></th><th className={`${th} text-left`}>Persona</th><th className={th}>Rol</th><th className={th}>Coste/h</th><th className={th}>Coste anual</th><th className={th}>Coste IC/día</th><th className={th}>Venta proy.</th><th className={th}>Rentabilidad</th><th className={th}></th></tr></thead>
-        <tbody>{filtered.map((m, i) => { const crRaw = rx(m).cost_rates; const costH = getCurrentRate(Array.isArray(crRaw)?crRaw as CostRate[]:[]); const cal = getCal(m); const convH = cal?.convenio_hours || 1800; const costAnual = Math.round(costH * convH); const costICDia = costH > 0 ? Math.round(costH * (cal?.daily_hours_lj || 8)) : 0; const rc = ROLE_COLORS[m.role_label||'']||'#5856D6'; return (
+        {/* COSTES — without Rol */}
+        {viewMode === 'costes' && <><thead><tr className="bg-revelio-bg/50 dark:bg-revelio-dark-border/30"><th className={th}></th><th className={`${th} text-left`}>Persona</th><th className={th}>Coste/h</th><th className={th}>Coste anual</th><th className={th}>Coste IC/día</th><th className={th}>Venta proy.</th><th className={th}>Rentabilidad</th><th className={th}></th></tr></thead>
+        <tbody>{filtered.map((m, i) => { const crRaw = rx(m).cost_rates; const costH = getCurrentRate(Array.isArray(crRaw)?crRaw as CostRate[]:[]); const cal = getCal(m); const convH = cal?.convenio_hours || 1800; const costAnual = Math.round(costH * convH); const costICDia = costH > 0 ? Math.round(costH * (cal?.daily_hours_lj || 8)) : 0; return (
           <tr key={m.id} className={`${i%2?'bg-revelio-bg/20 dark:bg-revelio-dark-border/10':''} hover:bg-revelio-blue/5`}>
             <td className={`${td} text-center`}><span className="text-base" style={{color:m.color}}>{m.avatar||'👤'}</span></td>
-            <td className={`${td} cursor-pointer whitespace-nowrap`} onClick={() => openEdit(m)}><p className="font-semibold text-revelio-blue">{m.name}</p><p className="text-[8px] text-revelio-subtle dark:text-revelio-dark-subtle">{m.company||'—'}</p></td>
-            <td className={`${td} text-center`}>{m.role_label?<span className="text-[8px] font-semibold px-2 py-0.5 rounded" style={{background:rc+'18',color:rc}}>{m.role_label}</span>:'—'}</td>
+            <td className={`${td} cursor-pointer whitespace-nowrap`} onClick={() => openEdit(m)}><p className="font-semibold text-revelio-blue">{m.name}</p><p className="text-[8px] text-revelio-subtle dark:text-revelio-dark-subtle">{m.company||'—'} · {m.role_label||'—'}</p></td>
             <td className={`${td} text-center`}>{costH>0?<span className="font-bold text-revelio-green">{costH}€/h</span>:<span className="text-revelio-subtle">—</span>}</td>
-            <td className={`${td} text-center font-semibold dark:text-revelio-dark-text`}>{costAnual>0?`${(costAnual).toLocaleString('es-ES')}€`:'—'}</td>
+            <td className={`${td} text-center font-semibold dark:text-revelio-dark-text`}>{costAnual>0?`${costAnual.toLocaleString('es-ES')}€`:'—'}</td>
             <td className={`${td} text-center`}>{costICDia>0?<span className="text-revelio-red font-semibold">{costICDia}€/día</span>:'—'}</td>
             <td className={`${td} text-center text-revelio-subtle`}>—</td>
             <td className={`${td} text-center text-revelio-subtle`}>—</td>
@@ -397,7 +397,7 @@ export function UsersPanel() {
 
       </table></div></div>
 
-      {/* MODAL CREATE/EDIT */}
+      {/* MODAL */}
       {modal && (<div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setModal(null)}><div onClick={e => e.stopPropagation()} className="bg-white dark:bg-revelio-dark-card rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[85vh] overflow-y-auto">
         <h3 className="text-base font-semibold mb-3 dark:text-revelio-dark-text">{modal==='create'?'Nueva persona':`Editar: ${form.name}`}</h3>
         <div className="flex gap-0.5 bg-revelio-bg dark:bg-revelio-dark-border rounded-lg overflow-hidden mb-4">{(['general','costes','contrato'] as const).map(t => <button key={t} onClick={() => setTab(t)} className={`flex-1 py-1.5 text-[10px] font-semibold ${tab===t?'bg-revelio-blue text-white':'text-revelio-subtle dark:text-revelio-dark-subtle'}`}>{t==='general'?'General':t==='costes'?'Costes':'Contrato'}</button>)}</div>
@@ -426,7 +426,6 @@ export function UsersPanel() {
         <div className="flex gap-2 mt-5"><button onClick={()=>setModal(null)} className="flex-1 py-2 rounded-lg border border-revelio-border dark:border-revelio-dark-border text-sm font-medium text-revelio-subtle">Cancelar</button><button onClick={handleSave} disabled={saving||!form.name.trim()} className="flex-[2] py-2 rounded-lg bg-revelio-text dark:bg-revelio-blue text-white text-sm font-medium disabled:opacity-40">{saving?'Guardando...':modal==='create'?'Crear':'Guardar'}</button></div>
       </div></div>)}
 
-      {/* DELETE */}
       {deleteTarget && (<div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={()=>setDeleteTarget(null)}><div onClick={e=>e.stopPropagation()} className="bg-white dark:bg-revelio-dark-card rounded-2xl max-w-sm w-full p-6 shadow-xl">
         <div className="text-center mb-4"><Trash2 className="w-8 h-8 text-revelio-red mx-auto mb-2" /><h3 className="font-semibold dark:text-revelio-dark-text">Eliminar persona</h3><p className="text-xs text-revelio-subtle dark:text-revelio-dark-subtle mt-1">Escribe <strong className="text-revelio-red">{deleteTarget.name}</strong></p></div>
         <input value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} onKeyDown={e=>e.key==='Enter'&&deleteConfirm===deleteTarget.name&&handleDelete()} className="w-full rounded-lg border border-revelio-border dark:border-revelio-dark-border px-3 py-2 text-sm outline-none focus:border-revelio-red mb-3 dark:bg-revelio-dark-bg dark:text-revelio-dark-text" autoFocus />
