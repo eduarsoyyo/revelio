@@ -253,7 +253,7 @@ export function ProjectsPanel() {
   if (loading) return <div className="text-sm text-revelio-subtle dark:text-revelio-dark-subtle text-center py-10">Cargando...</div>
 
   return (
-    <div className="max-w-[1200px]">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-4">
         <div><h2 className="text-lg font-semibold text-revelio-text dark:text-revelio-dark-text">Proyectos</h2><p className="text-xs text-revelio-subtle dark:text-revelio-dark-subtle">{rooms.length} proyectos</p></div>
         <div className="flex gap-2">

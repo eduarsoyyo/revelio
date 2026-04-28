@@ -219,7 +219,7 @@ export function AdminPage() {
 
         {/* ── COCKPIT SM ── */}
         {tab === 'dashboard' && (
-          <div className="max-w-6xl">
+          <div className="w-full max-w-[1600px]">
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-revelio-text dark:text-revelio-dark-text">Cockpit</h2>
               <p className="text-xs text-revelio-subtle dark:text-revelio-dark-subtle">{rooms.length} proyectos · {members.length} personas</p>
@@ -367,14 +367,14 @@ export function AdminPage() {
         )}
 
         {tab === 'intelligence' && (
-          <div className="max-w-6xl">
+          <div className="w-full max-w-[1600px]">
             <h2 className="text-lg font-semibold text-revelio-text dark:text-revelio-dark-text mb-4">Inteligencia</h2>
             <IntelligencePanel userId={user?.id} />
           </div>
         )}
 
         {tab === 'engagement' && (
-          <div className="max-w-6xl">
+          <div className="w-full max-w-[1600px]">
             <h2 className="text-lg font-semibold text-revelio-text dark:text-revelio-dark-text mb-1">Engagement</h2>
             <p className="text-xs text-revelio-subtle dark:text-revelio-dark-subtle mb-4">Métricas de uso de la plataforma (últimos 30 días)</p>
             {engagement ? (
@@ -440,7 +440,7 @@ export function AdminPage() {
         )}
 
         {tab === 'activity' && (
-          <div className="max-w-6xl">
+          <div className="w-full max-w-[1600px]">
             <h2 className="text-lg font-semibold text-revelio-text dark:text-revelio-dark-text mb-4">Actividad</h2>
             <div className="rounded-card border border-revelio-border dark:border-revelio-dark-border bg-white dark:bg-revelio-dark-card p-4">
               <ActivityLog limit={50} />

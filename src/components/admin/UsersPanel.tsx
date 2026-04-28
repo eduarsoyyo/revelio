@@ -305,7 +305,7 @@ export function UsersPanel() {
   const hasSelection = selected.size > 0
 
   return (
-    <div className="max-w-[1200px]">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div><h2 className="text-lg font-semibold text-revelio-text dark:text-revelio-dark-text">Equipo</h2><p className="text-xs text-revelio-subtle dark:text-revelio-dark-subtle">{members.length} personas{hasSelection ? ` · ${selected.size} seleccionados` : ''}</p></div>
         <div className="flex gap-2 items-center flex-wrap">
