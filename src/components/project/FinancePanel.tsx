@@ -4,7 +4,8 @@ import type { Member } from '@/types'
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { exportPnLPDF, exportPnLExcel } from '@/lib/exports'
 import { monthlyRevenueFromServices, memberCostHour, fmtEur, fmt, pct } from '@/domain/finance'
-import type { ServiceContract, CalendarData } from '@/domain/finance'
+import type { ServiceContract } from '@/domain/finance'
+import { dailyTheoreticalHours, type Calendar } from '@/domain/calendar'
 
 interface OrgEntry {
   member_id: string
@@ -36,7 +37,7 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
   const [period, setPeriod] = useState<'mensual' | 'anual'>('mensual')
   const [yr, setYr] = useState(new Date().getFullYear())
   const [orgData, setOrgData] = useState<OrgEntry[]>([])
-  const [calendarios, setCalendarios] = useState<CalendarData[]>([])
+  const [calendarios, setCalendarios] = useState<Calendar[]>([])
   const [loading, setLoading] = useState(true)
 
   const services = roomData?.services || []
@@ -47,7 +48,7 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
       supabase.from('calendarios').select('*'),
     ]).then(([oR, cR]) => {
       if (oR.data) setOrgData(oR.data as OrgEntry[])
-      if (cR.data) setCalendarios(cR.data as CalendarData[])
+      if (cR.data) setCalendarios(cR.data as Calendar[])
       setLoading(false)
     })
   }, [sala])
@@ -59,6 +60,62 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
     const mCal = calId2 ? calendarios.find((c) => c.id === calId2) : null
     const convH = (mCal as unknown as Record<string, unknown>)?.convenio_hours as number || 1800
     return memberCostHour(crArr || [], convH, rx2.cost_rate as number)
+  }
+
+  /**
+   * Devuelve la dedicación de un miembro en una fecha concreta.
+   * Busca en orgData según el rango de fechas activo.
+   */
+  const getDedicationForDate = (memberId: string, ds: string): number => {
+    const entries = orgData.filter((o) => o.member_id === memberId)
+    if (entries.length === 0) return 0
+
+    // Caso simple: una sola entrada sin rango → aplica siempre
+    const firstEntry = entries[0]
+    if (entries.length === 1 && firstEntry && !firstEntry.start_date && !firstEntry.end_date) {
+      return firstEntry.dedication
+    }
+
+    // Buscar entrada activa para esa fecha
+    const match = entries.find((e) => {
+      const s = e.start_date || '2000-01-01'
+      const ed = e.end_date || '2099-12-31'
+      return ds >= s && ds <= ed
+    })
+
+    if (match) return match.dedication
+
+    // Fallback: entrada global sin rango
+    return entries.find((e) => !e.start_date && !e.end_date)?.dedication || 0
+  }
+
+  /**
+   * Calcula horas y coste mensual para un miembro en un mes específico.
+   * Usa dailyTheoreticalHours del domain para el cálculo de jornada.
+   */
+  const computeMemberMonthHours = (
+    memberId: string,
+    cal: Calendar | null,
+    costRate: number,
+    year: number,
+    monthIdx: number,
+  ): { hours: number; cost: number } => {
+    const lastDay = new Date(year, monthIdx + 1, 0).getDate()
+    let hours = 0
+
+    for (let d = 1; d <= lastDay; d++) {
+      const ds = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      const ded = getDedicationForDate(memberId, ds)
+      if (ded === 0) continue
+
+      const baseH = dailyTheoreticalHours(ds, cal)
+      hours += baseH * ded
+    }
+
+    return {
+      hours: Math.round(hours * 10) / 10,
+      cost: Math.round(hours * costRate * 100) / 100,
+    }
   }
 
   const monthlyData = useMemo(() => {
@@ -73,51 +130,11 @@ export function FinancePanel({ team, sala, roomData }: FinancePanelProps) {
     team.forEach((m) => {
       const costRate = getCostRate(m)
       const calId = (m as unknown as Record<string, unknown>).calendario_id as string
-      const cal = calId ? calendarios.find((c) => c.id === calId) : null
-      const months: Array<{ hours: number; cost: number }> = []
+      const cal = calId ? calendarios.find((c) => c.id === calId) || null : null
 
-      for (let mi = 0; mi < 12; mi++) {
-        const dim = new Date(yr, mi + 1, 0).getDate()
-        let hours = 0
-
-        for (let d = 1; d <= dim; d++) {
-          const ds = `${yr}-${String(mi + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-          const dt = new Date(ds)
-          const dow = dt.getDay()
-
-          if (dow === 0 || dow === 6) continue
-          if (cal && (cal.holidays || []).some((h) => (h as { date: string }).date === ds)) continue
-
-          const entries = orgData.filter((o) => o.member_id === m.id)
-          let ded = 0
-
-          if (entries.length === 1 && !entries[0]!.start_date && !entries[0]!.end_date) {
-            ded = entries[0]!.dedication
-          } else {
-            const match = entries.find((e) => {
-              const s = e.start_date || '2000-01-01'
-              const ed = e.end_date || '2099-12-31'
-              return ds >= s && ds <= ed
-            })
-            ded = match ? match.dedication : (entries.find((e) => !e.start_date && !e.end_date)?.dedication || 0)
-          }
-
-          if (ded === 0) continue
-
-          const mmdd = ds.slice(5)
-          const isInt = cal && mmdd >= (cal.intensive_start || '08-01') && mmdd <= (cal.intensive_end || '08-31')
-          let baseH = 8
-
-          if (cal) {
-            if (isInt) baseH = cal.daily_hours_intensive || 7
-            else baseH = dow >= 1 && dow <= 4 ? (cal.daily_hours_lj || 8) : (cal.daily_hours_v || 8)
-          }
-
-          hours += baseH * ded
-        }
-
-        months.push({ hours: Math.round(hours * 10) / 10, cost: Math.round(hours * costRate * 100) / 100 })
-      }
+      const months = Array.from({ length: 12 }, (_, mi) =>
+        computeMemberMonthHours(m.id, cal, costRate, yr, mi),
+      )
 
       if (months.some((mo) => mo.hours > 0)) {
         result.push({ id: m.id, name: m.name, avatar: m.avatar, costRate, months })
