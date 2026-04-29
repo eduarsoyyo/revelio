@@ -4,18 +4,17 @@ import { supabase } from '@/data/supabase'
 import type { Room, Member } from '@/types'
 import { Plus, Edit, Trash2, ExternalLink, Users, DollarSign, Calendar, X, Upload, Download, AlertTriangle } from 'lucide-react'
 import { soundCreate, soundDelete } from '@/lib/sounds'
-
+import {
+  saleFromServiceContract, totalSaleFromServices, totalEstCostFromServices,
+  avgMarginFromServices, memberCostHour, memberProjectCost, fmt,
+  type ServiceContract, type CalendarData, type AbsenceData, type LegacyCostRate,
+} from '@/domain/finance'
 const TIPOS = [
   { id: 'agile', label: 'Agile / Scrum' }, { id: 'kanban', label: 'Kanban' },
   { id: 'itil', label: 'ITIL / Servicio' }, { id: 'waterfall', label: 'Waterfall' },
 ]
-const DEFAULT_SS = 1.33
 
-interface ServiceContract { id: string; name: string; from: string; to: string; cost: number; margin_pct: number; risk_pct: number }
 interface OrgEntry { id?: string; member_id: string; sala: string; dedication: number; start_date: string; end_date: string }
-interface CalFull { id: string; convenio_hours: number; daily_hours_lj: number; daily_hours_v: number; daily_hours_intensive: number; intensive_start: string; intensive_end: string; holidays: Array<{ date: string }> }
-interface AbsReq { member_id: string; type: string; date_from: string; date_to: string; days: number; status: string }
-interface LegacyCR { from: string; to?: string; salary?: number; rate?: number; multiplier?: number }
 
 interface ProjectForm {
   name: string; slug: string; tipo: string; status: string
@@ -24,74 +23,16 @@ interface ProjectForm {
 }
 const emptyForm: ProjectForm = { name: '', slug: '', tipo: 'agile', status: 'active', start_date: '', end_date: '', services: [] }
 
-const fmt = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 0 })
 const rx = (r: Room) => r as unknown as Record<string, unknown>
 const rxm = (m: Member) => m as unknown as Record<string, unknown>
-const saleFromService = (s: ServiceContract) => { const d = 1 - (s.margin_pct / 100) - ((s.risk_pct || 0) / 100); return d > 0 ? Math.round(s.cost / d) : 0 }
 const uid = () => crypto.randomUUID().slice(0, 8)
-
-function getHolidaySet(cal: CalFull | null, yr: number): Set<string> {
-  const s = new Set<string>(); if (!cal) return s
-  for (const h of cal.holidays || []) { const ds = typeof h === 'string' ? h : (h as { date: string }).date; s.add(ds.length === 10 ? ds : `${yr}-${ds}`) }
-  return s
-}
-/** Effective theoretical hours for a person in a project YTD: dedication * calendar hours (minus vac+aus) from Jan 1 to today */
-function memberProjectCostYTD(m: Member, orgDed: number, calendarios: CalFull[], absReqs: AbsReq[], yr: number, todayStr: string): number {
-  const calId = rxm(m).calendario_id as string; const cal = calId ? calendarios.find(c => c.id === calId) || null : null
-  if (!cal) return 0
-  const hSet = getHolidaySet(cal, yr); const intS = cal.intensive_start || '08-01'; const intE = cal.intensive_end || '08-31'
-  // Vac + aus days
-  const vacD = absReqs.filter(a => a.member_id === m.id && a.status === 'aprobada' && a.type === 'vacaciones' && a.date_from.startsWith(String(yr))).reduce((s, a) => s + a.days, 0)
-  const ausD = absReqs.filter(a => a.member_id === m.id && a.status === 'aprobada' && a.type !== 'vacaciones' && a.date_from.startsWith(String(yr))).reduce((s, a) => s + a.days, 0)
-  // Hours from calendar YTD
-  let h = 0; const d = new Date(yr, 0, 1); const end = new Date(todayStr)
-  while (d <= end) { const dw = d.getDay(); const ds = d.toISOString().slice(0, 10); const mm = ds.slice(5)
-    if (dw !== 0 && dw !== 6 && !hSet.has(ds)) { if (mm >= intS && mm <= intE) h += cal.daily_hours_intensive || 7; else if (dw === 5) h += cal.daily_hours_v || 8; else h += cal.daily_hours_lj || 8 }
-    d.setDate(d.getDate() + 1) }
-  const avgH = cal.daily_hours_lj || 8
-  const effH = Math.max(0, h - (vacD + ausD) * avgH)
-  // Cost rate from salary model
-  const crArr = rxm(m).cost_rates as LegacyCR[] | undefined
-  let costH = (rxm(m).cost_rate as number) || 0
-  if (crArr && crArr.length > 0) {
-    const now = new Date().toISOString().slice(0, 7)
-    const sorted = [...crArr].sort((a, b) => b.from.localeCompare(a.from))
-    const cur = sorted.find(r => r.from <= now && (!r.to || r.to >= now)) || sorted[0]
-    if (cur?.salary) { costH = Math.round(((cur.salary * (cur.multiplier || DEFAULT_SS)) / (cal.convenio_hours || 1800)) * 100) / 100 }
-    else if (cur?.rate) costH = cur.rate
-  }
-  return Math.round(effH * orgDed * costH)
-}
-/** Same but projected to end of year */
-function memberProjectCostEOY(m: Member, orgDed: number, calendarios: CalFull[], absReqs: AbsReq[], yr: number): number {
-  const calId = rxm(m).calendario_id as string; const cal = calId ? calendarios.find(c => c.id === calId) || null : null
-  if (!cal) return 0
-  const hSet = getHolidaySet(cal, yr); const intS = cal.intensive_start || '08-01'; const intE = cal.intensive_end || '08-31'
-  const vacD = absReqs.filter(a => a.member_id === m.id && a.status === 'aprobada' && a.type === 'vacaciones' && a.date_from.startsWith(String(yr))).reduce((s, a) => s + a.days, 0)
-  const ausD = absReqs.filter(a => a.member_id === m.id && a.status === 'aprobada' && a.type !== 'vacaciones' && a.date_from.startsWith(String(yr))).reduce((s, a) => s + a.days, 0)
-  let h = 0; const d = new Date(yr, 0, 1); const end = new Date(yr, 11, 31)
-  while (d <= end) { const dw = d.getDay(); const ds = d.toISOString().slice(0, 10); const mm = ds.slice(5)
-    if (dw !== 0 && dw !== 6 && !hSet.has(ds)) { if (mm >= intS && mm <= intE) h += cal.daily_hours_intensive || 7; else if (dw === 5) h += cal.daily_hours_v || 8; else h += cal.daily_hours_lj || 8 }
-    d.setDate(d.getDate() + 1) }
-  const avgH = cal.daily_hours_lj || 8; const effH = Math.max(0, h - (vacD + ausD) * avgH)
-  const crArr = rxm(m).cost_rates as LegacyCR[] | undefined
-  let costH = (rxm(m).cost_rate as number) || 0
-  if (crArr && crArr.length > 0) {
-    const now = new Date().toISOString().slice(0, 7)
-    const sorted = [...crArr].sort((a, b) => b.from.localeCompare(a.from))
-    const cur = sorted.find(r => r.from <= now && (!r.to || r.to >= now)) || sorted[0]
-    if (cur?.salary) costH = Math.round(((cur.salary * (cur.multiplier || DEFAULT_SS)) / (cal.convenio_hours || 1800)) * 100) / 100
-    else if (cur?.rate) costH = cur.rate
-  }
-  return Math.round(effH * orgDed * costH)
-}
 
 export function ProjectsPanel() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [orgChart, setOrgChart] = useState<OrgEntry[]>([])
-  const [calendarios, setCalendarios] = useState<CalFull[]>([])
-  const [absReqs, setAbsReqs] = useState<AbsReq[]>([])
+  const [calendarios, setCalendarios] = useState<CalendarData[]>([])
+  const [absReqs, setAbsenceDatas] = useState<AbsenceData[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<'create' | 'edit' | null>(null)
   const [editRoom, setEditRoom] = useState<Room | null>(null)
@@ -118,8 +59,8 @@ export function ProjectsPanel() {
       if (rR.data) setRooms(rR.data)
       if (mR.data) setMembers(mR.data)
       if (oR.data) setOrgChart(oR.data as OrgEntry[])
-      if (cR.data) setCalendarios(cR.data as CalFull[])
-      if (aR.data) setAbsReqs(aR.data as AbsReq[])
+      if (cR.data) setCalendarios(cR.data as CalendarData[])
+      if (aR.data) setAbsenceDatas(aR.data as AbsenceData[])
       const stats: Record<string, { actions: number; done: number; risks: number }> = {}
       ;(retR.data || []).forEach((r: { sala: string; data: Record<string, unknown> }) => {
         const d = r.data || {}; const acts = ((d.actions || []) as Array<Record<string, unknown>>).filter(a => a.status !== 'discarded' && a.status !== 'cancelled')
@@ -142,7 +83,9 @@ export function ProjectsPanel() {
     const projOrg = orgChart.filter(o => o.sala === slug && o.sala !== '__global__')
     return projOrg.reduce((sum, o) => {
       const m = members.find(x => x.id === o.member_id); if (!m) return sum
-      return sum + memberProjectCostYTD(m, o.dedication, calendarios, absReqs, yr, today)
+      const calId = (rxm(m).calendario_id as string); const cal = calId ? calendarios.find(c => c.id === calId) || null : null
+      const costH = memberCostHour((rxm(m).cost_rates as LegacyCostRate[]) || [], cal?.convenio_hours || 1800, (rxm(m).cost_rate as number) || 0)
+      return sum + memberProjectCost(costH, o.dedication, cal as CalendarData | null, absReqs as AbsenceData[], m.id, yr, today)
     }, 0)
   }
   // Projected cost EOY per project
@@ -150,7 +93,9 @@ export function ProjectsPanel() {
     const projOrg = orgChart.filter(o => o.sala === slug && o.sala !== '__global__')
     return projOrg.reduce((sum, o) => {
       const m = members.find(x => x.id === o.member_id); if (!m) return sum
-      return sum + memberProjectCostEOY(m, o.dedication, calendarios, absReqs, yr)
+      const calId = (rxm(m).calendario_id as string); const cal = calId ? calendarios.find(c => c.id === calId) || null : null
+      const costH = memberCostHour((rxm(m).cost_rates as LegacyCostRate[]) || [], cal?.convenio_hours || 1800, (rxm(m).cost_rate as number) || 0)
+      return sum + memberProjectCost(costH, o.dedication, cal as CalendarData | null, absReqs as AbsenceData[], m.id, yr, `${yr}-12-31`)
     }, 0)
   }
 
@@ -172,9 +117,9 @@ export function ProjectsPanel() {
 
   const handleSave = async () => {
     setSaving(true)
-    const totalCost = form.services.reduce((s, sv) => s + sv.cost, 0)
-    const totalSale = form.services.reduce((s, sv) => s + saleFromService(sv), 0)
-    const avgMargin = totalSale > 0 ? Math.round(((totalSale - totalCost) / totalSale) * 100) : 0
+    const totalCost = totalEstCostFromServices(form.services)
+    const totalSale = totalSaleFromServices(form.services)
+    const avgMargin = avgMarginFromServices(form.services)
     const payload = {
       name: form.name, tipo: form.tipo, status: form.status,
       start_date: form.start_date || null, end_date: form.end_date || null,
@@ -238,7 +183,7 @@ export function ProjectsPanel() {
         const svCost = Number(row['servicio_coste'] || 0); const svMargin = Number(row['servicio_margen'] || 20); const svRisk = Number(row['servicio_riesgo'] || 0)
         const svName = String(row['servicio_nombre'] || name)
         const services: ServiceContract[] = svCost > 0 ? [{ id: uid(), name: svName, from: startDate, to: endDate, cost: svCost, margin_pct: svMargin, risk_pct: svRisk }] : []
-        const totalSale = services.reduce((s, sv) => s + saleFromService(sv), 0)
+        const totalSale = totalSaleFromServices(services)
         const { error } = await supabase.from('rooms').insert({ slug, name, tipo: String(row['tipo'] || 'agile'), status: 'active', start_date: startDate || null, end_date: endDate || null, services, budget: svCost, fixed_price: totalSale, target_margin: svMargin, billing_type: 'fixed', sell_rate: 0, planned_hours: 0, risk_pct: svRisk, cost_profiles: [], member_sell_rates: [] })
         if (error) { errors.push(`${name}: ${error.message}`); continue }
         await supabase.from('retros').insert({ sala: slug, data: { actions: [], risks: [], notes: [], positives: [] }, status: 'active' })
@@ -271,8 +216,8 @@ export function ProjectsPanel() {
           <tbody>{rooms.map((r, i) => {
             const tc = members.filter(m => (m.rooms || []).includes(r.slug)).length
             const svcs = getServices(r)
-            const totalSale = svcs.reduce((sum, sv) => sum + saleFromService(sv), 0)
-            const totalEstCost = svcs.reduce((sum, sv) => sum + sv.cost, 0)
+            const totalSale = totalSaleFromServices(svcs)
+            const totalEstCost = totalEstCostFromServices(svcs)
             const realCost = projectCostYTD(r.slug)
             const projCost = projectCostEOY(r.slug)
             const deviation = totalEstCost > 0 ? Math.round(((projCost - totalEstCost) / totalEstCost) * 100) : 0
@@ -290,8 +235,8 @@ export function ProjectsPanel() {
                 <td className="px-2 py-2.5 text-center text-[11px] font-semibold text-revelio-blue">{totalSale > 0 ? `${fmt(totalSale)}€` : '—'}</td>
                 <td className="px-2 py-2.5 text-center text-[11px] font-semibold" style={{ color: realCost > totalEstCost && (totalEstCost > 0 && realCost > 0) ? '#FF3B30' : '#FF9500' }}>{realCost > 0 ? `${fmt(realCost)}€` : '—'}</td>
                 <td className="px-2 py-2.5 text-center text-[11px] font-bold">{totalEstCost > 0 ? <span style={{ color: deviation > 5 ? '#FF3B30' : deviation < -5 ? '#34C759' : '#8E8E93' }}>{deviation > 0 ? '+' : ''}{deviation}%</span> : '—'}</td>
-                <td className="px-2 py-2.5 text-center text-[11px]"><span className={`font-bold ${targetMargin >= 20 ? 'text-revelio-green' : targetMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${targetMargin}%` : '�'}</span></td>
-                <td className="px-2 py-2.5 text-center text-[11px]"><span className={`font-bold ${realMargin >= 20 ? 'text-revelio-green' : realMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${realMargin}%` : '�'}</span></td>
+                <td className="px-2 py-2.5 text-center text-[11px]"><span className={`font-bold ${targetMargin >= 20 ? 'text-revelio-green' : targetMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${targetMargin}%` : '—'}</span></td>
+                <td className="px-2 py-2.5 text-center text-[11px]"><span className={`font-bold ${realMargin >= 20 ? 'text-revelio-green' : realMargin >= 10 ? 'text-revelio-orange' : 'text-revelio-red'}`}>{totalSale > 0 ? `${realMargin}%` : '—'}</span></td>
                 <td className="px-2 py-2.5 text-center"><span className="flex items-center justify-center gap-1 text-[11px] text-revelio-subtle dark:text-revelio-dark-subtle"><Users className="w-3 h-3" />{tc}</span></td>
                 <td className="px-2 py-2.5 text-center">
                   {totalSale > 0 ? <div className="flex items-center justify-center gap-1.5">
@@ -331,7 +276,7 @@ export function ProjectsPanel() {
                 </div>
                 {form.services.length === 0 && <p className="text-xs text-revelio-subtle dark:text-revelio-dark-subtle bg-revelio-bg dark:bg-revelio-dark-border rounded-lg px-3 py-2">Sin servicios.</p>}
                 {form.services.map((sv, si) => {
-                  const sale = saleFromService(sv); const marginAbs = sale - sv.cost; const riskAbs = Math.round(sale * (sv.risk_pct || 0) / 100)
+                  const sale = saleFromServiceContract(sv); const marginAbs = sale - sv.cost; const riskAbs = Math.round(sale * (sv.risk_pct || 0) / 100)
                   return (
                     <div key={sv.id} className="mb-3 bg-revelio-bg dark:bg-revelio-dark-border rounded-lg px-3 py-2">
                       <div className="flex items-center justify-between mb-2">
@@ -358,7 +303,7 @@ export function ProjectsPanel() {
                 })}
                 {form.services.length > 0 && (() => {
                   const tCost = form.services.reduce((s, sv) => s + sv.cost, 0)
-                  const tSale = form.services.reduce((s, sv) => s + saleFromService(sv), 0)
+                  const tSale = totalSaleFromServices(form.services)
                   const tMargin = tSale - tCost; const tPct = tSale > 0 ? Math.round((tMargin / tSale) * 100) : 0
                   return (
                     <div className="rounded-lg bg-white dark:bg-revelio-dark-card border border-revelio-border/50 dark:border-revelio-dark-border/50 p-3 mt-2">
