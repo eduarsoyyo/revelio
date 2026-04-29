@@ -1,25 +1,25 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { useAuth } from '@/context/AuthContext'
-import { supabase } from '@/data/supabase'
-import { useRetroRealtime } from '@/hooks/useRetroRealtime'
-import type { Room, Member } from '@/types'
 import {
   ArrowLeft, LayoutDashboard, ListChecks, AlertTriangle, Users,
   CheckSquare, Clock, TrendingUp, ChevronLeft,
   FolderOpen, Shield, BarChart3, ClipboardCheck, MessageSquare, MessageCircle,
   ThumbsUp, Plus, Send, Trash2, CornerUpLeft, PartyPopper, History, Calendar as CalendarIcon, Umbrella,
 } from 'lucide-react'
+import { useParams, Link } from 'react-router-dom'
+import { DashboardPanel } from '@/components/project/DashboardPanel'
+import { FinancePanel } from '@/components/project/FinancePanel'
+import { FTEsPanel } from '@/components/project/FTEsPanel'
+import { RisksPanel } from '@/components/project/RisksPanel'
+import { TaskDetailModal } from '@/components/project/TaskDetailModal'
+import { TimelineView } from '@/components/project/TimelineView'
+import { VacationsPanel } from '@/components/project/VacationsPanel'
 import { Celebration } from '@/components/retro/Celebration'
 import { RiskHeatmap } from '@/components/retro/RiskHeatmap'
-import { TaskDetailModal } from '@/components/project/TaskDetailModal'
+import { useAuth } from '@/context/AuthContext'
+import { supabase } from '@/data/supabase'
+import { useRetroRealtime } from '@/hooks/useRetroRealtime'
+import type { Room, Member } from '@/types'
 import { RetroHistory } from '@/components/retro/RetroHistory'
-import { FTEsPanel } from '@/components/project/FTEsPanel'
-import { VacationsPanel } from '@/components/project/VacationsPanel'
-import { TimelineView } from '@/components/project/TimelineView'
-import { DashboardPanel } from '@/components/project/DashboardPanel'
-import { RisksPanel } from '@/components/project/RisksPanel'
-import { FinancePanel } from '@/components/project/FinancePanel'
 import { soundCreate, soundDrop, soundComplete, soundSuccess, soundDelete, soundSlide } from '@/lib/sounds'
 
 // ── Types ──

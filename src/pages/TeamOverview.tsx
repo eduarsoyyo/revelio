@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/data/supabase'
 import type { Member } from '@/types'
-import { Search } from 'lucide-react'
 
 interface OrgEntry { member_id: string; sala: string; dedication: number; start_date?: string; end_date?: string }
 

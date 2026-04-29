@@ -1,6 +1,6 @@
-import { supabase } from './supabase'
-import type { Room } from '@/types'
 import { handleSupabaseError } from '@/lib/errors'
+import type { Room } from '@/types'
+import { supabase } from './supabase'
 
 export async function fetchRooms(): Promise<Room[]> {
   const { data, error } = await supabase.from('rooms').select('*').order('name')

@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Trophy, Shield, ListChecks, MessageCircle, Zap, Calendar, Moon, Save, Lock, Pencil } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/data/supabase'
 import { BADGES, checkBadges } from '@/domain/gamification'
-import { Trophy, Shield, ListChecks, MessageCircle, Zap, Calendar, Moon, Save, Lock, Pencil } from 'lucide-react'
-import { useTheme } from '@/context/ThemeContext'
 
 const AVATARS = ['🧙', '🦊', '🐲', '🦉', '🐺', '🦅', '🐍', '🦁', '🧝', '🧛', '🧚', '🧜', '🧞', '🦄', '🐼', '🐨', '🐻', '🐶', '🐱', '🐭', '🐹', '🐰', '🦝', '🦎', '🦋', '🌟', '⚡', '🔮', '🗡️', '🏰']
 const COLORS = ['#007AFF', '#5856D6', '#FF9500', '#34C759', '#FF3B30', '#AF52DE', '#FF2D55', '#00C7BE', '#5AC8FA', '#FFCC00', '#8E8E93', '#1D1D1F']

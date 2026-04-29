@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Calendar, ChevronLeft, ChevronRight, Clock, Sun, Umbrella } from 'lucide-react'
 import { supabase } from '@/data/supabase'
 import type { Member } from '@/types'
-import { Calendar, ChevronLeft, ChevronRight, Clock, Sun, Umbrella } from 'lucide-react'
 
 interface Calendario { id: string; name: string; holidays: Array<{ date: string; name: string }>; daily_hours_lj: number; daily_hours_v: number; daily_hours_intensive: number; intensive_start: string; intensive_end: string; vacation_days: number; convenio_hours: number }
 interface OrgEntry { member_id: string; sala: string; dedication: number; start_date: string; end_date: string }

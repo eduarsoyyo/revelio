@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Trophy } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/data/supabase'
 import { BADGES, TIERS, checkBadges, housePoints } from '@/domain/gamification'
-import { Trophy } from 'lucide-react'
 
 export function LogrosPage() {
   const { user } = useAuth()

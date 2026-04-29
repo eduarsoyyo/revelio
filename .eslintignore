@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+coverage
+.netlify
+.vercel
+*.config.js
+*.config.ts
+vite.config.ts
+tailwind.config.js
+postcss.config.js
+supabase/functions
+public/sw.js

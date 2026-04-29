@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { AlertTriangle, Shield, Users, TrendingUp, ChevronRight, Zap, Target } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/data/supabase'
 import { analyzeProject, analyzeCapacity, computeProjectKPIs, type Alert, type CapacityAlert, type ProjectKPI } from '@/domain/intelligence'
-import { AlertTriangle, Shield, Users, TrendingUp, ChevronRight, Zap, Target } from 'lucide-react'
 
 const SEV_COLOR = { critical: '#FF3B30', warning: '#FF9500', info: '#007AFF' }
 const SEV_LABEL = { critical: 'Crítica', warning: 'Atención', info: 'Info' }

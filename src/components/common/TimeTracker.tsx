@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
+import { Clock, ChevronLeft, ChevronRight, Calendar, Check, X, AlertTriangle, Edit, Send, Trash2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/data/supabase'
-import { Clock, ChevronLeft, ChevronRight, Calendar, Check, X, AlertTriangle, Edit, Send, Trash2 } from 'lucide-react'
 
 interface TimeEntry { id?: string; member_id?: string; sala: string; date: string; hours: number; status?: string }
 interface Calendario { id: string; name: string; convenio_hours: number; weekly_hours_normal: number; daily_hours_lj: number; daily_hours_v: number; daily_hours_intensive: number; intensive_start: string; intensive_end: string; vacation_days: number; free_days: number; adjustment_days: number; adjustment_hours: number; holidays: Array<{ date: string; name: string }> }

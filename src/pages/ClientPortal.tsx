@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Target, CheckCircle2, Clock, AlertTriangle, Shield } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '@/data/supabase'
-import { Target, CheckCircle2, Clock, AlertTriangle, Shield } from 'lucide-react'
 
 interface Action { id: string; text: string; status: string; date: string; type?: string; owner?: string }
 interface Risk { id: string; title: string; text?: string; type: string; status: string; prob?: string; impact?: string; escalation?: { level?: string } }

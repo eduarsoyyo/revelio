@@ -1,6 +1,6 @@
-import { supabase } from './supabase'
-import type { Retro } from '@/types'
 import { handleSupabaseError } from '@/lib/errors'
+import type { Retro } from '@/types'
+import { supabase } from './supabase'
 
 export async function fetchRetro(sala: string): Promise<Retro | null> {
   const { data, error } = await supabase

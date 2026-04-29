@@ -1,9 +1,9 @@
+import { ChevronLeft, Moon, Sun } from 'lucide-react'
 import { Outlet, Link, useNavigate } from 'react-router-dom'
+import { ClockWidget } from '@/components/common/ClockWidget'
+import { NotificationBell } from '@/components/common/NotificationBell'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
-import { ChevronLeft, Moon, Sun } from 'lucide-react'
-import { NotificationBell } from '@/components/common/NotificationBell'
-import { ClockWidget } from '@/components/common/ClockWidget'
 
 export function FullScreenLayout() {
   const { user } = useAuth()

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
-import { supabase } from '@/data/supabase'
-import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { supabase } from '@/data/supabase'
 import type { Member } from '@/types'
 
 interface OrgEntry { member_id: string; sala: string; dedication: number; start_date: string; end_date: string }

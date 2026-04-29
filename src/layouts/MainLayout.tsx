@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { Home, BarChart3, Users, Clock, AlertTriangle, User, Trophy, Settings, LogOut, ChevronDown, Moon, Sun, Menu, X } from 'lucide-react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
+import { ClockWidget, isClockRunning } from '@/components/common/ClockWidget'
+import { NotificationBell } from '@/components/common/NotificationBell'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/data/supabase'
-import { Home, BarChart3, Users, Clock, AlertTriangle, User, Trophy, Settings, LogOut, ChevronDown, Moon, Sun, Menu, X } from 'lucide-react'
 import { trackSessionEnd, trackPageView } from '@/lib/usage'
-import { NotificationBell } from '@/components/common/NotificationBell'
-import { ClockWidget, isClockRunning } from '@/components/common/ClockWidget'
 
 const NAV_ITEMS = [
   { path: '/', icon: Home, label: 'Inicio' },

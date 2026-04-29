@@ -50,7 +50,7 @@ export function TimelineView({ workItems, allActions, team, risks: _risks = [], 
 
   // ── Apply risk filters ──
   const filteredWork = useMemo(() => {
-    let items = workItems.filter(a => a.date || a.startDate)
+    const items = workItems.filter(a => a.date || a.startDate)
     if (filters.size === 0) return items
     return items.filter(a => {
       if (filters.has('overdue') && a.date && a.date < today && a.status !== 'done' && a.status !== 'archived') return true

@@ -1,6 +1,6 @@
-import { supabase } from './supabase'
-import type { Member } from '@/types'
 import { handleSupabaseError } from '@/lib/errors'
+import type { Member } from '@/types'
+import { supabase } from './supabase'
 
 export async function fetchTeamMembers(sala?: string): Promise<Member[]> {
   let query = supabase.from('team_members').select('*').order('name')

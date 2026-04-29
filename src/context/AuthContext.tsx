@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { supabase } from '@/data/supabase'
-import type { AuthUser } from '@/types'
 import { logger } from '@/lib/logger'
+import type { AuthUser } from '@/types'
 
 interface AuthState {
   user: AuthUser | null

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
+import { ChevronLeft, Calendar, Clock, ListChecks, Users, AlertTriangle } from 'lucide-react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '@/data/supabase'
-import { ChevronLeft, Calendar, Clock, ListChecks, Users, AlertTriangle } from 'lucide-react'
 
 interface MemberFull { id: string; name: string; avatar: string; color: string; role_label: string; company: string; email: string; hire_date: string; contract_type: string; calendario_id: string; cost_rates: Array<{ from: string; rate: number }>; rooms: string[]; is_superuser: boolean }
 interface OrgEntry { sala: string; dedication: number; start_date: string; end_date: string }

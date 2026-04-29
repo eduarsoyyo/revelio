@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
-import { supabase } from '@/data/supabase'
-import type { Member } from '@/types'
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { exportPnLPDF, exportPnLExcel } from '@/lib/exports'
+import { supabase } from '@/data/supabase'
+import { dailyTheoreticalHours, type Calendar } from '@/domain/calendar'
 import { monthlyRevenueFromServices, memberCostHour, fmtEur, fmt, pct } from '@/domain/finance'
 import type { ServiceContract } from '@/domain/finance'
-import { dailyTheoreticalHours, type Calendar } from '@/domain/calendar'
+import { exportPnLPDF, exportPnLExcel } from '@/lib/exports'
+import type { Member } from '@/types'
 
 interface OrgEntry {
   member_id: string

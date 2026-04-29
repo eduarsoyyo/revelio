@@ -1,11 +1,11 @@
 import { useMemo, useState, useEffect } from 'react'
-import type { Member } from '@/types'
 import {
   CheckCircle2, Clock, AlertTriangle, TrendingUp, Shield, Target,
   Zap, Users, ChevronRight, BarChart3, Activity, Download,
 } from 'lucide-react'
 import { Sparkline } from '@/components/common/Sparkline'
 import { loadMetricHistory, snapshotMetrics, type MetricSnapshot } from '@/lib/metrics'
+import type { Member } from '@/types'
 
 interface Action {
   id: string; text: string; status: string; owner: string; date: string

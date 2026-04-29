@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Search, ArrowRight, Users, FolderOpen, ListChecks, Settings } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/data/supabase'
 
 interface SearchResult {

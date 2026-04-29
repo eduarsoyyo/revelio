@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
+import { GitBranch, ChevronDown, ChevronRight } from 'lucide-react'
 import { supabase } from '@/data/supabase'
 import type { Room, Member } from '@/types'
-import { GitBranch, ChevronDown, ChevronRight } from 'lucide-react'
 
 interface OrgEntry { id: string; sala: string; member_id: string; manager_id: string | null; dedication: number }
 

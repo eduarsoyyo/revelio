@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
-import type { Member } from '@/types'
 import { Umbrella, ChevronLeft, ChevronRight } from 'lucide-react'
+import type { Member } from '@/types'
 
 const MO = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const DY = ['L','M','X','J','V','S','D']

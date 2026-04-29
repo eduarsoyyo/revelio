@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useTheme } from '@/context/ThemeContext'
 import { Settings, Clock, Eye, AlertTriangle, Bell, Palette } from 'lucide-react'
+import { useTheme } from '@/context/ThemeContext'
 
 const SETTINGS_KEY = 'revelio-settings'
 function loadSettings(): Record<string, unknown> { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') } catch { return {} } }

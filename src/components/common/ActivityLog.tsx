@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/data/supabase'
 import { History, Plus, Edit, Trash2, Check, AlertTriangle, ArrowRight } from 'lucide-react'
+import { supabase } from '@/data/supabase'
 
 interface LogEntry {
   id: string; user_id: string; user_name: string; user_avatar: string

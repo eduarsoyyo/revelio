@@ -1,6 +1,6 @@
-import { supabase } from './supabase'
-import type { Tag } from '@/types'
 import { handleSupabaseError } from '@/lib/errors'
+import type { Tag } from '@/types'
+import { supabase } from './supabase'
 
 export async function fetchTags(sala: string): Promise<Tag[]> {
   const { data, error } = await supabase

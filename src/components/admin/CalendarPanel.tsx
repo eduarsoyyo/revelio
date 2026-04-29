@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/data/supabase'
 import { Calendar, Plus, Edit, Trash2, Copy, ChevronLeft, ChevronRight, X, Sun, Clock } from 'lucide-react'
+import { supabase } from '@/data/supabase'
 import { soundCreate, soundDelete } from '@/lib/sounds'
 
 interface Holiday { date: string; name: string }

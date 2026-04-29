@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/data/supabase'
 import { History, ChevronDown, ChevronRight, MessageSquare, ListChecks, AlertTriangle, Users, CheckCircle2, Clock } from 'lucide-react'
+import { supabase } from '@/data/supabase'
 
 interface RetroRecord {
   id: string

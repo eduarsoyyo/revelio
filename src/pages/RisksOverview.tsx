@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { AlertTriangle, Shield, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/data/supabase'
-import { AlertTriangle, Shield, ChevronRight } from 'lucide-react'
 
 interface Risk { id: string; title?: string; text?: string; status: string; prob?: string; impact?: string; owner?: string; type?: string; escalation?: { level?: string }; _sala?: string }
 

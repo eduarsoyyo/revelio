@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { supabase } from '@/data/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { supabase } from '@/data/supabase'
 import { logger } from '@/lib/logger'
 
 /**

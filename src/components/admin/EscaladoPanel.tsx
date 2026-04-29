@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
+import { CheckCircle2, Shield, TrendingUp } from 'lucide-react'
 import { supabase } from '@/data/supabase'
 import type { Room } from '@/types'
-import { CheckCircle2, Shield, TrendingUp } from 'lucide-react'
 
 const LEVELS = [
   { id: 'direccion', label: 'Dirección', color: '#FF3B30' },

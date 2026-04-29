@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from 'react'
+import { CheckCircle2, Clock, AlertTriangle, Calendar, ChevronRight, ListChecks, Target, Check, X, UserCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/data/supabase'
 
-import { CheckCircle2, Clock, AlertTriangle, Calendar, ChevronRight, ListChecks, Target, Check, X, UserCheck } from 'lucide-react'
 
 interface Action { id: string; text: string; status: string; date?: string; owner?: string; type?: string; [k: string]: unknown }
 interface PendingAbsence { id: string; member_id: string; type: string; date_from: string; date_to: string; days: number; notes: string }

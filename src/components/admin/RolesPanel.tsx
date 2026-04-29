@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Plus, ChevronDown, ChevronRight, X, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/data/supabase'
 import type { Member } from '@/types'
-import { Plus, ChevronDown, ChevronRight, X, Pencil, Trash2 } from 'lucide-react'
 
 const ROLE_COLORS: Record<string, string> = { 'Service Manager': '#FF3B30', 'Jefe de proyecto': '#FF9500', 'Scrum Master': '#007AFF', 'Product Owner': '#5856D6', 'Consultor': '#34C759', 'Analista Funcional': '#AF52DE', 'Desarrollador/a': '#00C7BE', 'QA / Tester': '#FF2D55', 'DevOps': '#5AC8FA', 'Tech Lead': '#FF6482' }
 

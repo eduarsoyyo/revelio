@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
+import { Plus, Edit, Trash2, ExternalLink, Users, DollarSign, Calendar, X, Upload, Download, AlertTriangle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/data/supabase'
-import type { Room, Member } from '@/types'
-import { Plus, Edit, Trash2, ExternalLink, Users, DollarSign, Calendar, X, Upload, Download, AlertTriangle } from 'lucide-react'
-import { soundCreate, soundDelete } from '@/lib/sounds'
 import {
   saleFromServiceContract, totalSaleFromServices, totalEstCostFromServices,
   avgMarginFromServices, memberCostHour, memberProjectCost, fmt,
   type ServiceContract, type CalendarData, type AbsenceData, type LegacyCostRate,
 } from '@/domain/finance'
+import { soundCreate, soundDelete } from '@/lib/sounds'
+import type { Room, Member } from '@/types'
 const TIPOS = [
   { id: 'agile', label: 'Agile / Scrum' }, { id: 'kanban', label: 'Kanban' },
   { id: 'itil', label: 'ITIL / Servicio' }, { id: 'waterfall', label: 'Waterfall' },

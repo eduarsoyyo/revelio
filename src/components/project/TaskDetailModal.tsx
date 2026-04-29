@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import type { Member } from '@/types'
-import { soundCreate, soundDelete } from '@/lib/sounds'
-import { RichEditor, RichTextDisplay } from '@/components/common/RichText'
 import {
   X, Save, Trash2, CheckSquare, Square, Plus, Clock, User, Flag,
   Tag, FileText, ListChecks, Zap, Hash, Calendar, AlertTriangle, Link2,
   MessageCircle, Pin, Send,
 } from 'lucide-react'
+import { RichEditor, RichTextDisplay } from '@/components/common/RichText'
+import { soundCreate, soundDelete } from '@/lib/sounds'
+import type { Member } from '@/types'
 
 interface Action {
   id: string; text: string; status: string; owner: string; date: string

@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+coverage
+.netlify
+.vercel
+*.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+*.min.js
+*.min.css
+public/sw.js
+.next
+.cache
+supabase/.branches
+supabase/.temp

@@ -1,11 +1,10 @@
-import React from "react"
-import { useState, useMemo } from 'react'
-import { RichEditor } from '@/components/common/RichText'
-import { soundCreate, soundDelete, soundDrop } from '@/lib/sounds'
+import React, { useState, useMemo } from "react"
 import {
   Shield, AlertTriangle, Lightbulb, Plus, X, ChevronRight, Download,
   ArrowUpRight, CheckCircle2,
 } from 'lucide-react'
+import { RichEditor } from '@/components/common/RichText'
+import { soundCreate, soundDelete, soundDrop } from '@/lib/sounds'
 
 // ── Types ──
 interface Risk {

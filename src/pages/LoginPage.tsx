@@ -1,8 +1,8 @@
-import { soundSuccess } from '@/lib/sounds'
-import { trackLogin } from '@/lib/usage'
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { soundSuccess } from '@/lib/sounds'
+import { trackLogin } from '@/lib/usage'
 
 export function LoginPage() {
   const { login, user } = useAuth()

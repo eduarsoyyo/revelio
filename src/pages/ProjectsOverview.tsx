@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
+import { ChevronRight, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { IntelligencePanel } from '@/components/common/IntelligencePanel'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/data/supabase'
 import type { Room, Member } from '@/types'
-import { ChevronRight, Users } from 'lucide-react'
-import { IntelligencePanel } from '@/components/common/IntelligencePanel'
 
 interface RetroData { actions?: Array<Record<string, unknown>>; risks?: Array<Record<string, unknown>> }
 
