@@ -6,7 +6,7 @@ import { supabase } from './supabase'
 import { handleSupabaseError } from '@/lib/errors'
 import type { OrgChartEntry } from '@/types'
 
-const COLS = 'id, sala, member_id, manager_id, role, level, dedication, start_date, end_date'
+const COLS = 'id, sala, member_id, manager_id, dedication, start_date, end_date'
 
 /**
  * Load all org_chart rows for a single sala.

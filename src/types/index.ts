@@ -138,9 +138,9 @@ export interface OrgChartEntry {
   manager_id: string | null
   role: string
   level: number
-dedication?: number
-     start_date?: string
-     end_date?: string
+  dedication?: number
+  start_date?: string
+  end_date?: string
 }
 export interface SkillProfile {
   id: string
